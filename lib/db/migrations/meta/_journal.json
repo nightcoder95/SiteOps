@@ -1,0 +1,55 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1777112415626,
+      "tag": "0000_polite_onslaught",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777217597185,
+      "tag": "0001_complete_the_hood",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778325200000,
+      "tag": "0002_production_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1778397579382,
+      "tag": "0003_unknown_martin_li",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1778400847262,
+      "tag": "0004_add_perf_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778439700000,
+      "tag": "0005_remove_better_auth_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778659180640,
+      "tag": "0006_unique_fabian_cortez",
+      "breakpoints": true
+    }
+  ]
+}

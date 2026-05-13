@@ -1,0 +1,345 @@
+import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
+
+import { db } from "@/lib/db/client";
+import {
+  expenseEntries,
+  incidentReports,
+  labourEntries,
+  machineryEntries,
+  materialEntries,
+} from "@/lib/db/schema";
+
+export async function insertLabourEntry(data: {
+  siteId: string;
+  date: string;
+  workType: string;
+  workTypeMode?: "default_enum" | "custom";
+  workTypeEnum?:
+    | "Steel work"
+    | "Shuttering"
+    | "Brick work"
+    | "Concrete work"
+    | "Plastering"
+    | "Electric work"
+    | "Plumbing"
+    | "Tile work"
+    | "Wood work"
+    | "Paint work"
+    | null;
+  workTypeCustomId?: string | null;
+  peopleCount: number;
+  remarks: string | null;
+  createdBy: string;
+}) {
+  const result = await db.insert(labourEntries).values(data).returning();
+  return result[0];
+}
+
+export async function insertMaterialEntry(data: {
+  siteId: string;
+  date: string;
+  materialType: string;
+  materialTypeMode?: "default_enum" | "custom";
+  materialTypeEnum?: "Cement" | "M sand" | "P sand" | "Metal" | null;
+  materialTypeCustomId?: string | null;
+  quantity: string;
+  unitMode?: "master" | "custom";
+  unitMasterId?: string | null;
+  unitCustomId?: string | null;
+  unit: string | null;
+  remarks: string | null;
+  createdBy: string;
+}) {
+  const result = await db.insert(materialEntries).values(data).returning();
+  return result[0];
+}
+
+export async function insertMachineryEntry(data: {
+  siteId: string;
+  date: string;
+  equipmentType: string;
+  equipmentTypeMode?: "default_enum" | "custom";
+  equipmentTypeCustomId?: string | null;
+  count: number;
+  hoursActive: string | null;
+  remarks: string | null;
+  createdBy: string;
+}) {
+  const result = await db.insert(machineryEntries).values(data).returning();
+  return result[0];
+}
+
+export async function insertExpenseEntry(data: {
+  siteId: string;
+  date: string;
+  description: string;
+  amount: string;
+  category: "Labour" | "Materials" | "Equipment" | "Misc";
+  createdBy: string;
+}) {
+  const result = await db.insert(expenseEntries).values(data).returning();
+  return result[0];
+}
+
+export async function insertIncidentReport(data: {
+  siteId: string;
+  incidentType: "Safety" | "Block";
+  severity: "Low" | "Medium" | "High" | "Critical";
+  description: string;
+  durationEstimate: number | null;
+  reportedBy: string;
+}) {
+  const result = await db.insert(incidentReports).values(data).returning();
+  return result[0];
+}
+
+export type EntryType =
+  | "labour"
+  | "material"
+  | "machinery"
+  | "expense"
+  | "incident";
+
+export async function getEntryById(entryId: string, type: EntryType) {
+  switch (type) {
+    case "labour": {
+      const r = await db
+        .select()
+        .from(labourEntries)
+        .where(eq(labourEntries.labourEntryId, entryId));
+      return r[0] ?? null;
+    }
+    case "material": {
+      const r = await db
+        .select()
+        .from(materialEntries)
+        .where(eq(materialEntries.materialEntryId, entryId));
+      return r[0] ?? null;
+    }
+    case "machinery": {
+      const r = await db
+        .select()
+        .from(machineryEntries)
+        .where(eq(machineryEntries.machineryEntryId, entryId));
+      return r[0] ?? null;
+    }
+    case "expense": {
+      const r = await db
+        .select()
+        .from(expenseEntries)
+        .where(eq(expenseEntries.expenseEntryId, entryId));
+      return r[0] ?? null;
+    }
+    case "incident": {
+      const r = await db
+        .select()
+        .from(incidentReports)
+        .where(eq(incidentReports.incidentReportId, entryId));
+      return r[0] ?? null;
+    }
+    default:
+      return null;
+  }
+}
+
+export async function updateEntryById(
+  entryId: string,
+  type: EntryType,
+  data: Record<string, unknown>
+) {
+  // Strip fields that must never be changed after creation to prevent
+  // accidental or malicious overwrites of immutable/protected columns.
+  const {
+    siteId: _siteId,
+    createdBy: _createdBy,
+    reportedBy: _reportedBy,
+    labourEntryId: _labourId,
+    materialEntryId: _materialId,
+    machineryEntryId: _machineryId,
+    expenseEntryId: _expenseId,
+    incidentReportId: _incidentId,
+    id: _id,
+    ...safeData
+  } = data;
+
+  switch (type) {
+    case "labour": {
+      const r = await db
+        .update(labourEntries)
+        .set({ ...safeData, updatedAt: new Date() })
+        .where(eq(labourEntries.labourEntryId, entryId))
+        .returning();
+      return r[0] ?? null;
+    }
+    case "material": {
+      const r = await db
+        .update(materialEntries)
+        .set({ ...safeData, updatedAt: new Date() })
+        .where(eq(materialEntries.materialEntryId, entryId))
+        .returning();
+      return r[0] ?? null;
+    }
+    case "machinery": {
+      const r = await db
+        .update(machineryEntries)
+        .set({ ...safeData, updatedAt: new Date() })
+        .where(eq(machineryEntries.machineryEntryId, entryId))
+        .returning();
+      return r[0] ?? null;
+    }
+    case "expense": {
+      const r = await db
+        .update(expenseEntries)
+        .set({ ...safeData, updatedAt: new Date() })
+        .where(eq(expenseEntries.expenseEntryId, entryId))
+        .returning();
+      return r[0] ?? null;
+    }
+    case "incident": {
+      const r = await db
+        .update(incidentReports)
+        .set({ ...safeData, updatedAt: new Date() })
+        .where(eq(incidentReports.incidentReportId, entryId))
+        .returning();
+      return r[0] ?? null;
+    }
+    default:
+      return null;
+  }
+}
+
+export async function deleteEntryById(entryId: string, type: EntryType) {
+  switch (type) {
+    case "labour": {
+      const r = await db
+        .delete(labourEntries)
+        .where(eq(labourEntries.labourEntryId, entryId))
+        .returning();
+      return r[0] ?? null;
+    }
+    case "material": {
+      const r = await db
+        .delete(materialEntries)
+        .where(eq(materialEntries.materialEntryId, entryId))
+        .returning();
+      return r[0] ?? null;
+    }
+    case "machinery": {
+      const r = await db
+        .delete(machineryEntries)
+        .where(eq(machineryEntries.machineryEntryId, entryId))
+        .returning();
+      return r[0] ?? null;
+    }
+    case "expense": {
+      const r = await db
+        .delete(expenseEntries)
+        .where(eq(expenseEntries.expenseEntryId, entryId))
+        .returning();
+      return r[0] ?? null;
+    }
+    case "incident": {
+      const r = await db
+        .delete(incidentReports)
+        .where(eq(incidentReports.incidentReportId, entryId))
+        .returning();
+      return r[0] ?? null;
+    }
+    default:
+      return null;
+  }
+}
+
+export async function getEntriesBySite(
+  siteId: string,
+  type: EntryType | "all",
+  filters?: { from?: string; to?: string }
+) {
+  const from = filters?.from;
+  const to = filters?.to;
+
+  const dateWhere = (tableDateCol: any) => {
+    if (from && to) return and(gte(tableDateCol, from), lte(tableDateCol, to));
+    if (from) return gte(tableDateCol, from);
+    if (to) return lte(tableDateCol, to);
+    return undefined;
+  };
+
+  const fetchLabour = async () =>
+    db
+      .select()
+      .from(labourEntries)
+      .where(and(eq(labourEntries.siteId, siteId), dateWhere(labourEntries.date)))
+      .orderBy(desc(labourEntries.date), desc(labourEntries.createdAt));
+
+  const fetchMaterial = async () =>
+    db
+      .select()
+      .from(materialEntries)
+      .where(
+        and(eq(materialEntries.siteId, siteId), dateWhere(materialEntries.date))
+      )
+      .orderBy(desc(materialEntries.date), desc(materialEntries.createdAt));
+
+  const fetchMachinery = async () =>
+    db
+      .select()
+      .from(machineryEntries)
+      .where(
+        and(
+          eq(machineryEntries.siteId, siteId),
+          dateWhere(machineryEntries.date)
+        )
+      )
+      .orderBy(desc(machineryEntries.date), desc(machineryEntries.createdAt));
+
+  const fetchExpense = async () =>
+    db
+      .select()
+      .from(expenseEntries)
+      .where(
+        and(eq(expenseEntries.siteId, siteId), dateWhere(expenseEntries.date))
+      )
+      .orderBy(desc(expenseEntries.date), desc(expenseEntries.createdAt));
+
+  const fetchIncident = async () =>
+    db
+      .select()
+      .from(incidentReports)
+      .where(
+        and(eq(incidentReports.siteId, siteId), dateWhere(incidentReports.createdAt))
+      )
+      .orderBy(desc(incidentReports.createdAt));
+
+  switch (type) {
+    case "labour":
+      return fetchLabour();
+    case "material":
+      return fetchMaterial();
+    case "machinery":
+      return fetchMachinery();
+    case "expense":
+      return fetchExpense();
+    case "incident":
+      return fetchIncident();
+    case "all": {
+      const [labour, material, machinery, expense, incident] = await Promise.all([
+        fetchLabour(),
+        fetchMaterial(),
+        fetchMachinery(),
+        fetchExpense(),
+        fetchIncident(),
+      ]);
+
+      return {
+        labour,
+        material,
+        machinery,
+        expense,
+        incident,
+      };
+    }
+    default:
+      return [];
+  }
+}

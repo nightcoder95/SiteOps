@@ -1,8 +1,17 @@
 node_modules/
 build/
 dist/
+.next/
 coverage/
 .DS_Store
 *.log
+*.tsbuildinfo
 .env*
 !.env.example
+
+# Sentry
+.env.sentry-build-plugin
+
+# AI Skills & Design Systems
+.agent/
+design-system/

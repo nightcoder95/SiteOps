@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "next-env.d.ts",
+    "app/**/*",
+    "components/**/*",
+    "lib/**/*",
+    "middleware.ts",
+    "drizzle.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next/**/*"
+  ]
+}

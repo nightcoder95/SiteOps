@@ -1,21 +1,32 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# SiteOps
 
-# Run and deploy your AI Studio app
+Mobile-first PWA for site operations, built on Next.js App Router with Better Auth, Drizzle, and Neon.
 
-This contains everything you need to run your app locally.
+## Runtime
 
-View your app in AI Studio: https://ai.studio/apps/2c08a650-fa27-42b6-abcf-9c1f43deaf6a
+- Production target: `app/` + `app/api/` (Next.js)
+- Legacy Vite prototype stack has been removed; this repository now runs only on Next.js.
 
-## Run Locally
-
-**Prerequisites:**  Node.js
-
+## Local Setup
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. Copy `.env.example` to `.env.local` and set required values.
+3. Start app:
    `npm run dev`
-4. Run `cloudflared tunnel --url http://localhost:3001` to activate the REVERSE PROXY
+
+## Commands
+
+- `npm run dev` -> run Next dev server on `127.0.0.1:3000`
+- `npm run build` -> production build
+- `npm run start` -> run production server
+- `npm run lint` -> TypeScript typecheck
+- `npm run test` -> unit tests (Vitest)
+- `npm run test:e2e` -> Playwright smoke/e2e
+- `npm run db:audit` -> pre-migration data integrity audit
+- `npm run db:migrate` -> apply Drizzle migrations
+
+## Notes
+
+- PWA assets are in `public/manifest.json` and `public/icons/`.
+- Service worker source is `app/sw.ts` (Serwist).
