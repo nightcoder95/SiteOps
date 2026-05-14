@@ -69,14 +69,16 @@ function extractApiCode(payload: unknown) {
 export async function requestJson<T>(
   endpoint: string,
   init: RequestInit = {},
-  fetchImpl: FetchLike = fetch
+  fetchImpl: FetchLike = fetch,
+  cacheMode?: RequestCache
 ): Promise<ClientResult<T>> {
   const method = getMethod(init);
+  const resolvedCacheMode = cacheMode ?? init.cache ?? (method === "GET" ? "no-store" : "default");
 
   let response: Response;
   try {
     response = await fetchImpl(endpoint, {
-      cache: 'no-store',
+      cache: resolvedCacheMode,
       ...init,
     });
   } catch (cause: any) {

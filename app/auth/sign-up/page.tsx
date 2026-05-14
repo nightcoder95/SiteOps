@@ -4,6 +4,9 @@ import { createBrowserClient } from '@supabase/ssr';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { toast } from 'sonner';
+
+import { toastSuccess } from '@/lib/ui/toast';
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -11,12 +14,18 @@ export default function SignUpPage() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
   );
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  async function ensureProfileExists() {
+    try {
+      await fetch('/api/auth/create-profile', { method: 'POST' });
+    } catch {
+      // Non-blocking: profile endpoint can race immediately after auth cookie updates.
+    }
+  }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setError(null);
     setLoading(true);
 
     const fd = new FormData(e.currentTarget);
@@ -31,18 +40,16 @@ export default function SignUpPage() {
         options: { data: { name } },
       });
       if (signUpError) {
-        setError(signUpError.message);
+        toast.error(signUpError.message);
         return;
       }
 
-      const profileResponse = await fetch('/api/auth/create-profile', { method: 'POST' });
-      if (!profileResponse.ok) {
-        setError('Account created, but profile setup failed. Please sign in and try again.');
-        return;
-      }
+      await ensureProfileExists();
+      toastSuccess('Account created');
       router.replace('/app/dashboard');
+      router.refresh();
     } catch {
-      setError('Sign-up failed');
+      toast.error('Sign-up failed');
     } finally {
       setLoading(false);
     }
@@ -52,8 +59,6 @@ export default function SignUpPage() {
     <div className="grid gap-4">
       <p className="m-0 text-[11px] font-black uppercase tracking-[0.24em] text-on-surface-variant">SiteOps</p>
       <h1 className="m-0 text-3xl font-black tracking-tight text-on-surface">Sign up</h1>
-      {error ? <p className="m-0 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-800">{error}</p> : null}
-
       <form onSubmit={onSubmit} className="grid gap-3">
         <label className="grid gap-1.5 text-sm font-semibold text-on-surface">
           <span>Name</span>

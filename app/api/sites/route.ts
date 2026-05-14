@@ -1,19 +1,14 @@
-import { NextRequest } from "next/server";
+import { and, eq, isNull } from "drizzle-orm";
+import { z } from "zod";
 
 import { requireSiteAccess } from "@/lib/auth/guards";
 import { db } from "@/lib/db/client";
 import { sites } from "@/lib/db/schema";
-import { and, eq, isNull } from "drizzle-orm";
-import { ERROR_CODES } from "@/lib/errors/codes";
-import {
-  errorResponse,
-  successResponse,
-} from "@/lib/errors/response";
+import { measureDbQuery } from "@/lib/db/timing";
 import { handleDbError } from "@/lib/errors/db";
+import { errorResponse, successResponse } from "@/lib/errors/response";
 import { parseJsonBody, validateBody } from "@/lib/http/request";
-import { logError } from "@/lib/logging/log";
-import { generateRequestId } from "@/lib/utils/requestId";
-import { z } from "zod";
+import { withApi } from "@/lib/http/withApi";
 
 const createSiteSchema = z.object({
   name: z.string().min(1).max(255),
@@ -25,77 +20,67 @@ const createSiteSchema = z.object({
   supervisorId: z.string().uuid().optional(),
 });
 
-export async function GET(request: NextRequest) {
-  const requestId = generateRequestId();
-
-  try {
-    const auth = await requireSiteAccess(request);
-    if (!("session" in auth)) {
-      return errorResponse(
-        auth.error,
-        "Authentication required",
-        auth.status,
-        undefined,
-        requestId
-      );
-    }
-
-    const session = auth.session;
-    const role = session.user.role;
-
-    if (role === "Admin") {
-      const result = await db.select().from(sites).where(isNull(sites.archivedAt));
-      return successResponse(result, 200, requestId);
-    }
-
-    const result = await db
-      .select()
-      .from(sites)
-      .where(
-        and(eq(sites.supervisorId, session.user.id), isNull(sites.archivedAt))
-      );
-
-    return successResponse(result, 200, requestId);
-  } catch (error) {
-    logError(requestId, error);
+export const GET = withApi(async ({ request, requestId }) => {
+  const auth = await requireSiteAccess(request);
+  if (!("session" in auth)) {
     return errorResponse(
-      ERROR_CODES.INTERNAL_ERROR,
-      "An unexpected error occurred",
-      500,
+      auth.error,
+      "Authentication required",
+      auth.status,
       undefined,
       requestId
     );
   }
-}
 
-export async function POST(request: NextRequest) {
-  const requestId = generateRequestId();
+  const session = auth.session;
+  const role = session.user.role;
+
+  if (role === "Admin") {
+    const result = await measureDbQuery(requestId, "sites.list.admin", () =>
+      db.select().from(sites).where(isNull(sites.archivedAt))
+    );
+    return successResponse(result, 200, requestId);
+  }
+
+  const result = await measureDbQuery(requestId, "sites.list.supervisor", () =>
+    db
+      .select()
+      .from(sites)
+      .where(
+        and(eq(sites.supervisorId, session.user.id), isNull(sites.archivedAt))
+      )
+  );
+
+  return successResponse(result, 200, requestId);
+});
+
+export const POST = withApi(async ({ request, requestId }) => {
+  const auth = await requireSiteAccess(request);
+  if (!("session" in auth)) {
+    return errorResponse(
+      auth.error,
+      "Authentication required",
+      auth.status,
+      undefined,
+      requestId
+    );
+  }
+
+  const parsed = await parseJsonBody(request, requestId);
+  if (!parsed.ok) return parsed.response;
+  const validation = validateBody(createSiteSchema, parsed.data, requestId);
+  if (!validation.ok) return validation.response;
+
+  const session = auth.session;
 
   try {
-    const auth = await requireSiteAccess(request);
-    if (!("session" in auth)) {
-      return errorResponse(
-        auth.error,
-        "Authentication required",
-        auth.status,
-        undefined,
-        requestId
-      );
-    }
+    const supervisorId =
+      session.user.role === "Admin"
+        ? validation.data.supervisorId ?? session.user.id
+        : session.user.id;
 
-    const parsed = await parseJsonBody(request, requestId);
-    if (!parsed.ok) return parsed.response;
-    const validation = validateBody(createSiteSchema, parsed.data, requestId);
-    if (!validation.ok) return validation.response;
-
-    const session = auth.session;
-    try {
-      const supervisorId =
-        session.user.role === "Admin"
-          ? validation.data.supervisorId ?? session.user.id
-          : session.user.id;
-
-      const inserted = await db
+    const inserted = await measureDbQuery(requestId, "sites.create", () =>
+      db
         .insert(sites)
         .values({
           name: validation.data.name,
@@ -111,22 +96,13 @@ export async function POST(request: NextRequest) {
           createdByUserId: session.user.id,
           updatedByUserId: session.user.id,
         })
-        .returning();
-
-      return successResponse(inserted[0], 201, requestId);
-    } catch (dbError) {
-      const handled = handleDbError(dbError, requestId);
-      if (handled) return handled;
-      throw dbError;
-    }
-  } catch (error) {
-    logError(requestId, error);
-    return errorResponse(
-      ERROR_CODES.INTERNAL_ERROR,
-      "An unexpected error occurred",
-      500,
-      undefined,
-      requestId
+        .returning()
     );
+
+    return successResponse(inserted[0], 201, requestId);
+  } catch (dbError) {
+    const handled = handleDbError(dbError, requestId);
+    if (handled) return handled;
+    throw dbError;
   }
-}
+});

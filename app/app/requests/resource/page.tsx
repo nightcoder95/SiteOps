@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
 import { PageHero, PageStack } from '@/components/ui/page-primitives';
 import { requestJson, type ClientResult } from '@/lib/http/client';
+import { toastClientError, toastSuccess } from '@/lib/ui/toast';
 
 type ResourceRequest = {
   id: string;
@@ -19,7 +20,6 @@ type ResourceRequest = {
 export default function ResourceRequestsPage() {
   const [result, setResult] = useState<ClientResult<ResourceRequest[]> | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
 
   async function load() {
     const next = await requestJson<ResourceRequest[]>('/api/requests/resource');
@@ -46,7 +46,6 @@ export default function ResourceRequestsPage() {
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    setStatus(null);
 
     const next = await requestJson<ResourceRequest>('/api/requests/resource', {
       method: 'POST',
@@ -60,12 +59,13 @@ export default function ResourceRequestsPage() {
     });
 
     if (next.ok) {
-      setStatus('Submitted');
+      toastSuccess('Request submitted');
       e.currentTarget.reset();
       await load();
       return;
     }
 
+    toastClientError(next);
     setResult(next);
   }
 
@@ -78,8 +78,10 @@ export default function ResourceRequestsPage() {
     });
 
     if (next.ok) {
+      toastSuccess(`Request ${nextStatus.toLowerCase()}`);
       await load();
     } else {
+      toastClientError(next);
       setResult(next);
     }
     setPendingId(null);
@@ -103,12 +105,6 @@ export default function ResourceRequestsPage() {
           {result.message}
         </div>
       ) : null}
-      {status ? (
-        <div className="rounded-3xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">
-          {status}
-        </div>
-      ) : null}
-
       <form onSubmit={submit} className="rounded-[1.75rem] border border-outline-variant bg-surface p-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
         <h3 className="text-lg font-black text-on-surface">New request</h3>
         <div className="mt-4 grid gap-3">

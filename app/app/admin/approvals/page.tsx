@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useOptimistic, useState } from 'react';
 
 import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
 import { requestJson, type ClientResult } from '@/lib/http/client';
+import { toastClientError, toastSuccess } from '@/lib/ui/toast';
 
 type ResourceRequest = {
   id: number;
@@ -45,6 +46,27 @@ export default function AdminApprovalsPage() {
   const [fieldResult, setFieldResult] = useState<ClientResult<FieldRequest[]> | null>(null);
   const [transferResult, setTransferResult] = useState<ClientResult<Transfer[]> | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [optimisticResource, applyResourceOptimistic] = useOptimistic(
+    resourceResult?.ok ? resourceResult.data : ([] as ResourceRequest[]),
+    (current, action: { requestId: string; status: 'Approved' | 'Declined' }) =>
+      current.map((item) =>
+        item.requestId === action.requestId ? { ...item, status: action.status } : item,
+      ),
+  );
+  const [optimisticField, applyFieldOptimistic] = useOptimistic(
+    fieldResult?.ok ? fieldResult.data : ([] as FieldRequest[]),
+    (current, action: { fieldRequestId: string; status: 'Approved' | 'Declined' }) =>
+      current.map((item) =>
+        item.fieldRequestId === action.fieldRequestId ? { ...item, status: action.status } : item,
+      ),
+  );
+  const [optimisticTransfer, applyTransferOptimistic] = useOptimistic(
+    transferResult?.ok ? transferResult.data : ([] as Transfer[]),
+    (current, action: { transferId: string; status: 'Approved' | 'Declined' }) =>
+      current.map((item) =>
+        item.transferId === action.transferId ? { ...item, status: action.status } : item,
+      ),
+  );
 
   async function load() {
     const [resource, field, transfers] = await Promise.all([
@@ -68,38 +90,56 @@ export default function AdminApprovalsPage() {
   }, []);
 
   async function reviewResource(requestId: string, status: 'Approved' | 'Declined') {
+    applyResourceOptimistic({ requestId, status });
     setPendingId(requestId);
     const next = await requestJson(`/api/requests/resource/${requestId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
     });
-    if (next.ok) await load();
-    else setResourceResult(next as ClientResult<ResourceRequest[]>);
+    if (next.ok) {
+      toastSuccess(`Resource request ${status.toLowerCase()}`);
+      await load();
+    } else {
+      toastClientError(next);
+      setResourceResult(next as ClientResult<ResourceRequest[]>);
+    }
     setPendingId(null);
   }
 
   async function reviewField(fieldRequestId: string, status: 'Approved' | 'Declined') {
+    applyFieldOptimistic({ fieldRequestId, status });
     setPendingId(fieldRequestId);
     const next = await requestJson(`/api/requests/field/${fieldRequestId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
     });
-    if (next.ok) await load();
-    else setFieldResult(next as ClientResult<FieldRequest[]>);
+    if (next.ok) {
+      toastSuccess(`Field request ${status.toLowerCase()}`);
+      await load();
+    } else {
+      toastClientError(next);
+      setFieldResult(next as ClientResult<FieldRequest[]>);
+    }
     setPendingId(null);
   }
 
   async function reviewTransfer(transferId: string, status: 'Approved' | 'Declined') {
+    applyTransferOptimistic({ transferId, status });
     setPendingId(transferId);
     const next = await requestJson(`/api/transfers/${transferId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
     });
-    if (next.ok) await load();
-    else setTransferResult(next as ClientResult<Transfer[]>);
+    if (next.ok) {
+      toastSuccess(`Transfer ${status.toLowerCase()}`);
+      await load();
+    } else {
+      toastClientError(next);
+      setTransferResult(next as ClientResult<Transfer[]>);
+    }
     setPendingId(null);
   }
 
@@ -127,7 +167,7 @@ export default function AdminApprovalsPage() {
         <div className="rounded-[1.75rem] border border-outline-variant bg-surface p-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
           <h3 className="text-lg font-black text-on-surface">Resource requests</h3>
           <div className="mt-4 grid gap-3">
-            {resourceResult?.ok ? resourceResult.data.map((request) => (
+            {resourceResult?.ok ? optimisticResource.map((request) => (
               <article key={request.requestId} className="rounded-2xl bg-surface-container-low px-4 py-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -151,7 +191,7 @@ export default function AdminApprovalsPage() {
         <div className="rounded-[1.75rem] border border-outline-variant bg-surface p-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
           <h3 className="text-lg font-black text-on-surface">Field requests</h3>
           <div className="mt-4 grid gap-3">
-            {fieldResult?.ok ? fieldResult.data.map((request) => (
+            {fieldResult?.ok ? optimisticField.map((request) => (
               <article key={request.fieldRequestId} className="rounded-2xl bg-surface-container-low px-4 py-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -175,7 +215,7 @@ export default function AdminApprovalsPage() {
         <div className="rounded-[1.75rem] border border-outline-variant bg-surface p-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
           <h3 className="text-lg font-black text-on-surface">Transfer requests</h3>
           <div className="mt-4 grid gap-3">
-            {transferResult?.ok ? transferResult.data.map((transfer) => (
+            {transferResult?.ok ? optimisticTransfer.map((transfer) => (
               <article key={transfer.transferId} className="rounded-2xl bg-surface-container-low px-4 py-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>

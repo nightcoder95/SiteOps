@@ -9,6 +9,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
 import { requestJson, type ClientResult } from '@/lib/http/client';
 import { buildFormsSelectionHref, parseNewStepParams } from '@/lib/navigation/formsFlow';
+import { toastClientError, toastSuccess } from '@/lib/ui/toast';
 
 type Field = {
   id: number;
@@ -38,8 +39,6 @@ export function NewEntryStepClient() {
   const [result, setResult] = useState<ClientResult<CategoryDetail> | null>(null);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(parsed.ok ? parsed.fieldDefinitionId : null);
   const [submitting, setSubmitting] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
-  const [error, setError] = useState<ClientResult<unknown> | null>(null);
   const [value, setValue] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
 
@@ -87,8 +86,6 @@ export function NewEntryStepClient() {
   async function submit() {
     if (!selectedField) return;
     setSubmitting(true);
-    setStatus(null);
-    setError(null);
 
     const payload = {
       siteId,
@@ -106,11 +103,11 @@ export function NewEntryStepClient() {
     setSubmitting(false);
 
     if (!next.ok) {
-      setError(next);
+      toastClientError(next);
       return;
     }
 
-    setStatus('Entry submitted');
+    toastSuccess('Entry submitted');
     setValue('');
   }
 
@@ -131,22 +128,6 @@ export function NewEntryStepClient() {
       {result && !result.ok && result.kind !== 'endpoint_unavailable' ? (
         <div className="rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-900">
           {result.message}
-        </div>
-      ) : null}
-
-      {error && !error.ok ? (
-        error.kind === 'endpoint_unavailable' ? (
-          <ApiUnavailableBanner endpoint={error.endpoint} method={error.method} />
-        ) : (
-          <div className="rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-900">
-            {error.message}
-          </div>
-        )
-      ) : null}
-
-      {status ? (
-        <div className="rounded-3xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">
-          {status}
         </div>
       ) : null}
 

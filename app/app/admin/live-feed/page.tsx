@@ -1,94 +1,83 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { createBrowserClient } from '@supabase/ssr';
+import { useEffect, useMemo, useState } from 'react';
 
-import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
 import type { ActivityItem } from '@/lib/types/domain';
 
 type FeedState =
   | { kind: 'loading' }
   | { kind: 'ready' }
-  | { kind: 'endpoint_unavailable'; endpoint: string; method: string; message: string }
   | { kind: 'error'; message: string };
+
+type RealtimeInsertPayload = {
+  new: Record<string, unknown>;
+};
+
+const FEED_SOURCES = [
+  { table: 'labour_entries', type: 'labour' as const, idField: 'labour_entry_id' },
+  { table: 'material_entries', type: 'material' as const, idField: 'material_entry_id' },
+  { table: 'machinery_entries', type: 'machinery' as const, idField: 'machinery_entry_id' },
+  { table: 'expense_entries', type: 'expense' as const, idField: 'expense_entry_id' },
+  { table: 'incident_reports', type: 'incident' as const, idField: 'incident_report_id' },
+];
+
+function toActivityItem(payload: RealtimeInsertPayload, type: ActivityItem['type'], idField: string): ActivityItem | null {
+  const row = payload.new;
+  const id = typeof row[idField] === 'string' ? row[idField] : null;
+  const siteId = typeof row.site_id === 'string' ? row.site_id : null;
+  const createdAt = typeof row.created_at === 'string' ? row.created_at : null;
+  if (!id || !siteId || !createdAt) return null;
+  return { id, siteId, type, createdAt };
+}
 
 export default function AdminLiveFeedPage() {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [state, setState] = useState<FeedState>({ kind: 'loading' });
-  const lastIdRef = useRef<string>('');
-  const abortRef = useRef<AbortController | null>(null);
+
+  const supabase = useMemo(() => {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    if (!supabaseUrl || !supabaseKey) return null;
+    return createBrowserClient(supabaseUrl, supabaseKey);
+  }, []);
 
   useEffect(() => {
-    let active = true;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-
-    async function poll() {
-      if (!active) return;
-
-      const params = new URLSearchParams();
-      if (lastIdRef.current) params.set('lastActivityId', lastIdRef.current);
-
-      abortRef.current?.abort();
-      abortRef.current = new AbortController();
-
-      try {
-        const res = await fetch(`/api/admin/live-feed?${params.toString()}`, {
-          cache: 'no-store',
-          signal: abortRef.current.signal,
-        });
-
-        if (!active) return;
-
-        if (res.status === 404 || res.status === 405) {
-          setState({
-            kind: 'endpoint_unavailable',
-            endpoint: '/api/admin/live-feed',
-            method: 'GET',
-            message: 'Live feed endpoint is unavailable',
-          });
-          return;
-        }
-
-        if (res.status === 204) {
-          setState({ kind: 'ready' });
-          timer = setTimeout(poll, 3000);
-          return;
-        }
-
-        const json = (await res.json()) as { success: boolean; data?: ActivityItem[]; error?: { message?: string } };
-        if (!active) return;
-
-        if (!json.success) {
-          setState({ kind: 'error', message: json.error?.message ?? 'Live feed error' });
-          timer = setTimeout(poll, 5000);
-          return;
-        }
-
-        const newItems = json.data || [];
-        if (newItems.length > 0) {
-          setActivities((prev) => [...newItems, ...prev].slice(0, 200));
-          lastIdRef.current = newItems[0].createdAt;
-        }
-        setState({ kind: 'ready' });
-        timer = setTimeout(poll, 3000);
-      } catch (error: any) {
-        if (!active) return;
-        if (error?.name === 'AbortError') {
-          timer = setTimeout(poll, 0);
-          return;
-        }
-        setState({ kind: 'error', message: error?.message ?? 'Poll error' });
-        timer = setTimeout(poll, 5000);
-      }
+    if (!supabase) {
+      setState({ kind: 'error', message: 'Supabase is not configured for live feed.' });
+      return;
     }
 
-    poll();
+    const channel = supabase.channel('admin-live-feed');
+
+    FEED_SOURCES.forEach((source) => {
+      channel.on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: source.table,
+        },
+        (payload) => {
+          const item = toActivityItem(payload as RealtimeInsertPayload, source.type, source.idField);
+          if (!item) return;
+          setActivities((prev) => [item, ...prev].slice(0, 200));
+        },
+      );
+    });
+
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        setState({ kind: 'ready' });
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        setState({ kind: 'error', message: `Live feed channel error: ${status}` });
+      }
+    });
 
     return () => {
-      active = false;
-      if (timer) clearTimeout(timer);
-      abortRef.current?.abort();
+      void supabase.removeChannel(channel);
     };
-  }, []);
+  }, [supabase]);
 
   return (
     <div className="space-y-4">
@@ -96,13 +85,10 @@ export default function AdminLiveFeedPage() {
         <p className="text-[10px] font-black uppercase tracking-[0.35em] text-on-surface-variant">Live feed</p>
         <h2 className="mt-2 text-2xl font-black text-on-surface">Admin activity stream</h2>
         <p className="mt-2 max-w-2xl text-sm font-medium text-on-surface-variant">
-          The page keeps polling the live feed API and surfaces an explicit banner when the endpoint is not available.
+          Real-time stream powered by Supabase Realtime channels.
         </p>
       </section>
 
-      {state.kind === 'endpoint_unavailable' ? (
-        <ApiUnavailableBanner endpoint={state.endpoint} method={state.method} />
-      ) : null}
       {state.kind === 'error' ? (
         <div className="rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-900">
           {state.message}
@@ -126,7 +112,7 @@ export default function AdminLiveFeedPage() {
           ))
         ) : (
           <div className="rounded-3xl border border-outline-variant bg-surface px-4 py-6 text-sm font-medium text-on-surface-variant">
-            {state.kind === 'loading' ? 'Loading live feed...' : 'No activity yet.'}
+            {state.kind === 'loading' ? 'Connecting to live feed...' : 'No activity yet.'}
           </div>
         )}
       </section>

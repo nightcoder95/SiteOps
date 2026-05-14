@@ -2,6 +2,7 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 import { safeGetSessionFromHeaders } from '@/lib/auth/session';
+import { getDashboardData } from '@/lib/services/dashboard';
 
 import { DashboardPageClient } from './DashboardPageClient';
 
@@ -13,5 +14,6 @@ export default async function DashboardPage() {
     redirect('/auth/sign-in');
   }
 
-  return <DashboardPageClient />;
+  const data = await getDashboardData(session.user);
+  return <DashboardPageClient data={data} />;
 }

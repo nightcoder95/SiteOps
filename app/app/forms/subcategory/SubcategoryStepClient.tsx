@@ -9,6 +9,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
 import { requestJson, type ClientResult } from '@/lib/http/client';
 import { buildFormsSelectionHref, parseSubcategoryStepParams } from '@/lib/navigation/formsFlow';
+import { toastClientError, toastSuccess } from '@/lib/ui/toast';
 
 type Field = {
   id: number;
@@ -89,9 +90,11 @@ export function SubcategoryStepClient() {
       }),
     });
     if (!created.ok) {
+      toastClientError(created);
       setCreateError(created.message);
       return;
     }
+    toastSuccess('Subcategory created');
 
     router.push(
       buildFormsSelectionHref('new', {
@@ -116,6 +119,7 @@ export function SubcategoryStepClient() {
       body: JSON.stringify({ categoryId: flow.categoryId, name }),
     });
     if (!similar.ok) {
+      toastClientError(similar);
       setCreateError(similar.message);
       setCreating(false);
       return;

@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
 import { requestJson, type ClientResult } from '@/lib/http/client';
 import { buildFormsSelectionHref } from '@/lib/navigation/formsFlow';
+import { toastClientError, toastSuccess } from '@/lib/ui/toast';
 
 type Site = {
   id: number;
@@ -32,7 +33,6 @@ export default function SiteStepPage() {
   const router = useRouter();
   const [result, setResult] = useState<ClientResult<Site[]> | null>(null);
   const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,7 +52,6 @@ export default function SiteStepPage() {
   async function createSite(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    setCreateError(null);
     setCreating(true);
 
     const payload = {
@@ -70,7 +69,7 @@ export default function SiteStepPage() {
     });
 
     if (!created.ok) {
-      setCreateError(created.message);
+      toastClientError(created);
       setCreating(false);
       return;
     }
@@ -79,6 +78,7 @@ export default function SiteStepPage() {
     setResult(refreshed);
     setCreating(false);
     if (refreshed.ok) {
+      toastSuccess('Site created');
       const site = refreshed.data.find((item) => item.siteId === created.data.siteId) ?? created.data;
       router.push(buildFormsSelectionHref('category', { siteId: site.siteId }));
     }
@@ -120,9 +120,6 @@ export default function SiteStepPage() {
             <button disabled={creating} type="submit" className="rounded-xl bg-machined-gradient px-4 py-2 text-sm font-black text-white disabled:opacity-60">
               {creating ? "Creating..." : "+ Add site"}
             </button>
-            {createError ? (
-              <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-800">{createError}</p>
-            ) : null}
           </div>
         </form>
 

@@ -1,6 +1,13 @@
 import { Redis } from "@upstash/redis";
 
-export const redis =
-  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
-    ? Redis.fromEnv()
-    : null;
+const hasRedisEnv =
+  Boolean(process.env.UPSTASH_REDIS_REST_URL) &&
+  Boolean(process.env.UPSTASH_REDIS_REST_TOKEN);
+
+if (process.env.NODE_ENV === "production" && !hasRedisEnv) {
+  throw new Error(
+    "UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN must be set in production"
+  );
+}
+
+export const redis = hasRedisEnv ? Redis.fromEnv() : null;

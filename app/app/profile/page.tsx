@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
 import { PageHero, PageStack } from '@/components/ui/page-primitives';
 import { requestJson, type ClientResult } from '@/lib/http/client';
+import { toastClientError, toastSuccess } from '@/lib/ui/toast';
 
 type ProfileResponse = {
   user: {
@@ -23,7 +24,6 @@ type ProfileResponse = {
 export default function ProfilePage() {
   const [result, setResult] = useState<ClientResult<ProfileResponse> | null>(null);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,7 +53,6 @@ export default function ProfilePage() {
     if (designation) payload.designation = designation;
 
     setSaving(true);
-    setMessage(null);
 
     const next = await requestJson<ProfileResponse>('/api/users/me', {
       method: 'PATCH',
@@ -65,8 +64,9 @@ export default function ProfilePage() {
 
     if (next.ok) {
       setResult(next);
-      setMessage('Profile updated');
+      toastSuccess('Profile updated');
     } else {
+      toastClientError(next);
       setResult(next);
     }
   }
@@ -89,12 +89,6 @@ export default function ProfilePage() {
           {result.message}
         </div>
       ) : null}
-      {message ? (
-        <div className="rounded-3xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">
-          {message}
-        </div>
-      ) : null}
-
       <section className="rounded-[1.75rem] border border-outline-variant bg-surface p-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
         <div className="grid gap-3 text-sm">
           <div className="rounded-2xl bg-surface-container-low px-4 py-3">

@@ -1,83 +1,24 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { ChevronRight, FileEdit, TrendingUp } from 'lucide-react';
 
-import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
 import { CountPill, PageStack } from '@/components/ui/page-primitives';
-import { requestJson, type ClientResult } from '@/lib/http/client';
+import type { DashboardData } from '@/lib/services/dashboard';
 
-type SessionUser = {
-  id: string;
-  name: string | null;
-  email: string;
-  role: 'Admin' | 'Supervisor';
-};
-
-type Site = {
-  id: number;
-  siteId: string;
-  name: string;
-  location: string;
-  status: 'In Progress' | 'Blocked' | 'Completed';
-  budget: string;
-  currentProgress: number | null;
-  currentPhase: string | null;
-  supervisorId: string;
-};
-
-type NotificationSummary = {
-  items: Array<{
-    id: string;
-    title: string;
-    message: string;
-    type: string;
-    readAt: string | null;
-  }>;
-  total: number;
-};
-
-export function DashboardPageClient() {
-  const [userResult, setUserResult] = useState<ClientResult<{ user: SessionUser; profile: unknown }> | null>(null);
-  const [sitesResult, setSitesResult] = useState<ClientResult<Site[]> | null>(null);
-  const [notificationsResult, setNotificationsResult] = useState<ClientResult<NotificationSummary> | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      const [user, sites, notifications] = await Promise.all([
-        requestJson<{ user: SessionUser; profile: unknown }>('/api/users/me'),
-        requestJson<Site[]>('/api/sites'),
-        requestJson<NotificationSummary>('/api/notifications?unreadOnly=true&limit=4'),
-      ]);
-
-      if (cancelled) return;
-      setUserResult(user);
-      setSitesResult(sites);
-      setNotificationsResult(notifications);
-    }
-
-    load();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const role = userResult?.ok ? userResult.data.user.role : 'Supervisor';
-  const sites = sitesResult?.ok ? sitesResult.data : [];
-  const unread = notificationsResult?.ok ? notificationsResult.data.items.filter((item) => !item.readAt).length : 0;
+export function DashboardPageClient({ data }: { data: DashboardData }) {
+  const role = data.user.role;
+  const unread = data.notifications.total;
 
   const sitesSummary = useMemo(
     () =>
-      sites.map((site) => ({
+      data.sites.map((site) => ({
         id: site.siteId,
         name: site.name,
         subtitle: `${site.location} / ${site.currentPhase ?? site.status}`.toUpperCase(),
       })),
-    [sites],
+    [data.sites],
   );
 
   return (
@@ -130,7 +71,7 @@ export function DashboardPageClient() {
             </Link>
           )) : (
             <div className="rounded-2xl border border-outline-variant bg-surface px-4 py-4 text-sm font-medium text-on-surface-variant">
-              {sitesResult?.ok ? 'No managed sites found.' : 'Loading managed sites...'}
+              No managed sites found.
             </div>
           )}
         </div>
@@ -159,26 +100,9 @@ export function DashboardPageClient() {
         </Link>
       ) : null}
 
-      {userResult && !userResult.ok && userResult.kind === 'endpoint_unavailable' ? (
-        <ApiUnavailableBanner endpoint={userResult.endpoint} method={userResult.method} />
-      ) : null}
-      {sitesResult && !sitesResult.ok && sitesResult.kind === 'endpoint_unavailable' ? (
-        <ApiUnavailableBanner endpoint={sitesResult.endpoint} method={sitesResult.method} />
-      ) : null}
-      {notificationsResult && !notificationsResult.ok && notificationsResult.kind === 'endpoint_unavailable' ? (
-        <ApiUnavailableBanner endpoint={notificationsResult.endpoint} method={notificationsResult.method} />
-      ) : null}
-
-      {sitesResult && !sitesResult.ok && sitesResult.kind !== 'endpoint_unavailable' ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-900">
-          {sitesResult.message}
-        </div>
-      ) : null}
-      {sitesResult?.ok ? (
-        <div className="flex items-center justify-end">
-          <CountPill>{sitesResult.data.length} Sites</CountPill>
-        </div>
-      ) : null}
+      <div className="flex items-center justify-end">
+        <CountPill>{data.sites.length} Sites</CountPill>
+      </div>
     </PageStack>
   );
 }

@@ -1,15 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { createSupabaseServerClient } = vi.hoisted(() => ({
-  createSupabaseServerClient: vi.fn(),
-}));
-
 const { getOrSetJson } = vi.hoisted(() => ({
   getOrSetJson: vi.fn(),
-}));
-
-vi.mock('@/lib/auth/config', () => ({
-  createSupabaseServerClient,
 }));
 
 vi.mock('@/lib/cache/getOrSetJson', () => ({
@@ -17,93 +9,71 @@ vi.mock('@/lib/cache/getOrSetJson', () => ({
 }));
 
 vi.mock('@/lib/db/client', () => ({
-  db: {},
+  db: {
+    query: {
+      userProfiles: {
+        findFirst: vi.fn(),
+      },
+    },
+  },
 }));
 
-import { getSessionUser, safeGetSessionFromHeaders } from '@/lib/auth/session';
+import { getSessionUserFromHeaders, safeGetSessionFromHeaders } from '@/lib/auth/session';
 
-describe('getSessionUser', () => {
+describe('getSessionUserFromHeaders', () => {
   beforeEach(() => {
-    createSupabaseServerClient.mockReset();
     getOrSetJson.mockReset();
   });
 
-  it('returns null when no authenticated user exists', async () => {
-    createSupabaseServerClient.mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
-      },
-    });
-
-    await expect(getSessionUser()).resolves.toBeNull();
+  it('returns null when middleware has not injected user headers', async () => {
+    await expect(getSessionUserFromHeaders(new Headers())).resolves.toBeNull();
     expect(getOrSetJson).not.toHaveBeenCalled();
   });
 
-  it('returns profile role when session user exists', async () => {
-    createSupabaseServerClient.mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({
-          data: {
-            user: { id: 'u_1', email: 'admin@example.com' },
-          },
-        }),
-      },
+  it('uses forwarded role header when present', async () => {
+    const headers = new Headers({
+      'x-siteops-user-id': 'u_1',
+      'x-siteops-user-email': 'admin@example.com',
+      'x-siteops-user-role': 'Admin',
     });
 
-    getOrSetJson.mockResolvedValue({
-      value: { role: 'Admin' },
-      hit: false,
-    });
-
-    await expect(getSessionUser()).resolves.toEqual({
+    await expect(getSessionUserFromHeaders(headers)).resolves.toEqual({
       id: 'u_1',
       email: 'admin@example.com',
       role: 'Admin',
     });
+    expect(getOrSetJson).not.toHaveBeenCalled();
   });
 
-  it('defaults role to Supervisor when profile row is missing', async () => {
-    createSupabaseServerClient.mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({
-          data: {
-            user: { id: 'u_2', email: 'supervisor@example.com' },
-          },
-        }),
-      },
-    });
-
+  it('falls back to cached profile role when role header is absent', async () => {
     getOrSetJson.mockResolvedValue({
-      value: null,
+      value: { role: 'Supervisor' },
       hit: false,
     });
 
-    await expect(getSessionUser()).resolves.toEqual({
+    const headers = new Headers({
+      'x-siteops-user-id': 'u_2',
+      'x-siteops-user-email': 'supervisor@example.com',
+    });
+
+    await expect(getSessionUserFromHeaders(headers)).resolves.toEqual({
       id: 'u_2',
       email: 'supervisor@example.com',
       role: 'Supervisor',
     });
+    expect(getOrSetJson).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('safeGetSessionFromHeaders', () => {
   it('returns wrapped session user shape for guard compatibility', async () => {
-    createSupabaseServerClient.mockResolvedValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({
-          data: {
-            user: { id: 'u_3', email: 'u3@example.com' },
-          },
-        }),
-      },
+    const headers = new Headers({
+      'x-siteops-user-id': 'u_3',
+      'x-siteops-user-email': 'u3@example.com',
+      'x-siteops-user-role': 'Supervisor',
     });
 
-    getOrSetJson.mockResolvedValue({
-      value: { role: 'Supervisor' },
-      hit: true,
-    });
-
-    await expect(safeGetSessionFromHeaders(new Headers())).resolves.toEqual({
+    await expect(safeGetSessionFromHeaders(headers)).resolves.toEqual({
       user: {
         id: 'u_3',
         email: 'u3@example.com',

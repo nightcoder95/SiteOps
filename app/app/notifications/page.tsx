@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useOptimistic, useState } from 'react';
 
 import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
 import { PageHero, PageStack } from '@/components/ui/page-primitives';
 import { requestJson, type ClientResult } from '@/lib/http/client';
+import { toastClientError, toastSuccess } from '@/lib/ui/toast';
 
 type Notification = {
   id: string;
@@ -27,6 +28,19 @@ type NotificationsResponse = {
 export default function NotificationsPage() {
   const [result, setResult] = useState<ClientResult<NotificationsResponse> | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [optimisticItems, applyOptimistic] = useOptimistic(
+    result?.ok ? result.data.items : ([] as Notification[]),
+    (current, action: { kind: 'mark-one'; id: string } | { kind: 'mark-all' }) => {
+      if (action.kind === 'mark-all') {
+        return current.map((item) =>
+          item.readAt ? item : { ...item, readAt: new Date().toISOString() },
+        );
+      }
+      return current.map((item) =>
+        item.id === action.id ? { ...item, readAt: new Date().toISOString() } : item,
+      );
+    },
+  );
 
   async function load() {
     const next = await requestJson<NotificationsResponse>('/api/notifications?limit=50&offset=0&unreadOnly=false');
@@ -51,19 +65,23 @@ export default function NotificationsPage() {
   }, []);
 
   async function markRead(id: string) {
+    applyOptimistic({ kind: 'mark-one', id });
     setRefreshing(true);
     const next = await requestJson(`/api/notifications/${id}`, {
       method: 'PATCH',
     });
     if (next.ok) {
+      toastSuccess('Notification marked as read');
       await load();
     } else {
+      toastClientError(next);
       setResult(next);
     }
     setRefreshing(false);
   }
 
   async function markAllRead() {
+    applyOptimistic({ kind: 'mark-all' });
     setRefreshing(true);
     const next = await requestJson('/api/notifications', {
       method: 'PATCH',
@@ -71,14 +89,16 @@ export default function NotificationsPage() {
       body: JSON.stringify({ markAllRead: true }),
     });
     if (next.ok) {
+      toastSuccess('All notifications marked as read');
       await load();
     } else {
+      toastClientError(next);
       setResult(next);
     }
     setRefreshing(false);
   }
 
-  const items = result?.ok ? result.data.items : [];
+  const items = optimisticItems;
   const unreadCount = items.filter((item) => !item.readAt).length;
 
   return (

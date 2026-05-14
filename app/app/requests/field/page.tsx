@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
 import { PageHero, PageStack } from '@/components/ui/page-primitives';
 import { requestJson, type ClientResult } from '@/lib/http/client';
+import { toastClientError, toastSuccess } from '@/lib/ui/toast';
 
 type FieldRequest = {
   id: string;
@@ -20,7 +21,6 @@ type FieldRequest = {
 export default function FieldRequestsPage() {
   const [result, setResult] = useState<ClientResult<FieldRequest[]> | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
 
   async function load() {
     const next = await requestJson<FieldRequest[]>('/api/requests/field');
@@ -47,7 +47,6 @@ export default function FieldRequestsPage() {
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    setStatus(null);
 
     const payload: Record<string, string> = {
       siteId: String(fd.get('siteId') ?? ''),
@@ -65,12 +64,13 @@ export default function FieldRequestsPage() {
     });
 
     if (next.ok) {
-      setStatus('Submitted');
+      toastSuccess('Field request submitted');
       e.currentTarget.reset();
       await load();
       return;
     }
 
+    toastClientError(next);
     setResult(next);
   }
 
@@ -83,8 +83,10 @@ export default function FieldRequestsPage() {
     });
 
     if (next.ok) {
+      toastSuccess(`Field request ${nextStatus.toLowerCase()}`);
       await load();
     } else {
+      toastClientError(next);
       setResult(next);
     }
     setPendingId(null);
@@ -96,8 +98,10 @@ export default function FieldRequestsPage() {
       method: 'DELETE',
     });
     if (next.ok) {
+      toastSuccess('Field request withdrawn');
       await load();
     } else {
+      toastClientError(next);
       setResult(next);
     }
     setPendingId(null);
@@ -121,12 +125,6 @@ export default function FieldRequestsPage() {
           {result.message}
         </div>
       ) : null}
-      {status ? (
-        <div className="rounded-3xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">
-          {status}
-        </div>
-      ) : null}
-
       <form onSubmit={submit} className="rounded-[1.75rem] border border-outline-variant bg-surface p-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
         <h3 className="text-lg font-black text-on-surface">Propose a field</h3>
         <div className="mt-4 grid gap-3">

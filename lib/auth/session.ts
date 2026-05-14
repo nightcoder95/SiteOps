@@ -2,7 +2,12 @@ import { eq } from "drizzle-orm";
 
 import { getOrSetJson } from "@/lib/cache/getOrSetJson";
 import { userProfileCacheKey } from "@/lib/cache/keys";
-import { createSupabaseServerClient } from "@/lib/auth/config";
+import {
+  AUTH_USER_EMAIL_HEADER,
+  AUTH_USER_ID_HEADER,
+  AUTH_USER_ROLE_HEADER,
+  parseSessionRole,
+} from "@/lib/auth/headers";
 import { db } from "@/lib/db/client";
 import { userProfiles } from "@/lib/db/schema";
 import { generateRequestId } from "@/lib/utils/requestId";
@@ -19,41 +24,44 @@ export type Session = {
   user: SessionUser;
 };
 
-export async function getSessionUser(): Promise<SessionUser | null> {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return null;
-  }
-
-  const requestId = generateRequestId();
+async function getRoleFromCache(userId: string, requestId: string): Promise<SessionRole> {
   const { value: profile } = await getOrSetJson<
     Pick<typeof userProfiles.$inferSelect, "role"> | null
   >(
     requestId,
-    userProfileCacheKey(user.id),
+    userProfileCacheKey(userId),
     300,
     () =>
       db.query.userProfiles
         .findFirst({
-          where: eq(userProfiles.userId, user.id),
+          where: eq(userProfiles.userId, userId),
           columns: { role: true },
         })
         .then((row) => row ?? null)
   );
+  return profile?.role ?? "Supervisor";
+}
+
+export async function getSessionUserFromHeaders(headers: Headers): Promise<SessionUser | null> {
+  const userId = headers.get(AUTH_USER_ID_HEADER);
+  if (!userId) {
+    return null;
+  }
+
+  const requestId = generateRequestId();
+  const headerRole = parseSessionRole(headers.get(AUTH_USER_ROLE_HEADER));
+  const role = headerRole ?? (await getRoleFromCache(userId, requestId));
+  const email = headers.get(AUTH_USER_EMAIL_HEADER) ?? "";
 
   return {
-    id: user.id,
-    email: user.email ?? "",
-    role: profile?.role ?? "Supervisor",
+    id: userId,
+    email,
+    role,
   };
 }
 
-export async function safeGetSessionFromHeaders(_headers: Headers): Promise<Session | null> {
-  const user = await getSessionUser();
+export async function safeGetSessionFromHeaders(headers: Headers): Promise<Session | null> {
+  const user = await getSessionUserFromHeaders(headers);
   if (!user) {
     return null;
   }

@@ -10,6 +10,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
 import { requestJson, type ClientResult } from '@/lib/http/client';
 import { buildFormsSelectionHref, parseCategoryStepParams } from '@/lib/navigation/formsFlow';
+import { toastClientError, toastSuccess } from '@/lib/ui/toast';
 
 type Category = {
   id: number;
@@ -78,9 +79,11 @@ export function CategoryStepClient() {
       body: JSON.stringify({ name, overrideDuplicateWarning }),
     });
     if (!created.ok) {
+      toastClientError(created);
       setCreateError(created.message);
       return;
     }
+    toastSuccess('Category created');
 
     const refreshed = await requestJson<Category[]>('/api/forms/categories');
     setResult(refreshed);
@@ -101,6 +104,7 @@ export function CategoryStepClient() {
       body: JSON.stringify({ name }),
     });
     if (!similar.ok) {
+      toastClientError(similar);
       setCreateError(similar.message);
       setCreating(false);
       return;
