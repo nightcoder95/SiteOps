@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
-import { PageHero, PageStack } from '@/components/ui/page-primitives';
 import { safeGetSessionFromHeaders } from '@/lib/auth/session';
 import { getAllSites, getSitesBySupervisor } from '@/lib/db/queries/sites';
 
@@ -25,6 +24,32 @@ function formatBudget(value: string) {
   return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(number);
 }
 
+function statusStyle(status: Site['status']) {
+  switch (status) {
+    case 'Blocked':
+      return {
+        chip: 'bg-error-container text-on-error-container border-error/20',
+        icon: 'warning',
+        bar: 'bg-error',
+        text: 'text-error',
+      };
+    case 'Completed':
+      return {
+        chip: 'bg-tertiary-container text-on-tertiary-container border-tertiary/20',
+        icon: 'check_circle',
+        bar: 'bg-tertiary',
+        text: 'text-tertiary',
+      };
+    default:
+      return {
+        chip: 'bg-primary-container text-on-primary-container border-primary/20',
+        icon: 'sync',
+        bar: 'bg-primary',
+        text: 'text-primary',
+      };
+  }
+}
+
 export default async function SitesPage() {
   const session = await safeGetSessionFromHeaders(await headers());
   if (!session) {
@@ -37,62 +62,85 @@ export default async function SitesPage() {
       : await getSitesBySupervisor(session.user.id);
 
   return (
-    <PageStack>
-      <PageHero
-        eyebrow="Supervisor Route"
-        title="Active sites"
-        description="Select a site or create a new one to start logging labour, materials, machinery, and expenses."
-      />
-      <div className="flex justify-end">
+    <div className="flex flex-col gap-density-medium">
+      <div className="flex items-center justify-between">
+        <h1 className="font-display-lg text-display-lg text-on-background">Active Sites</h1>
         <Link
-          href="/app/forms/site"
-          className="rounded-full bg-machined-gradient px-4 py-2 text-sm font-black text-white shadow-lg shadow-primary/20 active-press"
+          href="/app/sites/new"
+          className="hidden md:flex items-center gap-2 rounded-full bg-primary px-4 py-2 font-label-md text-label-md uppercase text-on-primary hover:bg-surface-tint"
         >
-          + Add Site
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add</span>
+          New Site
         </Link>
       </div>
 
-      <section className="grid gap-3">
-        {sites.length > 0 ? (
-          sites.map((site) => (
-            <Link
-              key={site.siteId}
-              href={`/app/sites/${site.siteId}`}
-              className="rounded-[1.75rem] border border-outline-variant bg-surface p-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)] active-press"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <h3 className="truncate text-lg font-black text-on-surface">{site.name}</h3>
-                  <p className="mt-1 text-sm font-medium text-on-surface-variant">{site.location}</p>
-                </div>
-                <span className="shrink-0 rounded-full bg-primary-container px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em] text-primary">
-                  {site.status}
-                </span>
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                <div className="rounded-2xl bg-surface-container-low px-3 py-3">
-                  <div className="text-[10px] font-black uppercase tracking-[0.24em] text-on-surface-variant">Budget</div>
-                  <div className="mt-1 font-black text-on-surface">{site.budget ? `₹${formatBudget(site.budget)}` : '—'}</div>
-                </div>
-                <div className="rounded-2xl bg-surface-container-low px-3 py-3">
-                  <div className="text-[10px] font-black uppercase tracking-[0.24em] text-on-surface-variant">Phase</div>
-                  <div className="mt-1 font-black text-on-surface">{site.currentPhase ?? 'Unassigned'}</div>
-                </div>
-              </div>
-
-              <div className="mt-4 flex items-center justify-between gap-3">
-                <p className="text-xs font-medium text-on-surface-variant">Progress {site.currentProgress ?? 0}%</p>
-                <span className="text-sm font-black text-primary">Open detail</span>
-              </div>
-            </Link>
-          ))
-        ) : (
-          <div className="rounded-3xl border border-outline-variant bg-surface px-4 py-6 text-sm font-medium text-on-surface-variant">
+      <div className="grid grid-cols-1 gap-gutter md:grid-cols-2 lg:grid-cols-3">
+        {sites.length === 0 ? (
+          <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 font-body-md text-body-md text-on-surface-variant">
             No live sites available.
           </div>
+        ) : (
+          sites.map((site) => {
+            const pct = site.currentProgress ?? 0;
+            const s = statusStyle(site.status);
+            return (
+              <Link
+                key={site.siteId}
+                href={`/app/sites/${site.siteId}`}
+                className="group flex flex-col gap-density-medium rounded-xl border border-outline-variant bg-surface-container-lowest p-density-medium transition-colors hover:border-primary"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="min-w-0">
+                    <div className="font-label-sm text-label-sm mb-1 text-on-surface-variant">ID: {site.siteId}</div>
+                    <h2 className="font-headline-sm text-headline-sm truncate text-on-surface group-hover:text-primary">
+                      {site.name}
+                    </h2>
+                    <div className="font-body-md text-body-md mt-1 flex items-center gap-1 text-on-surface-variant">
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>location_on</span>
+                      {site.location}
+                    </div>
+                  </div>
+                  <span className={`flex items-center gap-1 rounded-full border px-2 py-1 font-label-md text-label-md uppercase ${s.chip}`}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>{s.icon}</span>
+                    {site.status}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 rounded-lg bg-surface-container-low p-3">
+                  <div>
+                    <div className="font-label-sm text-label-sm mb-1 text-on-surface-variant">Current Phase</div>
+                    <div className="font-body-md text-body-md font-medium text-on-surface">{site.currentPhase ?? '—'}</div>
+                  </div>
+                  <div>
+                    <div className="font-label-sm text-label-sm mb-1 text-on-surface-variant">Budget</div>
+                    <div className="font-body-md text-body-md font-medium text-on-surface">
+                      {site.budget ? `₹${formatBudget(site.budget)}` : '—'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <div className="flex justify-between font-label-sm text-label-sm">
+                    <span className="text-on-surface-variant">Overall Progress</span>
+                    <span className={`font-bold ${s.text}`}>{pct}%</span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-surface-variant">
+                    <div className={`h-full rounded-full ${s.bar}`} style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              </Link>
+            );
+          })
         )}
-      </section>
-    </PageStack>
+      </div>
+
+      <Link
+        href="/app/sites/new"
+        aria-label="Add new site"
+        className="md:hidden fixed bottom-24 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-xl bg-primary text-on-primary shadow-lg active:scale-95"
+      >
+        <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>add</span>
+      </Link>
+    </div>
   );
 }

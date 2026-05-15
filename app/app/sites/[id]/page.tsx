@@ -4,7 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { checkOwnership } from '@/lib/auth/ownership';
 import { safeGetSessionFromHeaders } from '@/lib/auth/session';
 import { getEntriesBySite } from '@/lib/db/queries/entries';
-import { getAllSites, getSiteById, getSitesBySupervisor } from '@/lib/db/queries/sites';
+import { getSiteById } from '@/lib/db/queries/sites';
 
 import SiteDetailPageClient from './SiteDetailPageClient';
 
@@ -24,20 +24,15 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
     notFound();
   }
 
-  const [initialEntries, initialSites] = await Promise.all([
-    getEntriesBySite(siteId, 'all'),
-    session.user.role === 'Admin' ? getAllSites() : getSitesBySupervisor(session.user.id),
-  ]);
+  const initialEntries = await getEntriesBySite(siteId, 'all');
   const initialEntriesJson = JSON.parse(JSON.stringify(initialEntries));
   const initialSiteJson = JSON.parse(JSON.stringify(site));
-  const initialSitesJson = JSON.parse(JSON.stringify(initialSites));
 
   return (
     <SiteDetailPageClient
       siteId={siteId}
       initialSite={initialSiteJson}
       initialEntries={initialEntriesJson}
-      initialSites={initialSitesJson}
     />
   );
 }

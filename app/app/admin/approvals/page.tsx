@@ -144,14 +144,13 @@ export default function AdminApprovalsPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-[2rem] bg-[linear-gradient(135deg,#fff7ed_0%,#fff_55%,#e2e8f0_100%)] p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
-        <p className="text-[10px] font-black uppercase tracking-[0.35em] text-on-surface-variant">Approvals</p>
-        <h2 className="mt-2 text-2xl font-black text-on-surface">Review queues</h2>
-        <p className="mt-2 max-w-2xl text-sm font-medium text-on-surface-variant">
-          Resource requests, field requests, and site-to-site transfers are reviewed here.
+    <div className="flex flex-col gap-density-medium">
+      <header>
+        <h2 className="font-headline-sm text-headline-sm text-on-background">Review Queues</h2>
+        <p className="font-body-md text-body-md text-on-surface-variant">
+          Resource requests, field requests, and site-to-site transfers.
         </p>
-      </section>
+      </header>
 
       {resourceResult && !resourceResult.ok && resourceResult.kind === 'endpoint_unavailable' ? (
         <ApiUnavailableBanner endpoint={resourceResult.endpoint} method={resourceResult.method} />
@@ -164,8 +163,8 @@ export default function AdminApprovalsPage() {
       ) : null}
 
       <section className="grid gap-4">
-        <div className="rounded-[1.75rem] border border-outline-variant bg-surface p-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
-          <h3 className="text-lg font-black text-on-surface">Resource requests</h3>
+        <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
+          <h3 className="font-headline-sm text-headline-sm text-on-surface">Resource requests</h3>
           <div className="mt-4 grid gap-3">
             {resourceResult?.ok ? optimisticResource.map((request) => (
               <article key={request.requestId} className="rounded-2xl bg-surface-container-low px-4 py-4">
@@ -179,8 +178,8 @@ export default function AdminApprovalsPage() {
                 <p className="mt-3 text-sm font-medium text-on-surface">{request.details}</p>
                 {request.status === 'Pending' ? (
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <button type="button" disabled={pendingId === request.requestId} onClick={() => reviewResource(request.requestId, 'Approved')} className="rounded-full bg-machined-gradient px-4 py-2 text-sm font-black text-white disabled:opacity-60">Approve</button>
-                    <button type="button" disabled={pendingId === request.requestId} onClick={() => reviewResource(request.requestId, 'Declined')} className="rounded-full bg-surface px-4 py-2 text-sm font-black text-on-surface disabled:opacity-60">Decline</button>
+                    <button type="button" disabled={pendingId === request.requestId} onClick={() => reviewResource(request.requestId, 'Approved')} className="rounded bg-primary px-4 py-2 font-label-md text-label-md uppercase text-on-primary disabled:opacity-60">Approve</button>
+                    <button type="button" disabled={pendingId === request.requestId} onClick={() => reviewResource(request.requestId, 'Declined')} className="rounded border border-outline px-4 py-2 font-label-md text-label-md uppercase text-on-surface-variant disabled:opacity-60">Decline</button>
                   </div>
                 ) : null}
               </article>
@@ -188,8 +187,8 @@ export default function AdminApprovalsPage() {
           </div>
         </div>
 
-        <div className="rounded-[1.75rem] border border-outline-variant bg-surface p-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
-          <h3 className="text-lg font-black text-on-surface">Field requests</h3>
+        <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
+          <h3 className="font-headline-sm text-headline-sm text-on-surface">Field requests</h3>
           <div className="mt-4 grid gap-3">
             {fieldResult?.ok ? optimisticField.map((request) => (
               <article key={request.fieldRequestId} className="rounded-2xl bg-surface-container-low px-4 py-4">
@@ -203,8 +202,8 @@ export default function AdminApprovalsPage() {
                 <div className="mt-3 text-sm font-medium text-on-surface-variant">Type: {request.fieldType} • Category: {request.categoryId}</div>
                 {request.status === 'Pending' ? (
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <button type="button" disabled={pendingId === request.fieldRequestId} onClick={() => reviewField(request.fieldRequestId, 'Approved')} className="rounded-full bg-machined-gradient px-4 py-2 text-sm font-black text-white disabled:opacity-60">Approve</button>
-                    <button type="button" disabled={pendingId === request.fieldRequestId} onClick={() => reviewField(request.fieldRequestId, 'Declined')} className="rounded-full bg-surface px-4 py-2 text-sm font-black text-on-surface disabled:opacity-60">Decline</button>
+                    <button type="button" disabled={pendingId === request.fieldRequestId} onClick={() => reviewField(request.fieldRequestId, 'Approved')} className="rounded bg-primary px-4 py-2 font-label-md text-label-md uppercase text-on-primary disabled:opacity-60">Approve</button>
+                    <button type="button" disabled={pendingId === request.fieldRequestId} onClick={() => reviewField(request.fieldRequestId, 'Declined')} className="rounded border border-outline px-4 py-2 font-label-md text-label-md uppercase text-on-surface-variant disabled:opacity-60">Decline</button>
                   </div>
                 ) : null}
               </article>
@@ -212,8 +211,8 @@ export default function AdminApprovalsPage() {
           </div>
         </div>
 
-        <div className="rounded-[1.75rem] border border-outline-variant bg-surface p-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
-          <h3 className="text-lg font-black text-on-surface">Transfer requests</h3>
+        <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
+          <h3 className="font-headline-sm text-headline-sm text-on-surface">Transfer requests</h3>
           <div className="mt-4 grid gap-3">
             {transferResult?.ok ? optimisticTransfer.map((transfer) => (
               <article key={transfer.transferId} className="rounded-2xl bg-surface-container-low px-4 py-4">
@@ -227,8 +226,8 @@ export default function AdminApprovalsPage() {
                 <p className="mt-3 text-sm font-medium text-on-surface">Qty: {transfer.quantity}{transfer.remarks ? ` • ${transfer.remarks}` : ''}</p>
                 {transfer.status === 'Pending' ? (
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <button type="button" disabled={pendingId === transfer.transferId} onClick={() => reviewTransfer(transfer.transferId, 'Approved')} className="rounded-full bg-machined-gradient px-4 py-2 text-sm font-black text-white disabled:opacity-60">Approve</button>
-                    <button type="button" disabled={pendingId === transfer.transferId} onClick={() => reviewTransfer(transfer.transferId, 'Declined')} className="rounded-full bg-surface px-4 py-2 text-sm font-black text-on-surface disabled:opacity-60">Decline</button>
+                    <button type="button" disabled={pendingId === transfer.transferId} onClick={() => reviewTransfer(transfer.transferId, 'Approved')} className="rounded bg-primary px-4 py-2 font-label-md text-label-md uppercase text-on-primary disabled:opacity-60">Approve</button>
+                    <button type="button" disabled={pendingId === transfer.transferId} onClick={() => reviewTransfer(transfer.transferId, 'Declined')} className="rounded border border-outline px-4 py-2 font-label-md text-label-md uppercase text-on-surface-variant disabled:opacity-60">Decline</button>
                   </div>
                 ) : null}
               </article>

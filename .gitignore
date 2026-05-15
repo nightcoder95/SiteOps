@@ -8,10 +8,11 @@ coverage/
 *.tsbuildinfo
 .env*
 !.env.example
-
+.mcp.json
 # Sentry
 .env.sentry-build-plugin
 
 # AI Skills & Design Systems
 .agent/
 design-system/
+.docs/

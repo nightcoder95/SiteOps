@@ -1,55 +1,93 @@
 'use client';
 
-import { Bell, Menu } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 
-export function AppHeader({ role }: { role: 'Admin' | 'Supervisor' }) {
+type Props = {
+  role: 'Admin' | 'Supervisor';
+  title?: string;
+  showBack?: boolean;
+  action?: 'search' | 'notifications' | 'none';
+};
+
+const ROUTE_TITLES: Record<string, string> = {
+  '/app/dashboard': 'SiteOps',
+  '/app/sites': 'Active Sites',
+  '/app/sites/new': 'Create Site',
+  '/app/profile': 'Profile',
+  '/app/notifications': 'Notifications',
+  '/app/admin/live-feed': 'Live Feed',
+  '/app/admin/approvals': 'Approvals',
+  '/app/admin/expenses': 'Expenses',
+  '/app/admin/analytics': 'Analytics',
+  '/app/requests/field': 'Field Requests',
+  '/app/requests/resource': 'Resource Requests',
+  '/app/transfers/new': 'Transfer Resources',
+  '/app/logs/new': 'Log Entry',
+};
+
+function resolveTitle(pathname: string): string {
+  if (ROUTE_TITLES[pathname]) return ROUTE_TITLES[pathname];
+  if (pathname.startsWith('/app/sites/')) return 'Site Detail';
+  if (pathname.startsWith('/app/logs/new/')) return 'Log Entry';
+  if (pathname.startsWith('/app/logs/')) return 'Edit Entry';
+  return 'SiteOps';
+}
+
+export function AppHeader({ role: _role, title, showBack, action }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const isDashboard = pathname === '/app/dashboard';
+  const resolvedTitle = title ?? resolveTitle(pathname);
+  const resolvedShowBack = showBack ?? !isDashboard;
+  const resolvedAction = action ?? (isDashboard ? 'notifications' : 'none');
 
   return (
-    <header className="sticky top-0 z-30 h-20 border-b border-outline-variant/40 bg-surface px-6">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-4">
-          {isDashboard ? (
-            <button
-              type="button"
-              onClick={() => router.push('/app/sites')}
-              className="active-press p-1 text-on-surface-variant"
-              aria-label="Open sites"
-            >
-              <Menu className="h-6 w-6" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => router.back()}
-              className="active-press rounded-2xl border border-outline-variant/60 px-4 py-2 text-xs font-black uppercase tracking-[0.2em] text-on-surface"
-              aria-label="Go back"
-            >
-              Back
-            </button>
-          )}
+    <header className="fixed top-0 left-0 right-0 z-50 h-14 flex items-center justify-between border-b border-outline-variant bg-surface-container-lowest px-margin-mobile pt-[var(--sat)]">
+      {resolvedShowBack ? (
+        <button
+          type="button"
+          onClick={() => router.back()}
+          aria-label="Go back"
+          className="active-press p-2 -ml-2 rounded-full text-on-surface-variant hover:bg-surface-variant flex items-center justify-center"
+        >
+          <span className="material-symbols-outlined">arrow_back</span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => router.push('/app/sites')}
+          aria-label="Open sites"
+          className="active-press p-2 -ml-2 rounded-full text-on-surface-variant hover:bg-surface-variant flex items-center justify-center"
+        >
+          <span className="material-symbols-outlined">menu</span>
+        </button>
+      )}
 
-          <h1 className="font-headline text-[1.05rem] font-black uppercase leading-none tracking-tight text-on-surface">
-            SITE
-            <br />
-            <span className="text-[10px] font-bold tracking-[0.28em] text-primary opacity-90">CORE</span>
-          </h1>
-        </div>
+      <h1 className="font-headline-md-mobile text-headline-md-mobile font-bold tracking-tight text-primary truncate">
+        {resolvedTitle}
+      </h1>
 
-        <div className="flex items-center gap-3">
-          <Link href="/app/notifications" className="relative active-press p-1 text-on-surface-variant" aria-label="Notifications">
-            <Bell className="h-6 w-6" />
-            <span className="absolute right-0 top-0 h-2 w-2 rounded-full border border-surface bg-primary" />
-          </Link>
-          <Link href="/app/profile" className="h-8 w-8 overflow-hidden rounded-full border border-outline-variant/30 active-press" aria-label={`${role} profile`}>
-            <img src="https://picsum.photos/seed/headshot/200/200" alt={`${role} profile`} className="h-full w-full object-cover" />
-          </Link>
-        </div>
-      </div>
+      {resolvedAction === 'notifications' ? (
+        <Link
+          href="/app/notifications"
+          aria-label="Notifications"
+          className="active-press p-2 -mr-2 rounded-full text-on-surface-variant hover:bg-surface-variant flex items-center justify-center relative"
+        >
+          <span className="material-symbols-outlined">notifications</span>
+          <span className="absolute right-1 top-1 h-2 w-2 rounded-full border border-surface-container-lowest bg-error" />
+        </Link>
+      ) : resolvedAction === 'search' ? (
+        <button
+          type="button"
+          aria-label="Search"
+          className="active-press p-2 -mr-2 rounded-full text-on-surface-variant hover:bg-surface-variant flex items-center justify-center"
+        >
+          <span className="material-symbols-outlined">search</span>
+        </button>
+      ) : (
+        <span className="w-10" aria-hidden />
+      )}
     </header>
   );
 }

@@ -17,7 +17,7 @@ async function signUp(page, { name, email, password }: { name: string; email: st
   await page.waitForURL('/app/dashboard');
 }
 
-test('forms flow routes render and footer navigation works', async ({ page }) => {
+test('logs new route renders and footer navigation works', async ({ page }) => {
   await signUp(page, {
     name: 'Route Supervisor',
     email: uniqueEmail('supervisor'),
@@ -29,16 +29,16 @@ test('forms flow routes render and footer navigation works', async ({ page }) =>
   await expect(page.getByRole('heading', { name: /active sites/i })).toBeVisible();
 
   await page.getByRole('link', { name: /quick log/i }).click();
-  await expect(page).toHaveURL(/\/app\/forms\/site/);
-  await expect(page.getByRole('heading', { name: /select a site/i })).toBeVisible();
+  await expect(page).toHaveURL(/\/app\/logs\/new/);
+  await expect(page.getByRole('heading', { name: /pick a category/i })).toBeVisible();
 
   await page.goBack();
   await expect(page).toHaveURL(/\/app\/sites$/);
   await expect(page.getByRole('heading', { name: /active sites/i })).toBeVisible();
 
   await page.goForward();
-  await expect(page).toHaveURL(/\/app\/forms\/site/);
-  await expect(page.getByRole('heading', { name: /select a site/i })).toBeVisible();
+  await expect(page).toHaveURL(/\/app\/logs\/new/);
+  await expect(page.getByRole('heading', { name: /pick a category/i })).toBeVisible();
 });
 
 test('notifications and profile routes render after sign up', async ({ page }) => {

@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 
 import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
-import { PageHero, PageStack } from '@/components/ui/page-primitives';
 import { requestJson, type ClientResult } from '@/lib/http/client';
 import { toastClientError, toastSuccess } from '@/lib/ui/toast';
 
@@ -21,20 +20,29 @@ type ProfileResponse = {
   } | null;
 };
 
+const labelClass = 'font-label-md text-label-md uppercase text-on-surface-variant';
+const inputClass =
+  'h-11 w-full rounded border border-outline bg-surface-container-lowest px-3 font-body-md text-body-md text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary';
+
+function ReadOnlyRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between border-b border-outline-variant px-4 py-3 last:border-b-0">
+      <span className={labelClass}>{label}</span>
+      <span className="font-body-md text-body-md font-medium text-on-surface">{value}</span>
+    </div>
+  );
+}
+
 export default function ProfilePage() {
   const [result, setResult] = useState<ClientResult<ProfileResponse> | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-
-    async function load() {
+    (async () => {
       const next = await requestJson<ProfileResponse>('/api/users/me');
       if (!cancelled) setResult(next);
-    }
-
-    load();
-
+    })();
     return () => {
       cancelled = true;
     };
@@ -43,7 +51,6 @@ export default function ProfilePage() {
   async function update(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-
     const payload: Record<string, string> = {};
     const phone = String(fd.get('phone') ?? '').trim();
     const assignedRegion = String(fd.get('assignedRegion') ?? '').trim();
@@ -53,13 +60,11 @@ export default function ProfilePage() {
     if (designation) payload.designation = designation;
 
     setSaving(true);
-
     const next = await requestJson<ProfileResponse>('/api/users/me', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-
     setSaving(false);
 
     if (next.ok) {
@@ -72,76 +77,64 @@ export default function ProfilePage() {
   }
 
   const profile = result?.ok ? result.data.profile : null;
+  const user = result?.ok ? result.data.user : null;
 
   return (
-    <PageStack>
-      <PageHero
-        eyebrow="Profile"
-        title="Session and settings"
-        description="This page reads the live session profile and patches the current user record through the API."
-      />
+    <div className="flex flex-col gap-density-medium">
+      <section className="flex flex-col items-center gap-2 rounded-xl border border-outline-variant bg-surface-container-lowest p-6">
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary-container text-on-primary-container">
+          <span className="material-symbols-outlined" style={{ fontSize: '40px', fontVariationSettings: "'FILL' 1" }}>
+            account_circle
+          </span>
+        </div>
+        <h2 className="font-headline-md text-headline-md text-on-surface">{user?.name ?? '—'}</h2>
+        <p className="font-body-md text-body-md text-on-surface-variant">{user?.email ?? '—'}</p>
+        <span className="mt-1 rounded-full bg-primary-container px-3 py-1 font-label-md text-label-md uppercase text-on-primary-container">
+          {user?.role ?? '—'}
+        </span>
+      </section>
 
       {result && !result.ok && result.kind === 'endpoint_unavailable' ? (
         <ApiUnavailableBanner endpoint={result.endpoint} method={result.method} />
       ) : null}
       {result && !result.ok && result.kind !== 'endpoint_unavailable' ? (
-        <div className="rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-900">
+        <div className="rounded-xl border border-error-container bg-error-container/30 px-4 py-3 font-body-md text-body-md text-on-error-container">
           {result.message}
         </div>
       ) : null}
-      <section className="rounded-[1.75rem] border border-outline-variant bg-surface p-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
-        <div className="grid gap-3 text-sm">
-          <div className="rounded-2xl bg-surface-container-low px-4 py-3">
-            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-on-surface-variant">Name</div>
-            <div className="mt-1 font-black text-on-surface">{result?.ok ? result.data.user.name ?? '—' : '—'}</div>
-          </div>
-          <div className="rounded-2xl bg-surface-container-low px-4 py-3">
-            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-on-surface-variant">Email</div>
-            <div className="mt-1 font-black text-on-surface">{result?.ok ? result.data.user.email : '—'}</div>
-          </div>
-          <div className="rounded-2xl bg-surface-container-low px-4 py-3">
-            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-on-surface-variant">Role</div>
-            <div className="mt-1 font-black text-on-surface">{result?.ok ? result.data.user.role : '—'}</div>
-          </div>
-          <div className="rounded-2xl bg-surface-container-low px-4 py-3">
-            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-on-surface-variant">Phone</div>
-            <div className="mt-1 font-black text-on-surface">{profile?.phone ?? '—'}</div>
-          </div>
-          <div className="rounded-2xl bg-surface-container-low px-4 py-3">
-            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-on-surface-variant">Region</div>
-            <div className="mt-1 font-black text-on-surface">{profile?.assignedRegion ?? '—'}</div>
-          </div>
-          <div className="rounded-2xl bg-surface-container-low px-4 py-3">
-            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-on-surface-variant">Designation</div>
-            <div className="mt-1 font-black text-on-surface">{profile?.designation ?? '—'}</div>
-          </div>
-        </div>
+
+      <section className="rounded-xl border border-outline-variant bg-surface-container-lowest">
+        <header className="border-b border-outline-variant px-4 py-3">
+          <h3 className="font-label-md text-label-md uppercase text-on-surface-variant">Account Details</h3>
+        </header>
+        <ReadOnlyRow label="Phone" value={profile?.phone ?? '—'} />
+        <ReadOnlyRow label="Region" value={profile?.assignedRegion ?? '—'} />
+        <ReadOnlyRow label="Designation" value={profile?.designation ?? '—'} />
       </section>
 
-      <form onSubmit={update} className="rounded-[1.75rem] border border-outline-variant bg-surface p-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
-        <h3 className="text-lg font-black text-on-surface">Update profile</h3>
-        <div className="mt-4 grid gap-3">
-          <label className="grid gap-2 text-sm font-semibold text-on-surface">
-            Phone
-            <input name="phone" className="rounded-2xl border border-outline-variant bg-surface px-4 py-3 text-base text-on-surface" />
-          </label>
-          <label className="grid gap-2 text-sm font-semibold text-on-surface">
-            Assigned Region
-            <input name="assignedRegion" className="rounded-2xl border border-outline-variant bg-surface px-4 py-3 text-base text-on-surface" />
-          </label>
-          <label className="grid gap-2 text-sm font-semibold text-on-surface">
-            Designation
-            <input name="designation" className="rounded-2xl border border-outline-variant bg-surface px-4 py-3 text-base text-on-surface" />
-          </label>
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded-full bg-machined-gradient px-5 py-3 text-sm font-black text-white shadow-lg shadow-primary/20 disabled:opacity-60"
-          >
-            {saving ? 'Saving…' : 'Save'}
-          </button>
+      <form onSubmit={update} className="flex flex-col gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
+        <h3 className="font-headline-sm text-headline-sm text-on-surface">Update Profile</h3>
+        <div className="flex flex-col gap-2">
+          <label htmlFor="phone" className={labelClass}>Phone</label>
+          <input id="phone" name="phone" className={inputClass} />
         </div>
+        <div className="flex flex-col gap-2">
+          <label htmlFor="assignedRegion" className={labelClass}>Assigned Region</label>
+          <input id="assignedRegion" name="assignedRegion" className={inputClass} />
+        </div>
+        <div className="flex flex-col gap-2">
+          <label htmlFor="designation" className={labelClass}>Designation</label>
+          <input id="designation" name="designation" className={inputClass} />
+        </div>
+        <button
+          type="submit"
+          disabled={saving}
+          className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded bg-primary font-label-md text-label-md uppercase text-on-primary hover:bg-surface-tint disabled:opacity-60"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>save</span>
+          {saving ? 'Saving…' : 'Save'}
+        </button>
       </form>
-    </PageStack>
+    </div>
   );
 }
