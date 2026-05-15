@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 
 import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
-import { PageHero, PageStack } from '@/components/ui/page-primitives';
 import { requestJson, type ClientResult } from '@/lib/http/client';
 import { toastClientError, toastSuccess } from '@/lib/ui/toast';
 
@@ -17,6 +16,30 @@ type ResourceRequest = {
   requestedBy: string;
 };
 
+const labelClass = 'font-label-md text-label-md uppercase text-on-surface-variant';
+const inputClass =
+  'h-11 w-full rounded border border-outline bg-surface-container-lowest px-3 font-body-md text-body-md text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary';
+const textareaClass =
+  'min-h-[88px] w-full rounded border border-outline bg-surface-container-lowest p-3 font-body-md text-body-md text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary';
+
+const TYPE_ICONS: Record<ResourceRequest['requestType'], string> = {
+  Labour: 'engineering',
+  Materials: 'inventory_2',
+  Money: 'account_balance_wallet',
+  Machinery: 'precision_manufacturing',
+};
+
+function statusChip(status: ResourceRequest['status']) {
+  switch (status) {
+    case 'Approved':
+      return 'bg-primary-container text-on-primary-container';
+    case 'Declined':
+      return 'bg-error-container text-on-error-container';
+    default:
+      return 'bg-secondary-container text-on-secondary-container';
+  }
+}
+
 export default function ResourceRequestsPage() {
   const [result, setResult] = useState<ClientResult<ResourceRequest[]> | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -29,15 +52,10 @@ export default function ResourceRequestsPage() {
 
   useEffect(() => {
     let cancelled = false;
-
-    async function initialLoad() {
+    (async () => {
       const next = await load();
-      if (cancelled) return;
-      setResult(next);
-    }
-
-    initialLoad();
-
+      if (!cancelled) setResult(next);
+    })();
     return () => {
       cancelled = true;
     };
@@ -45,8 +63,8 @@ export default function ResourceRequestsPage() {
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-
+    const form = e.currentTarget;
+    const fd = new FormData(form);
     const next = await requestJson<ResourceRequest>('/api/requests/resource', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -60,11 +78,10 @@ export default function ResourceRequestsPage() {
 
     if (next.ok) {
       toastSuccess('Request submitted');
-      e.currentTarget.reset();
+      form.reset();
       await load();
       return;
     }
-
     toastClientError(next);
     setResult(next);
   }
@@ -76,7 +93,6 @@ export default function ResourceRequestsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: nextStatus }),
     });
-
     if (next.ok) {
       toastSuccess(`Request ${nextStatus.toLowerCase()}`);
       await load();
@@ -90,103 +106,118 @@ export default function ResourceRequestsPage() {
   const items = result?.ok ? result.data : [];
 
   return (
-    <PageStack>
-      <PageHero
-        eyebrow="Requests"
-        title="Resource requests"
-        description="Supervisor-created requests stay live and admins can review them from the same route."
-      />
+    <div className="flex flex-col gap-density-medium">
+      <header>
+        <h2 className="font-headline-sm text-headline-sm text-on-background">Resource Requests</h2>
+        <p className="font-body-md text-body-md text-on-surface-variant">
+          Request labour, materials, machinery, or funds.
+        </p>
+      </header>
 
       {result && !result.ok && result.kind === 'endpoint_unavailable' ? (
         <ApiUnavailableBanner endpoint={result.endpoint} method={result.method} />
       ) : null}
       {result && !result.ok && result.kind !== 'endpoint_unavailable' ? (
-        <div className="rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-900">
+        <div className="rounded-xl border border-error-container bg-error-container/30 px-4 py-3 font-body-md text-body-md text-on-error-container">
           {result.message}
         </div>
       ) : null}
-      <form onSubmit={submit} className="rounded-[1.75rem] border border-outline-variant bg-surface p-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
-        <h3 className="text-lg font-black text-on-surface">New request</h3>
-        <div className="mt-4 grid gap-3">
-          <label className="grid gap-2 text-sm font-semibold text-on-surface">
-            Site Id
-            <input name="siteId" required className="rounded-2xl border border-outline-variant bg-surface px-4 py-3 text-base text-on-surface" />
-          </label>
-          <label className="grid gap-2 text-sm font-semibold text-on-surface">
-            Type
-            <select name="type" defaultValue="Materials" className="rounded-2xl border border-outline-variant bg-surface px-4 py-3 text-base text-on-surface">
-              <option value="Labour">Labour</option>
-              <option value="Materials">Materials</option>
-              <option value="Money">Money</option>
-              <option value="Machinery">Machinery</option>
-            </select>
-          </label>
-          <label className="grid gap-2 text-sm font-semibold text-on-surface">
-            Details
-            <textarea name="details" required minLength={10} className="rounded-2xl border border-outline-variant bg-surface px-4 py-3 text-base text-on-surface" />
-          </label>
-          <label className="grid gap-2 text-sm font-semibold text-on-surface">
-            Reason
-            <textarea name="reason" required minLength={10} className="rounded-2xl border border-outline-variant bg-surface px-4 py-3 text-base text-on-surface" />
-          </label>
-          <button type="submit" className="rounded-full bg-machined-gradient px-5 py-3 text-sm font-black text-white shadow-lg shadow-primary/20">
-            Submit
-          </button>
+
+      <form onSubmit={submit} className="flex flex-col gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
+        <h3 className="font-headline-sm text-headline-sm text-on-surface">New Request</h3>
+        <div className="flex flex-col gap-2">
+          <label htmlFor="siteId" className={labelClass}>Site ID</label>
+          <input id="siteId" name="siteId" required className={inputClass} />
         </div>
+        <div className="flex flex-col gap-2">
+          <label htmlFor="type" className={labelClass}>Resource Type</label>
+          <select id="type" name="type" defaultValue="Materials" className={inputClass}>
+            <option value="Labour">Labour</option>
+            <option value="Materials">Materials</option>
+            <option value="Money">Money</option>
+            <option value="Machinery">Machinery</option>
+          </select>
+        </div>
+        <div className="flex flex-col gap-2">
+          <label htmlFor="details" className={labelClass}>Details</label>
+          <textarea id="details" name="details" required minLength={10} className={textareaClass} />
+        </div>
+        <div className="flex flex-col gap-2">
+          <label htmlFor="reason" className={labelClass}>Reason</label>
+          <textarea id="reason" name="reason" required minLength={10} className={textareaClass} />
+        </div>
+        <button
+          type="submit"
+          className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded bg-primary font-label-md text-label-md uppercase text-on-primary hover:bg-surface-tint"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>send</span>
+          Submit Request
+        </button>
       </form>
 
-      <section className="rounded-[1.75rem] border border-outline-variant bg-surface p-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
-        <div className="flex items-center justify-between gap-3">
-          <h3 className="text-lg font-black text-on-surface">Request queue</h3>
-          <span className="rounded-full bg-surface-container-low px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em] text-on-surface-variant">
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-headline-sm text-headline-sm text-on-surface">Request Queue</h3>
+          <span className="rounded-full bg-surface-container-low px-2 py-1 font-label-sm text-label-sm text-on-surface-variant">
             {items.length}
           </span>
         </div>
 
-        <div className="mt-4 grid gap-3">
-          {items.length > 0 ? (
+        <div className="divide-y divide-outline-variant rounded-xl border border-outline-variant bg-surface-container-lowest">
+          {items.length === 0 ? (
+            <div className="p-4 font-body-md text-body-md text-on-surface-variant">
+              {result?.ok ? 'No resource requests found.' : 'Loading…'}
+            </div>
+          ) : (
             items.map((request) => (
-              <article key={request.id} className="rounded-2xl bg-surface-container-low px-4 py-4">
+              <article key={request.id} className="flex flex-col gap-2 p-4">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-base font-black text-on-surface">{request.requestType}</div>
-                    <div className="text-sm text-on-surface-variant">Site {request.siteId}</div>
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-container text-on-primary-container">
+                      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                        {TYPE_ICONS[request.requestType]}
+                      </span>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-body-md text-body-md font-semibold text-on-surface">{request.requestType}</div>
+                      <div className="font-label-sm text-label-sm text-on-surface-variant">Site {request.siteId}</div>
+                    </div>
                   </div>
-                  <span className="rounded-full bg-surface px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-on-surface-variant">
+                  <span className={`rounded-full px-2 py-1 font-label-md text-label-md uppercase ${statusChip(request.status)}`}>
                     {request.status}
                   </span>
                 </div>
-                <p className="mt-3 text-sm font-medium text-on-surface">{request.details}</p>
-                <p className="mt-1 text-sm font-medium text-on-surface-variant">Reason: {request.reason}</p>
+                <p className="font-body-md text-body-md text-on-surface">{request.details}</p>
+                <p className="font-label-sm text-label-sm text-on-surface-variant">
+                  <span className="uppercase">Reason:</span> {request.reason}
+                </p>
                 {request.status === 'Pending' ? (
-                  <div className="mt-4 flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       disabled={pendingId === request.id}
                       onClick={() => review(request.id, 'Approved')}
-                      className="rounded-full bg-machined-gradient px-4 py-2 text-sm font-black text-white disabled:opacity-60"
+                      className="flex h-9 items-center gap-1 rounded bg-primary px-3 font-label-md text-label-md uppercase text-on-primary disabled:opacity-60"
                     >
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>check</span>
                       Approve
                     </button>
                     <button
                       type="button"
                       disabled={pendingId === request.id}
                       onClick={() => review(request.id, 'Declined')}
-                      className="rounded-full bg-surface px-4 py-2 text-sm font-black text-on-surface disabled:opacity-60"
+                      className="flex h-9 items-center gap-1 rounded border border-outline px-3 font-label-md text-label-md uppercase text-on-surface-variant disabled:opacity-60"
                     >
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
                       Decline
                     </button>
                   </div>
                 ) : null}
               </article>
             ))
-          ) : (
-            <div className="rounded-2xl border border-outline-variant bg-surface-container-low px-4 py-4 text-sm font-medium text-on-surface-variant">
-              {result?.ok ? 'No resource requests found.' : 'Loading requests...'}
-            </div>
           )}
         </div>
       </section>
-    </PageStack>
+    </div>
   );
 }

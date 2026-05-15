@@ -10,9 +10,7 @@ type FeedState =
   | { kind: 'ready' }
   | { kind: 'error'; message: string };
 
-type RealtimeInsertPayload = {
-  new: Record<string, unknown>;
-};
+type RealtimeInsertPayload = { new: Record<string, unknown> };
 
 const FEED_SOURCES = [
   { table: 'labour_entries', type: 'labour' as const, idField: 'labour_entry_id' },
@@ -21,6 +19,14 @@ const FEED_SOURCES = [
   { table: 'expense_entries', type: 'expense' as const, idField: 'expense_entry_id' },
   { table: 'incident_reports', type: 'incident' as const, idField: 'incident_report_id' },
 ];
+
+const TYPE_META: Record<ActivityItem['type'], { icon: string; bg: string; fg: string }> = {
+  labour: { icon: 'engineering', bg: 'bg-primary-container', fg: 'text-on-primary-container' },
+  material: { icon: 'inventory_2', bg: 'bg-tertiary-container', fg: 'text-on-tertiary-container' },
+  machinery: { icon: 'precision_manufacturing', bg: 'bg-secondary-container', fg: 'text-on-secondary-container' },
+  expense: { icon: 'account_balance_wallet', bg: 'bg-primary-container', fg: 'text-on-primary-container' },
+  incident: { icon: 'report', bg: 'bg-error-container', fg: 'text-on-error-container' },
+};
 
 function toActivityItem(payload: RealtimeInsertPayload, type: ActivityItem['type'], idField: string): ActivityItem | null {
   const row = payload.new;
@@ -49,15 +55,10 @@ export default function AdminLiveFeedPage() {
     }
 
     const channel = supabase.channel('admin-live-feed');
-
     FEED_SOURCES.forEach((source) => {
       channel.on(
         'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: source.table,
-        },
+        { event: 'INSERT', schema: 'public', table: source.table },
         (payload) => {
           const item = toActivityItem(payload as RealtimeInsertPayload, source.type, source.idField);
           if (!item) return;
@@ -80,40 +81,58 @@ export default function AdminLiveFeedPage() {
   }, [supabase]);
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-[2rem] bg-[linear-gradient(135deg,#fff7ed_0%,#fff_55%,#e2e8f0_100%)] p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
-        <p className="text-[10px] font-black uppercase tracking-[0.35em] text-on-surface-variant">Live feed</p>
-        <h2 className="mt-2 text-2xl font-black text-on-surface">Admin activity stream</h2>
-        <p className="mt-2 max-w-2xl text-sm font-medium text-on-surface-variant">
-          Real-time stream powered by Supabase Realtime channels.
-        </p>
-      </section>
+    <div className="flex flex-col gap-density-medium">
+      <header className="flex items-center justify-between">
+        <div>
+          <h2 className="font-headline-sm text-headline-sm text-on-background">Live Feed</h2>
+          <p className="font-body-md text-body-md text-on-surface-variant">Real-time activity across all sites.</p>
+        </div>
+        <span
+          className={`flex items-center gap-1.5 rounded-full px-3 py-1 font-label-md text-label-md uppercase ${
+            state.kind === 'ready'
+              ? 'bg-primary-container text-on-primary-container'
+              : 'bg-surface-container-low text-on-surface-variant'
+          }`}
+        >
+          <span
+            className={`h-2 w-2 rounded-full ${state.kind === 'ready' ? 'bg-primary animate-pulse' : 'bg-outline'}`}
+          />
+          {state.kind === 'ready' ? 'Live' : state.kind === 'loading' ? 'Connecting' : 'Offline'}
+        </span>
+      </header>
 
       {state.kind === 'error' ? (
-        <div className="rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-900">
+        <div className="rounded-xl border border-error-container bg-error-container/30 px-4 py-3 font-body-md text-body-md text-on-error-container">
           {state.message}
         </div>
       ) : null}
 
-      <section className="grid gap-3">
-        {activities.length > 0 ? (
-          activities.map((activity) => (
-            <article key={activity.id} className="rounded-[1.75rem] border border-outline-variant bg-surface p-4 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-lg font-black text-on-surface">{activity.type}</div>
-                  <div className="text-sm font-medium text-on-surface-variant">Site {activity.siteId}</div>
-                </div>
-                <span className="text-xs font-medium text-on-surface-variant">
-                  {new Date(activity.createdAt).toLocaleString()}
-                </span>
-              </div>
-            </article>
-          ))
-        ) : (
-          <div className="rounded-3xl border border-outline-variant bg-surface px-4 py-6 text-sm font-medium text-on-surface-variant">
-            {state.kind === 'loading' ? 'Connecting to live feed...' : 'No activity yet.'}
+      <section className="divide-y divide-outline-variant rounded-xl border border-outline-variant bg-surface-container-lowest">
+        {activities.length === 0 ? (
+          <div className="p-4 font-body-md text-body-md text-on-surface-variant">
+            {state.kind === 'loading' ? 'Connecting to live feed…' : 'No activity yet.'}
           </div>
+        ) : (
+          activities.map((activity) => {
+            const meta = TYPE_META[activity.type];
+            return (
+              <article key={`${activity.type}-${activity.id}`} className="flex items-start gap-3 p-3">
+                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${meta.bg} ${meta.fg}`}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                    {meta.icon}
+                  </span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-body-md text-body-md text-on-background">
+                    <span className="font-semibold uppercase">{activity.type}</span> entry logged at site {activity.siteId}.
+                  </p>
+                  <p className="font-label-sm text-label-sm mt-0.5 text-on-surface-variant">
+                    {new Date(activity.createdAt).toLocaleString()}
+                  </p>
+                </div>
+              </article>
+            );
+          })
         )}
       </section>
     </div>

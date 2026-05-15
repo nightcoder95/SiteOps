@@ -13,10 +13,10 @@ export default function AppShell({
   role: 'Admin' | 'Supervisor';
 }) {
   return (
-    <div className="relative flex h-svh flex-col overflow-hidden bg-background pt-[var(--sat)] pl-[var(--sal)] pr-[var(--sar)]">
+    <div className="relative flex h-svh flex-col overflow-hidden bg-background pl-[var(--sal)] pr-[var(--sar)]">
       <AppHeader role={role} />
-      <main className="mobile-scroll-area blueprint-bg flex-1 px-6 pb-[calc(env(safe-area-inset-bottom)+6rem)] pt-6">
-        {children}
+      <main className="mobile-scroll-area flex-1 pt-[calc(env(safe-area-inset-top)+3.5rem)] pb-[calc(env(safe-area-inset-bottom)+5rem)] px-margin-mobile">
+        <div className="mx-auto w-full max-w-md md:max-w-3xl py-density-medium">{children}</div>
       </main>
       <AppFooterNav role={role} />
     </div>
