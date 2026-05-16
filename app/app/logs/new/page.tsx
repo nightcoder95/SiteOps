@@ -30,13 +30,18 @@ export default async function LogsNewPage({
 
   return (
     <div className="flex flex-col gap-density-medium">
-      <header>
+      <header className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-4">
+        <p className="font-label-sm text-label-sm uppercase tracking-[0.16em] text-primary">Field Logging</p>
         <h2 className="font-headline-sm text-headline-sm text-on-background">Log Entry — Step 1 of 2</h2>
         <p className="font-body-md text-body-md text-on-surface-variant">
           Pick a category to start logging.
         </p>
       </header>
-      <LogsNewPageClient initialCategories={initialCategories} siteId={siteId} />
+      <LogsNewPageClient
+        initialCategories={initialCategories}
+        siteId={siteId}
+        role={session.user.role as "Admin" | "Supervisor"}
+      />
     </div>
   );
 }

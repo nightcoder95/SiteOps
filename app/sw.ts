@@ -36,10 +36,13 @@ const serwist = new Serwist({
   clientsClaim: true,
   runtimeCaching: [
     {
+      // Cache GET /api/* responses, excluding admin and live data — those must
+      // always reflect current server state for security and freshness.
       matcher: ({ request, sameOrigin, url }) =>
         sameOrigin &&
         request.method === "GET" &&
         url.pathname.startsWith("/api/") &&
+        !url.pathname.startsWith("/api/admin") &&
         !url.pathname.startsWith("/api/admin/live-feed"),
       handler: new StaleWhileRevalidate({
         cacheName: API_CACHE,
@@ -47,7 +50,7 @@ const serwist = new Serwist({
           userScopedCachePlugin,
           new ExpirationPlugin({
             maxEntries: 200,
-            maxAgeSeconds: 60,
+            maxAgeSeconds: 300,
           }),
         ],
       }),

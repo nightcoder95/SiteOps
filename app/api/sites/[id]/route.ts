@@ -1,5 +1,4 @@
 import { eq } from "drizzle-orm";
-import { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { requireAdmin, requireSiteAccess } from "@/lib/auth/guards";
@@ -12,8 +11,9 @@ import { ERROR_CODES } from "@/lib/errors/codes";
 import { handleDbError } from "@/lib/errors/db";
 import { errorResponse, successResponse } from "@/lib/errors/response";
 import { parseJsonBody, validateBody } from "@/lib/http/request";
-import { logError } from "@/lib/logging/log";
-import { generateRequestId } from "@/lib/utils/requestId";
+import { withApiRoute } from "@/lib/http/withApi";
+
+type RouteCtx = { params: Promise<{ id: string }> };
 
 const updateSiteSchema = z
   .object({
@@ -29,161 +29,110 @@ const updateSiteSchema = z
 
 type SiteRow = typeof sites.$inferSelect;
 
-export async function GET(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
-  const requestId = generateRequestId();
+export const GET = withApiRoute<RouteCtx>(async ({ request, requestId }, context) => {
+  const { id } = await context.params;
 
-  try {
-    const { id } = await context.params;
+  const [auth, { value: record }] = await Promise.all([
+    requireSiteAccess(request),
+    getOrSetJson<SiteRow | null>(
+      requestId,
+      siteCacheKey(id),
+      300,
+      async () => {
+        const rows = await db.select().from(sites).where(eq(sites.siteId, id)).limit(1);
+        return rows[0] ?? null;
+      },
+    ),
+  ]);
 
-    const [auth, { value: record }] = await Promise.all([
-      requireSiteAccess(request),
-      getOrSetJson<SiteRow | null>(
-        requestId,
-        siteCacheKey(id),
-        300,
-        async () => {
-          const rows = await db.select().from(sites).where(eq(sites.siteId, id));
-          return rows[0] ?? null;
-        }
-      ),
-    ]);
-
-    if (!("session" in auth)) {
-      return errorResponse(
-        auth.error,
-        "Authentication required",
-        auth.status,
-        undefined,
-        requestId
-      );
-    }
-
-    if (!record || record.archivedAt) {
-      return errorResponse(ERROR_CODES.NOT_FOUND, "Site not found", 404, undefined, requestId);
-    }
-
-    if (
-      auth.session.user.role !== "Admin" &&
-      record.supervisorId !== auth.session.user.id
-    ) {
-      return errorResponse(
-        ERROR_CODES.FORBIDDEN,
-        "You can only access sites you supervise",
-        403,
-        undefined,
-        requestId
-      );
-    }
-
-    return successResponse(record, 200, requestId);
-  } catch (error) {
-    logError(requestId, error);
-    return errorResponse(ERROR_CODES.INTERNAL_ERROR, "An unexpected error occurred", 500, undefined, requestId);
+  if (!("session" in auth)) {
+    return errorResponse(auth.error, "Authentication required", auth.status, undefined, requestId);
   }
-}
 
-export async function PATCH(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
-  const requestId = generateRequestId();
-
-  try {
-    const auth = await requireAdmin(request);
-    if (!("session" in auth)) {
-      return errorResponse(
-        auth.error,
-        "Admin access required",
-        auth.status,
-        undefined,
-        requestId
-      );
-    }
-
-    const parsed = await parseJsonBody(request, requestId);
-    if (!parsed.ok) return parsed.response;
-    const validation = validateBody(updateSiteSchema, parsed.data, requestId);
-    if (!validation.ok) return validation.response;
-
-    const { id } = await context.params;
-
-    const existing = await db.select().from(sites).where(eq(sites.siteId, id));
-    const record = existing[0] ?? null;
-    if (!record || record.archivedAt) {
-      return errorResponse(ERROR_CODES.NOT_FOUND, "Site not found", 404, undefined, requestId);
-    }
-
-    const updates: Record<string, unknown> = {
-      ...validation.data,
-      updatedAt: new Date(),
-    };
-    if (typeof validation.data.budget === "number") {
-      updates.budget = String(validation.data.budget);
-    }
-
-    try {
-      const updated = await db
-        .update(sites)
-        .set(updates)
-        .where(eq(sites.siteId, id))
-        .returning();
-
-      await invalidateSiteCache(id, requestId);
-      return successResponse(updated[0] ?? null, 200, requestId);
-    } catch (dbError) {
-      const handled = handleDbError(dbError, requestId);
-      if (handled) return handled;
-      throw dbError;
-    }
-  } catch (error) {
-    logError(requestId, error);
-    return errorResponse(ERROR_CODES.INTERNAL_ERROR, "An unexpected error occurred", 500, undefined, requestId);
+  if (!record || record.archivedAt) {
+    return errorResponse(ERROR_CODES.NOT_FOUND, "Site not found", 404, undefined, requestId);
   }
-}
 
-export async function DELETE(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
-  const requestId = generateRequestId();
+  if (auth.session.user.role !== "Admin" && record.supervisorId !== auth.session.user.id) {
+    return errorResponse(
+      ERROR_CODES.FORBIDDEN,
+      "You can only access sites you supervise",
+      403,
+      undefined,
+      requestId,
+    );
+  }
+
+  return successResponse(record, 200, requestId);
+});
+
+export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, context) => {
+  const auth = await requireAdmin(request);
+  if (!("session" in auth)) {
+    return errorResponse(auth.error, "Admin access required", auth.status, undefined, requestId);
+  }
+
+  const parsed = await parseJsonBody(request, requestId);
+  if (!parsed.ok) return parsed.response;
+  const validation = validateBody(updateSiteSchema, parsed.data, requestId);
+  if (!validation.ok) return validation.response;
+
+  const { id } = await context.params;
+
+  const existing = await db.select().from(sites).where(eq(sites.siteId, id)).limit(1);
+  const record = existing[0] ?? null;
+  if (!record || record.archivedAt) {
+    return errorResponse(ERROR_CODES.NOT_FOUND, "Site not found", 404, undefined, requestId);
+  }
+
+  const updates: Record<string, unknown> = {
+    ...validation.data,
+    updatedAt: new Date(),
+  };
+  if (typeof validation.data.budget === "number") {
+    updates.budget = String(validation.data.budget);
+  }
 
   try {
-    const auth = await requireAdmin(request);
-    if (!("session" in auth)) {
-      return errorResponse(
-        auth.error,
-        "Admin access required",
-        auth.status,
-        undefined,
-        requestId
-      );
-    }
-
-    const { id } = await context.params;
-
-    const existing = await db.select().from(sites).where(eq(sites.siteId, id));
-    const record = existing[0] ?? null;
-
-    if (!record) {
-      return errorResponse(ERROR_CODES.NOT_FOUND, "Site not found", 404, undefined, requestId);
-    }
-
-    if (record.archivedAt) {
-      return errorResponse(ERROR_CODES.CONFLICT, "Site already archived", 409, undefined, requestId);
-    }
-
-    await db
+    const updated = await db
       .update(sites)
-      .set({ archivedAt: new Date(), updatedAt: new Date() })
-      .where(eq(sites.siteId, id));
+      .set(updates)
+      .where(eq(sites.siteId, id))
+      .returning();
 
     await invalidateSiteCache(id, requestId);
-    return successResponse(null, 200, requestId);
-  } catch (error) {
-    logError(requestId, error);
-    return errorResponse(ERROR_CODES.INTERNAL_ERROR, "An unexpected error occurred", 500, undefined, requestId);
+    return successResponse(updated[0] ?? null, 200, requestId);
+  } catch (dbError) {
+    const handled = handleDbError(dbError, requestId);
+    if (handled) return handled;
+    throw dbError;
   }
-}
+});
+
+export const DELETE = withApiRoute<RouteCtx>(async ({ request, requestId }, context) => {
+  const auth = await requireAdmin(request);
+  if (!("session" in auth)) {
+    return errorResponse(auth.error, "Admin access required", auth.status, undefined, requestId);
+  }
+
+  const { id } = await context.params;
+
+  const existing = await db.select().from(sites).where(eq(sites.siteId, id)).limit(1);
+  const record = existing[0] ?? null;
+
+  if (!record) {
+    return errorResponse(ERROR_CODES.NOT_FOUND, "Site not found", 404, undefined, requestId);
+  }
+
+  if (record.archivedAt) {
+    return errorResponse(ERROR_CODES.CONFLICT, "Site already archived", 409, undefined, requestId);
+  }
+
+  await db
+    .update(sites)
+    .set({ archivedAt: new Date(), updatedAt: new Date() })
+    .where(eq(sites.siteId, id));
+
+  await invalidateSiteCache(id, requestId);
+  return successResponse(null, 200, requestId);
+});

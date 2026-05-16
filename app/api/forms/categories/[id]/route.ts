@@ -1,64 +1,117 @@
-import { eq, inArray } from "drizzle-orm";
-import { NextRequest } from "next/server";
+import { eq } from "drizzle-orm";
 
-import { requireSiteAccess } from "@/lib/auth/guards";
+import { requireAdmin, requireSiteAccess } from "@/lib/auth/guards";
+import { getOrSetJson } from "@/lib/cache/getOrSetJson";
+import {
+  invalidateCategoryListCache,
+  invalidateCategoryTreeCache,
+} from "@/lib/cache/invalidate";
+import { categoryTreeCacheKey } from "@/lib/cache/keys";
 import { db } from "@/lib/db/client";
 import { categories, fieldDefinitions, subcategories } from "@/lib/db/schema";
 import { ERROR_CODES } from "@/lib/errors/codes";
 import { errorResponse, successResponse } from "@/lib/errors/response";
-import { logError } from "@/lib/logging/log";
-import { generateRequestId } from "@/lib/utils/requestId";
+import { withApiRoute } from "@/lib/http/withApi";
+import { runNonCritical } from "@/lib/services/nonCritical";
 
-export async function GET(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
-  const requestId = generateRequestId();
+type RouteCtx = { params: Promise<{ id: string }> };
 
-  try {
-    const auth = await requireSiteAccess(request);
-    if (!("session" in auth)) {
-      return errorResponse(auth.error, "Authentication required", auth.status, undefined, requestId);
+type CategoryRow = typeof categories.$inferSelect;
+type SubcategoryRow = typeof subcategories.$inferSelect;
+type FieldDefinitionRow = typeof fieldDefinitions.$inferSelect;
+
+type CategoryTree = CategoryRow & {
+  subcategories: Array<SubcategoryRow & { fields: FieldDefinitionRow[] }>;
+};
+
+const CATEGORY_TREE_TTL_SECONDS = 600;
+
+async function loadCategoryTree(id: string): Promise<CategoryTree | null> {
+  // Single roundtrip via LEFT JOIN. Each row can be:
+  //   - category only (no subcategories)
+  //   - category + subcategory (no fields on it)
+  //   - category + subcategory + field
+  const rows = await db
+    .select({
+      category: categories,
+      sub: subcategories,
+      field: fieldDefinitions,
+    })
+    .from(categories)
+    .leftJoin(subcategories, eq(subcategories.categoryId, categories.categoryId))
+    .leftJoin(fieldDefinitions, eq(fieldDefinitions.subcategoryId, subcategories.subcategoryId))
+    .where(eq(categories.categoryId, id));
+
+  const first = rows[0];
+  if (!first) return null;
+
+  const subsById = new Map<string, SubcategoryRow & { fields: FieldDefinitionRow[] }>();
+  for (const row of rows) {
+    if (!row.sub) continue;
+    let bucket = subsById.get(row.sub.subcategoryId);
+    if (!bucket) {
+      bucket = { ...row.sub, fields: [] };
+      subsById.set(row.sub.subcategoryId, bucket);
     }
-
-    const { id } = await context.params;
-
-    const category = await db
-      .select()
-      .from(categories)
-      .where(eq(categories.categoryId, id));
-
-    const cat = category[0] ?? null;
-    if (!cat) {
-      return errorResponse(ERROR_CODES.NOT_FOUND, "Category not found", 404, undefined, requestId);
+    if (row.field && !bucket.fields.find((f) => f.fieldDefinitionId === row.field!.fieldDefinitionId)) {
+      bucket.fields.push(row.field);
     }
-
-    const subs = await db
-      .select()
-      .from(subcategories)
-      .where(eq(subcategories.categoryId, id));
-
-    const subIds = subs.map((s) => s.subcategoryId);
-    const allFields =
-      subIds.length === 0
-        ? []
-        : await db
-            .select()
-            .from(fieldDefinitions)
-            .where(inArray(fieldDefinitions.subcategoryId, subIds));
-
-    const fieldsBySub = new Map<string, typeof allFields>();
-    for (const field of allFields) {
-      const existing = fieldsBySub.get(field.subcategoryId) ?? [];
-      existing.push(field);
-      fieldsBySub.set(field.subcategoryId, existing);
-    }
-
-    const fields = subs.map((s) => ({ ...s, fields: fieldsBySub.get(s.subcategoryId) ?? [] }));
-
-    return successResponse({ ...cat, subcategories: fields }, 200, requestId);
-  } catch (error) {
-    logError(requestId, error);
-    return errorResponse(ERROR_CODES.INTERNAL_ERROR, "An unexpected error occurred", 500, undefined, requestId);
   }
+
+  return {
+    ...first.category,
+    subcategories: Array.from(subsById.values()),
+  };
 }
+
+export const GET = withApiRoute<RouteCtx>(async ({ request, requestId }, context) => {
+  const auth = await requireSiteAccess(request);
+  if (!("session" in auth)) {
+    return errorResponse(auth.error, "Authentication required", auth.status, undefined, requestId);
+  }
+
+  const { id } = await context.params;
+
+  const { value: tree } = await getOrSetJson<CategoryTree | null>(
+    requestId,
+    categoryTreeCacheKey(id),
+    CATEGORY_TREE_TTL_SECONDS,
+    () => loadCategoryTree(id),
+  );
+
+  if (!tree) {
+    return errorResponse(ERROR_CODES.NOT_FOUND, "Category not found", 404, undefined, requestId);
+  }
+
+  return successResponse(tree, 200, requestId);
+});
+
+export const DELETE = withApiRoute<RouteCtx>(async ({ request, requestId }, context) => {
+  const auth = await requireAdmin(request);
+  if (!("session" in auth)) {
+    return errorResponse(auth.error, "Admin access required", auth.status, undefined, requestId);
+  }
+
+  const { id } = await context.params;
+  const existing = await db
+    .select({ categoryId: categories.categoryId })
+    .from(categories)
+    .where(eq(categories.categoryId, id))
+    .limit(1);
+  if (!existing[0]) {
+    return errorResponse(ERROR_CODES.NOT_FOUND, "Category not found", 404, undefined, requestId);
+  }
+
+  await db.delete(categories).where(eq(categories.categoryId, id));
+
+  runNonCritical(
+    requestId,
+    "category_cache_invalidation_failed",
+    Promise.all([
+      invalidateCategoryTreeCache(id, requestId),
+      invalidateCategoryListCache(requestId),
+    ]),
+  );
+
+  return successResponse(null, 200, requestId);
+});

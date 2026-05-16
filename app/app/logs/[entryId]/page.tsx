@@ -61,7 +61,7 @@ export default async function LogsEntryPage({
 
   return (
     <div className="flex flex-col gap-density-medium">
-      <header>
+      <header className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-4">
         <h2 className="font-headline-sm text-headline-sm text-on-background">Edit {categoryName}</h2>
         <p className="font-body-md text-body-md text-on-surface-variant">
           Update the fields and save your changes.
@@ -71,6 +71,7 @@ export default async function LogsEntryPage({
         categoryId={categoryId}
         categoryName={categoryName}
         siteId={entrySiteId}
+        role={session.user.role as "Admin" | "Supervisor"}
         entryId={entryId}
         initialValues={initialValues}
       />

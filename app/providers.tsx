@@ -1,25 +1,36 @@
 'use client';
 
 import { createBrowserClient } from '@supabase/ssr';
-import posthog from 'posthog-js';
-import { PostHogProvider as PHProvider } from 'posthog-js/react';
 import { useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { Toaster } from 'sonner';
 import 'sonner/dist/styles.css';
 
+// Lazy-load and init PostHog after window load so analytics never blocks first paint.
+function deferredInitPostHog() {
+  const key = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
+  const host = process.env.NEXT_PUBLIC_POSTHOG_HOST;
+  if (!key || !host) return;
+  void import('posthog-js').then(({ default: posthog }) => {
+    if (posthog.__loaded) return;
+    posthog.init(key, {
+      api_host: host,
+      capture_pageview: false,
+      autocapture: false,
+      person_profiles: 'identified_only',
+    });
+  });
+}
+
 export default function Providers({ children }: { children: ReactNode }) {
   useEffect(() => {
-    const key = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
-    const host = process.env.NEXT_PUBLIC_POSTHOG_HOST;
-    if (key && host && !posthog.__loaded) {
-      posthog.init(key, {
-        api_host: host,
-        capture_pageview: false,
-        autocapture: false,
-        person_profiles: 'identified_only',
-      });
+    if (document.readyState === 'complete') {
+      deferredInitPostHog();
+      return;
     }
+    const onLoad = () => deferredInitPostHog();
+    window.addEventListener('load', onLoad, { once: true });
+    return () => window.removeEventListener('load', onLoad);
   }, []);
 
   useEffect(() => {
@@ -54,9 +65,9 @@ export default function Providers({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <PHProvider client={posthog}>
+    <>
       {children}
       <Toaster position="top-right" richColors closeButton />
-    </PHProvider>
+    </>
   );
 }

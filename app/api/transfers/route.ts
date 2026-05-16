@@ -1,5 +1,4 @@
 import { and, desc, eq, or } from "drizzle-orm";
-import { NextRequest } from "next/server";
 
 import { requireSiteAccess } from "@/lib/auth/guards";
 import { db } from "@/lib/db/client";
@@ -7,10 +6,9 @@ import { resourceTransfers } from "@/lib/db/schema";
 import { ERROR_CODES } from "@/lib/errors/codes";
 import { errorResponse, successResponse } from "@/lib/errors/response";
 import { parseJsonBody } from "@/lib/http/request";
-import { generateRequestId } from "@/lib/utils/requestId";
+import { withApi } from "@/lib/http/withApi";
 
-export async function GET(request: NextRequest) {
-  const requestId = generateRequestId();
+export const GET = withApi(async ({ request, requestId }) => {
   const auth = await requireSiteAccess(request);
   if (!("session" in auth)) return errorResponse(auth.error, "Authentication required", auth.status, undefined, requestId);
 
@@ -24,10 +22,9 @@ export async function GET(request: NextRequest) {
     ).orderBy(desc(resourceTransfers.createdAt));
 
   return successResponse(rows, 200, requestId);
-}
+});
 
-export async function POST(request: NextRequest) {
-  const requestId = generateRequestId();
+export const POST = withApi(async ({ request, requestId }) => {
   const auth = await requireSiteAccess(request);
   if (!("session" in auth)) return errorResponse(auth.error, "Authentication required", auth.status, undefined, requestId);
   if (auth.session.user.role !== "Supervisor") {
@@ -67,4 +64,4 @@ export async function POST(request: NextRequest) {
   }).returning();
 
   return successResponse(inserted[0], 201, requestId);
-}
+});

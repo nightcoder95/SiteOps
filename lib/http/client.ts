@@ -82,10 +82,13 @@ export async function requestJson<T>(
       ...init,
     });
   } catch (cause: any) {
+    // Caller-driven AbortController cancellations must not surface as errors.
+    const isAbort =
+      cause?.name === 'AbortError' || init.signal?.aborted === true;
     return {
       ok: false,
       kind: 'network_error',
-      message: cause?.message ?? 'Unable to reach the server',
+      message: isAbort ? 'Request aborted' : cause?.message ?? 'Unable to reach the server',
       endpoint,
       method,
     };

@@ -12,7 +12,7 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
-import { isNull } from "drizzle-orm";
+import { isNull, sql } from "drizzle-orm";
 
 export const siteStatusEnum = pgEnum("site_status", ["In Progress", "Blocked", "Completed"]);
 export const requestStatusEnum = pgEnum("request_status", ["Pending", "Approved", "Declined"]);
@@ -73,6 +73,9 @@ export const sites = pgTable("sites", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
   index("sites_supervisor_id_idx").on(t.supervisorId),
+  // Partial indexes for the dominant "active sites only" filter.
+  index("sites_supervisor_active_idx").on(t.supervisorId).where(isNull(t.archivedAt)),
+  index("sites_active_idx").on(t.siteId).where(isNull(t.archivedAt)),
 ]);
 
 export const customLabourTypes = pgTable("custom_labour_types", {
@@ -148,6 +151,7 @@ export const labourEntries = pgTable("labour_entries", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
   index("labour_entries_site_id_date_idx").on(t.siteId, t.date),
+  index("labour_entries_site_date_created_idx").on(t.siteId, t.date.desc(), t.createdAt.desc()),
 ]);
 
 export const materialEntries = pgTable("material_entries", {
@@ -170,6 +174,7 @@ export const materialEntries = pgTable("material_entries", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
   index("material_entries_site_id_date_idx").on(t.siteId, t.date),
+  index("material_entries_site_date_created_idx").on(t.siteId, t.date.desc(), t.createdAt.desc()),
 ]);
 
 export const machineryEntries = pgTable("machinery_entries", {
@@ -188,6 +193,7 @@ export const machineryEntries = pgTable("machinery_entries", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
   index("machinery_entries_site_id_date_idx").on(t.siteId, t.date),
+  index("machinery_entries_site_date_created_idx").on(t.siteId, t.date.desc(), t.createdAt.desc()),
 ]);
 
 export const expenseEntries = pgTable("expense_entries", {
@@ -203,6 +209,7 @@ export const expenseEntries = pgTable("expense_entries", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
   index("expense_entries_site_id_date_idx").on(t.siteId, t.date),
+  index("expense_entries_site_date_created_idx").on(t.siteId, t.date.desc(), t.createdAt.desc()),
 ]);
 
 export const resourceRequests = pgTable("resource_requests", {
@@ -249,6 +256,7 @@ export const incidentReports = pgTable("incident_reports", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
   index("incident_reports_site_id_idx").on(t.siteId),
+  index("incident_reports_site_created_idx").on(t.siteId, t.createdAt.desc()),
 ]);
 
 export const notifications = pgTable("notifications", {
@@ -273,7 +281,10 @@ export const categories = pgTable("categories", {
   name: varchar("name", { length: 100 }).notNull().unique(),
   icon: varchar("icon", { length: 50 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (t) => [
+  // Case-insensitive lookup to match normalizeLabel duplicate detection.
+  index("categories_name_lower_idx").on(sql`lower(${t.name})`),
+]);
 
 export const subcategories = pgTable("subcategories", {
   id: identityId(),
@@ -281,7 +292,9 @@ export const subcategories = pgTable("subcategories", {
   categoryId: uuid("category_id").notNull().references(() => categories.categoryId, { onDelete: "cascade" }),
   name: varchar("name", { length: 100 }).notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (t) => [
+  index("subcategories_category_idx").on(t.categoryId),
+]);
 
 export const fieldDefinitions = pgTable("field_definitions", {
   id: identityId(),
@@ -292,7 +305,9 @@ export const fieldDefinitions = pgTable("field_definitions", {
   unit: varchar("unit", { length: 50 }),
   options: jsonb("options"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (t) => [
+  index("field_definitions_subcategory_idx").on(t.subcategoryId),
+]);
 
 export const genericEntries = pgTable("generic_entries", {
   id: identityId(),
