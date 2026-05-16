@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
 import { requestJson, type ClientResult } from '@/lib/http/client';
@@ -35,6 +37,7 @@ type SiteDetailPageClientProps = {
   siteId: string;
   initialSite: Site;
   initialEntries: SiteEntriesResponse;
+  role: 'Admin' | 'Supervisor';
 };
 
 const TYPE_ICONS: Record<EditableEntryType, string> = {
@@ -90,7 +93,9 @@ export default function SiteDetailPageClient({
   siteId,
   initialSite,
   initialEntries,
+  role,
 }: SiteDetailPageClientProps) {
+  const router = useRouter();
   const [siteResult] = useState<ClientResult<Site> | null>({ ok: true, data: initialSite });
   const [entriesResult, setEntriesResult] = useState<ClientResult<SiteEntriesResponse> | null>({
     ok: true,
@@ -98,6 +103,7 @@ export default function SiteDetailPageClient({
   });
   const [type, setType] = useState<EntryType>('all');
   const [loading, setLoading] = useState(false);
+  const [deletingSite, setDeletingSite] = useState(false);
 
   async function onChangeType(next: EntryType) {
     setType(next);
@@ -112,6 +118,21 @@ export default function SiteDetailPageClient({
 
   const site = siteResult?.ok ? siteResult.data : initialSite;
   const progress = site.currentProgress ?? 0;
+
+  async function handleDeleteSite() {
+    if (role !== 'Admin') return;
+    const confirmed = window.confirm(`Archive site "${site.name}"?`);
+    if (!confirmed) return;
+    setDeletingSite(true);
+    const res = await requestJson<null>(`/api/sites/${siteId}`, { method: 'DELETE' });
+    setDeletingSite(false);
+    if (!res.ok) {
+      toast.error(res.message);
+      return;
+    }
+    toast.success('Site archived');
+    router.push('/app/sites');
+  }
 
   return (
     <div className="flex flex-col gap-density-medium">
@@ -174,6 +195,16 @@ export default function SiteDetailPageClient({
             <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>swap_horiz</span>
             Transfer
           </Link>
+          <button
+            type="button"
+            onClick={() => void handleDeleteSite()}
+            disabled={role !== 'Admin' || deletingSite}
+            title={role === 'Admin' ? 'Archive site' : 'Only admins can delete sites'}
+            className="flex h-10 items-center gap-2 rounded border border-error/35 px-4 font-label-md text-label-md uppercase text-error disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete</span>
+            {deletingSite ? 'Deleting…' : 'Delete Site'}
+          </button>
         </div>
       </section>
 

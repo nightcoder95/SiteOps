@@ -8,12 +8,24 @@ import {
   AUTH_USER_ROLE_HEADER,
   parseSessionRole,
 } from "@/lib/auth/headers";
-import { PUBLIC_ROUTES } from "@/lib/auth/constants";
-import { ERROR_CODES } from "@/lib/errors/codes";
-import { upstashRateLimit } from "@/lib/rateLimit/upstash";
+import { PUBLIC_ROUTES, PUBLIC_ROUTE_PREFIXES } from "@/lib/auth/constants";
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+
+  // Public routes skip all auth work — no Supabase client, no JWT verify.
+  if (
+    PUBLIC_ROUTES.includes(pathname) ||
+    PUBLIC_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+  ) {
+    return NextResponse.next();
+  }
+
+  // CORS/health preflights never carry meaningful auth state.
+  if (request.method === "OPTIONS") {
+    return NextResponse.next();
+  }
+
   const requestHeaders = new Headers(request.headers);
   const cookiesToSet: Array<{
     name: string;
@@ -34,25 +46,20 @@ export async function middleware(request: NextRequest) {
       },
     },
   });
+
+  // getClaims verifies the JWT locally against the JWKS (cached). With asymmetric
+  // signing keys (ES256/RS256) this avoids the Auth-server round-trip getUser() makes.
   const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
   const claims = claimsError ? null : claimsData?.claims ?? null;
-  let userId = typeof claims?.sub === "string" ? claims.sub : null;
-  let userEmail = typeof claims?.email === "string" ? claims.email : "";
+  const userId = typeof claims?.sub === "string" ? claims.sub : null;
+  const userEmail = typeof claims?.email === "string" ? claims.email : "";
   const userRole = parseSessionRole(
     typeof claims?.user_role === "string"
       ? claims.user_role
       : typeof claims?.role === "string"
         ? claims.role
-      : null
+        : null
   );
-
-  if (!userId && claimsError) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    userId = user?.id ?? null;
-    userEmail = user?.email ?? "";
-  }
 
   if (userId) {
     requestHeaders.set(AUTH_USER_ID_HEADER, userId);
@@ -76,38 +83,6 @@ export async function middleware(request: NextRequest) {
   cookiesToSet.forEach(({ name, value, options }) => {
     response.cookies.set(name, value, options);
   });
-
-  if (PUBLIC_ROUTES.includes(pathname)) {
-    return response;
-  }
-
-  if (pathname.startsWith("/api") && upstashRateLimit) {
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-    // Key by userId when authenticated so shared IPs aren't penalised,
-    // and authenticated users can't bypass limits by rotating IPs.
-    const limitKey = userId
-      ? `user:${userId}:${pathname}`
-      : `ip:${ip}:${pathname}`;
-    const result = await upstashRateLimit.limit(limitKey);
-
-    if (!result.success) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: ERROR_CODES.RATE_LIMITED,
-            message: "Too many requests",
-            details: { limit: result.limit, remaining: result.remaining, reset: result.reset },
-          },
-          meta: {
-            requestId: null,
-            timestamp: new Date().toISOString(),
-          },
-        },
-        { status: 429 }
-      );
-    }
-  }
 
   if (!userId) {
     if (pathname.startsWith("/api")) {
@@ -133,5 +108,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|icons|manifest.json|sw.js|.*\\.png|.*\\.svg|.*\\.webp|.*\\.ico|.*\\.jpg|.*\\.jpeg).*)",
+  ],
 };

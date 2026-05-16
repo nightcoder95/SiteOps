@@ -250,13 +250,30 @@ export async function deleteEntryById(entryId: string, type: EntryType) {
   }
 }
 
+export type EntriesFilters = {
+  from?: string;
+  to?: string;
+  limit?: number;
+};
+
+// Default page size when caller does not specify. Keeps initial site-detail
+// payload small enough to avoid 1MB+ RSC responses while still showing a
+// useful first screen of activity.
+export const DEFAULT_ENTRIES_LIMIT = 50;
+
+function clampLimit(value: number | undefined) {
+  if (!value || Number.isNaN(value)) return DEFAULT_ENTRIES_LIMIT;
+  return Math.min(Math.max(1, Math.floor(value)), 200);
+}
+
 export async function getEntriesBySite(
   siteId: string,
   type: EntryType | "all",
-  filters?: { from?: string; to?: string }
+  filters?: EntriesFilters,
 ) {
   const from = filters?.from;
   const to = filters?.to;
+  const limit = clampLimit(filters?.limit);
 
   const dateWhere = (tableDateCol: any) => {
     if (from && to) return and(gte(tableDateCol, from), lte(tableDateCol, to));
@@ -270,46 +287,48 @@ export async function getEntriesBySite(
       .select()
       .from(labourEntries)
       .where(and(eq(labourEntries.siteId, siteId), dateWhere(labourEntries.date)))
-      .orderBy(desc(labourEntries.date), desc(labourEntries.createdAt));
+      .orderBy(desc(labourEntries.date), desc(labourEntries.createdAt))
+      .limit(limit);
 
   const fetchMaterial = async () =>
     db
       .select()
       .from(materialEntries)
       .where(
-        and(eq(materialEntries.siteId, siteId), dateWhere(materialEntries.date))
+        and(eq(materialEntries.siteId, siteId), dateWhere(materialEntries.date)),
       )
-      .orderBy(desc(materialEntries.date), desc(materialEntries.createdAt));
+      .orderBy(desc(materialEntries.date), desc(materialEntries.createdAt))
+      .limit(limit);
 
   const fetchMachinery = async () =>
     db
       .select()
       .from(machineryEntries)
       .where(
-        and(
-          eq(machineryEntries.siteId, siteId),
-          dateWhere(machineryEntries.date)
-        )
+        and(eq(machineryEntries.siteId, siteId), dateWhere(machineryEntries.date)),
       )
-      .orderBy(desc(machineryEntries.date), desc(machineryEntries.createdAt));
+      .orderBy(desc(machineryEntries.date), desc(machineryEntries.createdAt))
+      .limit(limit);
 
   const fetchExpense = async () =>
     db
       .select()
       .from(expenseEntries)
       .where(
-        and(eq(expenseEntries.siteId, siteId), dateWhere(expenseEntries.date))
+        and(eq(expenseEntries.siteId, siteId), dateWhere(expenseEntries.date)),
       )
-      .orderBy(desc(expenseEntries.date), desc(expenseEntries.createdAt));
+      .orderBy(desc(expenseEntries.date), desc(expenseEntries.createdAt))
+      .limit(limit);
 
   const fetchIncident = async () =>
     db
       .select()
       .from(incidentReports)
       .where(
-        and(eq(incidentReports.siteId, siteId), dateWhere(incidentReports.createdAt))
+        and(eq(incidentReports.siteId, siteId), dateWhere(incidentReports.createdAt)),
       )
-      .orderBy(desc(incidentReports.createdAt));
+      .orderBy(desc(incidentReports.createdAt))
+      .limit(limit);
 
   switch (type) {
     case "labour":

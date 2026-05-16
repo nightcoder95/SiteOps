@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowLeft, Bell, Info } from 'lucide-react';
 import { View } from '@/lib/types/legacy';
+import { AnimatedList, AnimatedListItem } from '@/components/ui/motion';
 
 interface NotificationsViewProps {
   navigate: (view: View) => void;
@@ -14,8 +15,8 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ navigate }
       </button>
       <h2 className="font-headline font-black uppercase text-sm tracking-widest text-on-surface">Broadcasts</h2>
     </header>
-    <main className="p-8 space-y-4 max-w-[800px] mx-auto w-full">
-      <button 
+    <main className="p-8 max-w-[800px] mx-auto w-full"><AnimatedList className="space-y-4 list-none">
+      <AnimatedListItem><button
         onClick={() => alert("Redirecting to Safety Protocol Shift-Update Details...")}
         className="w-full text-left bg-primary/5 p-6 rounded-2xl border border-primary/20 flex gap-4 active-press group"
       >
@@ -25,10 +26,9 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ navigate }
             <p className="text-xs font-medium text-on-surface-variant mt-1 leading-relaxed">New safety protocols added for High-Rise 402. Please review before next shift logs.</p>
             <p className="text-[8px] font-black text-primary uppercase mt-2 tracking-widest">Just Now</p>
          </div>
-      </button>
+      </button></AnimatedListItem>
       {[1, 2].map(i => (
-        <button 
-          key={i} 
+        <AnimatedListItem key={i}><button
           onClick={() => alert("Archive Notification: Weather Advisory Details unavailable in Demo Mode.")}
           className="w-full text-left bg-white p-6 rounded-2xl border border-outline-variant/30 flex gap-4 opacity-60 active-press hover:opacity-100 transition-all group"
         >
@@ -38,8 +38,8 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ navigate }
               <p className="text-xs font-medium text-on-surface-variant mt-1 leading-relaxed">Heavy rains expected tomorrow. Waterproofing check required.</p>
               <p className="text-[8px] font-black text-on-surface-variant uppercase mt-2 tracking-widest">{i}d ago</p>
            </div>
-        </button>
+        </button></AnimatedListItem>
       ))}
-    </main>
+    </AnimatedList></main>
   </div>
 );

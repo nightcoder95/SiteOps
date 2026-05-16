@@ -39,7 +39,7 @@ export default async function LogsNewCategoryPage({
 
   return (
     <div className="flex flex-col gap-density-medium">
-      <header>
+      <header className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-4">
         <Link
           href={backHref}
           className="mb-2 inline-flex items-center gap-1 font-label-md text-label-md uppercase text-primary"
@@ -56,6 +56,7 @@ export default async function LogsNewCategoryPage({
         categoryId={category.categoryId}
         categoryName={category.name}
         siteId={siteId}
+        role={session.user.role as "Admin" | "Supervisor"}
       />
     </div>
   );

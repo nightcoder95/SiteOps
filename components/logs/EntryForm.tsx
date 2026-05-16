@@ -18,6 +18,7 @@ type Props = {
   categoryId: string;
   categoryName: string;
   siteId?: string;
+  role: "Admin" | "Supervisor";
   entryId?: string;
   initialValues?: Record<string, unknown>;
   onSuccess?: () => void;
@@ -49,6 +50,7 @@ export function EntryForm({
   categoryId,
   categoryName,
   siteId,
+  role,
   entryId,
   initialValues,
   onSuccess,
@@ -61,11 +63,21 @@ export function EntryForm({
   const [values, setValues] = useState<Record<string, FieldValue>>(() => {
     const v: Record<string, FieldValue> = {};
     for (const f of fields) {
-      v[f.name] = (initialValues?.[f.name] as FieldValue | undefined) ?? defaultValue(f);
+      const raw = initialValues?.[f.name] as FieldValue | string | undefined;
+      if (f.kind === "subcategory" && typeof raw === "string" && raw.trim()) {
+        v[f.name] = {
+          subcategoryId: `existing-${f.name}`,
+          name: raw.trim(),
+          categoryId,
+        };
+      } else {
+        v[f.name] = (raw as FieldValue | undefined) ?? defaultValue(f);
+      }
     }
     return v;
   });
   const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   function update(name: string, val: FieldValue) {
     setValues((s) => ({ ...s, [name]: val }));
@@ -94,8 +106,6 @@ export function EntryForm({
       if (f.kind === "subcategory") {
         const sub = v as SubcategoryOption | null;
         if (sub) {
-          payload[`${f.name}Mode`] = "custom";
-          payload[`${f.name}CustomId`] = sub.subcategoryId;
           payload[f.name] = sub.name;
         }
       } else if (f.kind === "number") {
@@ -143,6 +153,27 @@ export function EntryForm({
     else router.push("/app/dashboard");
   }
 
+  async function handleDelete() {
+    if (!entryId || kind === "dynamic") return;
+    const confirmed = window.confirm("Delete this log entry?");
+    if (!confirmed) return;
+    setDeleting(true);
+    const res = await requestJson<null>(`/api/entries/${entryId}?type=${kind}`, {
+      method: "DELETE",
+    });
+    setDeleting(false);
+    if (!res.ok) {
+      toast.error(res.message);
+      return;
+    }
+    toast.success("Entry deleted");
+    if (siteId) {
+      router.push(`/app/sites/${siteId}`);
+      return;
+    }
+    router.push("/app/dashboard");
+  }
+
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
       {fields.map((f) => (
@@ -152,6 +183,8 @@ export function EntryForm({
           value={values[f.name]}
           onChange={(v) => update(f.name, v)}
           categoryId={categoryId}
+          role={role}
+          siteId={siteId}
         />
       ))}
       <button
@@ -164,6 +197,17 @@ export function EntryForm({
         </span>
         {submitting ? "Saving…" : isEdit ? "Update Entry" : "Submit Entry"}
       </button>
+      {isEdit ? (
+        <button
+          type="button"
+          onClick={() => void handleDelete()}
+          disabled={deleting}
+          className="flex h-11 w-full items-center justify-center gap-2 rounded border border-error/40 bg-error/10 font-label-md text-label-md uppercase text-error disabled:opacity-60"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>delete</span>
+          {deleting ? "Deleting…" : "Delete Entry"}
+        </button>
+      ) : null}
     </form>
   );
 }
@@ -173,11 +217,15 @@ function FieldRow({
   value,
   onChange,
   categoryId,
+  role,
+  siteId,
 }: {
   field: EntryField;
   value: FieldValue;
   onChange: (v: FieldValue) => void;
   categoryId: string;
+  role: "Admin" | "Supervisor";
+  siteId?: string;
 }) {
   const id = `field-${field.name}`;
 
@@ -189,6 +237,8 @@ function FieldRow({
         value={value as SubcategoryOption | null}
         onChange={onChange}
         required={field.required}
+        role={role}
+        siteId={siteId}
       />
     );
   }

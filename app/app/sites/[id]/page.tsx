@@ -3,13 +3,14 @@ import { notFound, redirect } from 'next/navigation';
 
 import { checkOwnership } from '@/lib/auth/ownership';
 import { safeGetSessionFromHeaders } from '@/lib/auth/session';
-import { getEntriesBySite } from '@/lib/db/queries/entries';
+import { DEFAULT_ENTRIES_LIMIT, getEntriesBySite } from '@/lib/db/queries/entries';
 import { getSiteById } from '@/lib/db/queries/sites';
+import { serializeRow } from '@/lib/utils/serialize';
 
 import SiteDetailPageClient from './SiteDetailPageClient';
 
 export default async function SiteDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await safeGetSessionFromHeaders(await headers());
+  const session = safeGetSessionFromHeaders(await headers());
   if (!session) {
     redirect('/auth/sign-in');
   }
@@ -24,15 +25,14 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
     notFound();
   }
 
-  const initialEntries = await getEntriesBySite(siteId, 'all');
-  const initialEntriesJson = JSON.parse(JSON.stringify(initialEntries));
-  const initialSiteJson = JSON.parse(JSON.stringify(site));
+  const initialEntries = await getEntriesBySite(siteId, 'all', { limit: DEFAULT_ENTRIES_LIMIT });
 
   return (
     <SiteDetailPageClient
       siteId={siteId}
-      initialSite={initialSiteJson}
-      initialEntries={initialEntriesJson}
+      initialSite={serializeRow(site) as any}
+      initialEntries={serializeRow(initialEntries) as any}
+      role={session.user.role as "Admin" | "Supervisor"}
     />
   );
 }
