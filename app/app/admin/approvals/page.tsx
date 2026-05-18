@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useOptimistic, useState } from 'react';
+import { useEffect, useMemo, useOptimistic, useState } from 'react';
 
 import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
 import { requestJson, type ClientResult } from '@/lib/http/client';
@@ -41,11 +41,19 @@ type Transfer = {
   requestedByUserId: string;
 };
 
+type Category = { categoryId: string; name: string };
+type Subcategory = { subcategoryId: string; name: string; categoryId: string };
+
 export default function AdminApprovalsPage() {
   const [resourceResult, setResourceResult] = useState<ClientResult<ResourceRequest[]> | null>(null);
   const [fieldResult, setFieldResult] = useState<ClientResult<FieldRequest[]> | null>(null);
   const [transferResult, setTransferResult] = useState<ClientResult<Transfer[]> | null>(null);
+  const [categoriesResult, setCategoriesResult] = useState<ClientResult<Category[]> | null>(null);
+  const [subcategoryMap, setSubcategoryMap] = useState<Record<string, Subcategory[]>>({});
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [mergeCategory, setMergeCategory] = useState<Record<string, string>>({});
+  const [mergeSubcategory, setMergeSubcategory] = useState<Record<string, string>>({});
+
   const [optimisticResource, applyResourceOptimistic] = useOptimistic(
     resourceResult?.ok ? resourceResult.data : ([] as ResourceRequest[]),
     (current, action: { requestId: string; status: 'Approved' | 'Declined' }) =>
@@ -69,14 +77,28 @@ export default function AdminApprovalsPage() {
   );
 
   async function load() {
-    const [resource, field, transfers] = await Promise.all([
+    const [resource, field, transfers, categories] = await Promise.all([
       requestJson<ResourceRequest[]>('/api/requests/resource'),
       requestJson<FieldRequest[]>('/api/requests/field'),
       requestJson<Transfer[]>('/api/transfers'),
+      requestJson<Category[]>('/api/forms/categories'),
     ]);
     setResourceResult(resource);
     setFieldResult(field);
     setTransferResult(transfers);
+    setCategoriesResult(categories);
+
+    if (categories.ok) {
+      const rows = await Promise.all(
+        categories.data.map(async (c) => {
+          const tree = await requestJson<{ subcategories: Array<{ subcategoryId: string; name: string; categoryId: string }> }>(`/api/forms/categories/${c.categoryId}`);
+          return { id: c.categoryId, subs: tree.ok ? tree.data.subcategories : [] };
+        }),
+      );
+      const nextMap: Record<string, Subcategory[]> = {};
+      for (const row of rows) nextMap[row.id] = row.subs;
+      setSubcategoryMap(nextMap);
+    }
   }
 
   useEffect(() => {
@@ -107,13 +129,17 @@ export default function AdminApprovalsPage() {
     setPendingId(null);
   }
 
-  async function reviewField(fieldRequestId: string, status: 'Approved' | 'Declined') {
+  async function reviewField(fieldRequestId: string, status: 'Approved' | 'Declined', options?: { mergeTargetCategoryId?: string; mergeTargetSubcategoryId?: string }) {
     applyFieldOptimistic({ fieldRequestId, status });
     setPendingId(fieldRequestId);
     const next = await requestJson(`/api/requests/field/${fieldRequestId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({
+        status,
+        mergeTargetCategoryId: options?.mergeTargetCategoryId,
+        mergeTargetSubcategoryId: options?.mergeTargetSubcategoryId,
+      }),
     });
     if (next.ok) {
       toastSuccess(`Field request ${status.toLowerCase()}`);
@@ -143,13 +169,21 @@ export default function AdminApprovalsPage() {
     setPendingId(null);
   }
 
+  const reviewRequests = useMemo(
+    () => (fieldResult?.ok ? fieldResult.data.filter((item) => item.proposedName.startsWith('[Category Review]') || item.proposedName.startsWith('[Subcategory Review]')) : []),
+    [fieldResult],
+  );
+
+  const normalFieldRequests = useMemo(
+    () => (fieldResult?.ok ? optimisticField.filter((item) => !item.proposedName.startsWith('[Category Review]') && !item.proposedName.startsWith('[Subcategory Review]')) : []),
+    [fieldResult, optimisticField],
+  );
+
   return (
     <div className="flex flex-col gap-density-medium">
-      <header>
+      <header className="future-card p-4">
         <h2 className="font-headline-sm text-headline-sm text-on-background">Review Queues</h2>
-        <p className="font-body-md text-body-md text-on-surface-variant">
-          Resource requests, field requests, and site-to-site transfers.
-        </p>
+        <p className="font-body-md text-body-md text-on-surface-variant">Resource requests, field requests, transfer requests, and duplicate category reviews.</p>
       </header>
 
       {resourceResult && !resourceResult.ok && resourceResult.kind === 'endpoint_unavailable' ? (
@@ -162,8 +196,71 @@ export default function AdminApprovalsPage() {
         <ApiUnavailableBanner endpoint={transferResult.endpoint} method={transferResult.method} />
       ) : null}
 
+      <section className="future-card p-4">
+        <h3 className="font-headline-sm text-headline-sm text-on-surface">Category/Subcategory Duplicate Reviews</h3>
+        <div className="mt-3 grid gap-3">
+          {reviewRequests.map((request) => {
+            const isSub = request.proposedName.startsWith('[Subcategory Review]');
+            const selectedCategory = mergeCategory[request.fieldRequestId] ?? '';
+            const subs = selectedCategory ? (subcategoryMap[selectedCategory] ?? []) : [];
+            return (
+              <article key={request.fieldRequestId} className="rounded-2xl border border-outline-variant bg-surface-container-low px-4 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-base font-black text-on-surface">{request.proposedName}</div>
+                    <div className="text-sm text-on-surface-variant">Site {request.siteId}</div>
+                  </div>
+                  <span className="rounded-full bg-surface px-3 py-1 text-[10px] font-black uppercase tracking-[0.24em] text-on-surface-variant">{request.status}</span>
+                </div>
+                {request.status === 'Pending' ? (
+                  <div className="mt-3 grid gap-2">
+                    <select
+                      value={selectedCategory}
+                      onChange={(e) => setMergeCategory((prev) => ({ ...prev, [request.fieldRequestId]: e.target.value }))}
+                      className="h-10 rounded-xl border border-outline bg-surface-container-lowest px-3"
+                    >
+                      <option value="">Choose merge category</option>
+                      {categoriesResult?.ok ? categoriesResult.data.map((c) => (
+                        <option key={c.categoryId} value={c.categoryId}>{c.name}</option>
+                      )) : null}
+                    </select>
+                    {isSub ? (
+                      <select
+                        value={mergeSubcategory[request.fieldRequestId] ?? ''}
+                        onChange={(e) => setMergeSubcategory((prev) => ({ ...prev, [request.fieldRequestId]: e.target.value }))}
+                        className="h-10 rounded-xl border border-outline bg-surface-container-lowest px-3"
+                      >
+                        <option value="">Choose merge subcategory</option>
+                        {subs.map((s) => (
+                          <option key={s.subcategoryId} value={s.subcategoryId}>{s.name}</option>
+                        ))}
+                      </select>
+                    ) : null}
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button type="button" disabled={pendingId === request.fieldRequestId} onClick={() => reviewField(request.fieldRequestId, 'Approved')} className="rounded bg-primary px-4 py-2 font-label-md text-label-md uppercase text-on-primary disabled:opacity-60">Approve</button>
+                      <button
+                        type="button"
+                        disabled={pendingId === request.fieldRequestId}
+                        onClick={() => reviewField(request.fieldRequestId, 'Declined', {
+                          mergeTargetCategoryId: mergeCategory[request.fieldRequestId],
+                          mergeTargetSubcategoryId: isSub ? mergeSubcategory[request.fieldRequestId] : undefined,
+                        })}
+                        className="rounded border border-outline px-4 py-2 font-label-md text-label-md uppercase text-on-surface-variant disabled:opacity-60"
+                      >
+                        Decline + Merge
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
+          {reviewRequests.length === 0 ? <p className="text-sm text-on-surface-variant">No duplicate review requests.</p> : null}
+        </div>
+      </section>
+
       <section className="grid gap-4">
-        <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
+        <div className="future-card p-4">
           <h3 className="font-headline-sm text-headline-sm text-on-surface">Resource requests</h3>
           <div className="mt-4 grid gap-3">
             {resourceResult?.ok ? optimisticResource.map((request) => (
@@ -187,10 +284,10 @@ export default function AdminApprovalsPage() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
+        <div className="future-card p-4">
           <h3 className="font-headline-sm text-headline-sm text-on-surface">Field requests</h3>
           <div className="mt-4 grid gap-3">
-            {fieldResult?.ok ? optimisticField.map((request) => (
+            {normalFieldRequests.map((request) => (
               <article key={request.fieldRequestId} className="rounded-2xl bg-surface-container-low px-4 py-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -207,11 +304,11 @@ export default function AdminApprovalsPage() {
                   </div>
                 ) : null}
               </article>
-            )) : null}
+            ))}
           </div>
         </div>
 
-        <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
+        <div className="future-card p-4">
           <h3 className="font-headline-sm text-headline-sm text-on-surface">Transfer requests</h3>
           <div className="mt-4 grid gap-3">
             {transferResult?.ok ? optimisticTransfer.map((transfer) => (

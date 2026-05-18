@@ -54,7 +54,11 @@ export async function reviewResourceRequest(
 
 export async function reviewFieldRequest(
   id: string,
-  status: "Approved" | "Declined"
+  status: "Approved" | "Declined",
+  options?: {
+    mergeTargetCategoryId?: string;
+    mergeTargetSubcategoryId?: string | null;
+  },
 ): Promise<ReviewOutcome<(typeof fieldRequests.$inferSelect)>> {
   const existing = await db
     .select()
@@ -63,6 +67,17 @@ export async function reviewFieldRequest(
 
   const req = existing[0] ?? null;
   if (!req) return { type: "not_found" };
+
+  const isCategoryReview = req.proposedName.startsWith("[Category Review]");
+  const isSubcategoryReview = req.proposedName.startsWith("[Subcategory Review]");
+  if ((isCategoryReview || isSubcategoryReview) && status === "Declined") {
+    if (!options?.mergeTargetCategoryId) {
+      return { type: "conflict", row: req };
+    }
+    if (isSubcategoryReview && !options?.mergeTargetSubcategoryId) {
+      return { type: "conflict", row: req };
+    }
+  }
 
   if (req.status !== "Pending") {
     if (req.status === status) return { type: "ok", row: req };

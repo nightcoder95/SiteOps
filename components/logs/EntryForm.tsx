@@ -26,11 +26,11 @@ type Props = {
 
 type FieldValue = string | number | SubcategoryOption | null;
 
-const labelClass = "font-label-md text-label-md uppercase text-on-surface-variant";
+const labelClass = "text-[10px] font-extrabold uppercase tracking-widest text-slate-400";
 const inputClass =
-  "h-11 w-full rounded border border-outline bg-surface-container-lowest px-3 font-body-md text-body-md text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary";
+  "input-standard";
 const textareaClass =
-  "min-h-[88px] w-full rounded border border-outline bg-surface-container-lowest p-3 font-body-md text-body-md text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary";
+  "input-standard min-h-[88px] resize-none";
 
 function defaultValue(field: EntryField): FieldValue {
   switch (field.kind) {
@@ -124,13 +124,6 @@ export function EntryForm({
       toast.error(err);
       return;
     }
-    if (kind === "dynamic") {
-      toast.error(
-        "Custom category entries are not supported yet. Pick Labour, Material, Machinery, Expense, or Incident.",
-      );
-      return;
-    }
-
     setSubmitting(true);
     const payload = buildPayload();
     const url = isEdit ? `/api/entries/${entryId}?type=${kind}` : entryEndpointFor(kind);
@@ -175,7 +168,7 @@ export function EntryForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
+    <form onSubmit={handleSubmit} className="card-standard p-6 space-y-5">
       {fields.map((f) => (
         <FieldRow
           key={f.name}
@@ -187,27 +180,29 @@ export function EntryForm({
           siteId={siteId}
         />
       ))}
-      <button
-        type="submit"
-        disabled={submitting}
-        className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded bg-primary font-label-md text-label-md uppercase text-on-primary hover:bg-surface-tint disabled:opacity-60"
-      >
-        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-          {isEdit ? 'save' : 'check_circle'}
-        </span>
-        {submitting ? "Saving…" : isEdit ? "Update Entry" : "Submit Entry"}
-      </button>
-      {isEdit ? (
+      <div className="pt-4 space-y-3">
         <button
-          type="button"
-          onClick={() => void handleDelete()}
-          disabled={deleting}
-          className="flex h-11 w-full items-center justify-center gap-2 rounded border border-error/40 bg-error/10 font-label-md text-label-md uppercase text-error disabled:opacity-60"
+          type="submit"
+          disabled={submitting}
+          className="btn-primary w-full py-3.5 flex items-center justify-center gap-2"
         >
-          <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>delete</span>
-          {deleting ? "Deleting…" : "Delete Entry"}
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+            {isEdit ? 'save' : 'check_circle'}
+          </span>
+          {submitting ? "Saving…" : isEdit ? "Update Entry" : "Submit Entry"}
         </button>
-      ) : null}
+        {isEdit ? (
+          <button
+            type="button"
+            onClick={() => void handleDelete()}
+            disabled={deleting}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-red-500/30 bg-red-500/10 text-[11px] font-bold uppercase tracking-widest text-red-400 hover:bg-red-500/20 transition-all disabled:opacity-50"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete</span>
+            {deleting ? "Deleting…" : "Delete Entry"}
+          </button>
+        ) : null}
+      </div>
     </form>
   );
 }
@@ -255,11 +250,11 @@ function FieldRow({
           value={String(value ?? "")}
           onChange={(e: ChangeEvent<HTMLSelectElement>) => onChange(e.target.value)}
           required={field.required}
-          className={inputClass}
+          className={`${inputClass} appearance-none bg-slate-900`}
         >
-          <option value="">Select…</option>
+          <option value="" className="bg-slate-900">Select…</option>
           {field.options?.map((o) => (
-            <option key={o.value} value={o.value}>
+            <option key={o.value} value={o.value} className="bg-slate-900">
               {o.label}
             </option>
           ))}

@@ -4,8 +4,23 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { motion, AnimatePresence } from 'motion/react';
+import {
+  MapPin,
+  Plus,
+  Repeat,
+  Trash2,
+  Filter,
+  FileText,
+  ChevronRight,
+  Clock,
+  TrendingUp,
+  AlertCircle,
+  Loader2,
+  Layers,
+} from 'lucide-react';
 
-import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
+import { ApiUnavailableBanner } from '@/components/ui/page-primitives';
 import { requestJson, type ClientResult } from '@/lib/http/client';
 
 type Site = {
@@ -40,14 +55,6 @@ type SiteDetailPageClientProps = {
   role: 'Admin' | 'Supervisor';
 };
 
-const TYPE_ICONS: Record<EditableEntryType, string> = {
-  labour: 'engineering',
-  material: 'inventory_2',
-  machinery: 'precision_manufacturing',
-  expense: 'account_balance_wallet',
-  incident: 'report',
-};
-
 function formatDate(value?: string) {
   if (!value) return 'Unknown';
   const date = new Date(value);
@@ -78,14 +85,31 @@ function entryRowId(entry: Entry, type: EditableEntryType): string {
   }
 }
 
-function statusChip(status: Site['status']) {
+function getTypeColor(type: string) {
+  switch (type) {
+    case 'labour':
+      return 'text-sky-400 bg-sky-500/10 border-sky-500/20';
+    case 'material':
+      return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+    case 'machinery':
+      return 'text-slate-400 bg-slate-500/10 border-slate-500/20';
+    case 'expense':
+      return 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+    case 'incident':
+      return 'text-red-400 bg-red-500/10 border-red-500/20';
+    default:
+      return 'text-slate-400 bg-slate-500/10 border-slate-500/20';
+  }
+}
+
+function statusBadge(status: Site['status']) {
   switch (status) {
     case 'Blocked':
-      return 'bg-error-container text-on-error-container border-error/20';
+      return 'badge-amber';
     case 'Completed':
-      return 'bg-tertiary-container text-on-tertiary-container border-tertiary/20';
+      return 'badge-sky';
     default:
-      return 'bg-primary-container text-on-primary-container border-primary/20';
+      return 'badge-emerald';
   }
 }
 
@@ -131,208 +155,241 @@ export default function SiteDetailPageClient({
       return;
     }
     toast.success('Site archived');
-    router.push('/app/sites');
+    router.push('/app/dashboard');
   }
 
   return (
-    <div className="flex flex-col gap-density-medium">
-      <section className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
-        <div className="flex items-start justify-between">
-          <div className="min-w-0">
-            <div className="font-label-sm text-label-sm text-on-surface-variant">ID: {site.siteId}</div>
-            <h2 className="font-headline-md text-headline-md mt-1 text-on-surface">{site.name}</h2>
-            <div className="font-body-md text-body-md mt-1 flex items-center gap-1 text-on-surface-variant">
-              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>location_on</span>
-              {site.location}
+    <div className="space-y-6 pt-2 pb-20 max-w-4xl mx-auto">
+      {/* Site Header Card */}
+      <section className="card-standard p-6 border-sky-500/10 bg-sky-500/5 relative overflow-hidden">
+        <Layers className="absolute -right-6 -bottom-6 w-32 h-32 text-white/5 rotate-12" />
+        <div className="relative z-10 space-y-4">
+          <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+            <div className="space-y-3 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 bg-sky-500 text-slate-950 text-[9px] font-bold rounded uppercase tracking-widest">
+                  Active Site
+                </span>
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+                  #{site.siteId.slice(0, 8)}
+                </span>
+              </div>
+              <h2 className="text-3xl font-extrabold text-white uppercase tracking-tight leading-none truncate">
+                {site.name}
+              </h2>
+              <div className="flex items-center gap-1.5 text-slate-400 font-medium italic text-sm">
+                <MapPin className="w-4 h-4 text-sky-500" />
+                {site.location}
+              </div>
             </div>
+            <button
+              onClick={() => void handleDeleteSite()}
+              disabled={role !== 'Admin' || deletingSite}
+              title={role === 'Admin' ? 'Archive site' : 'Only admins can delete sites'}
+              className="md:self-start p-3 bg-white/5 border border-white/10 rounded-2xl hover:bg-red-500/10 hover:text-red-400 transition-all text-slate-500 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {deletingSite ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+            </button>
           </div>
-          <span
-            className={`flex items-center gap-1 rounded-full border px-2 py-1 font-label-md text-label-md uppercase ${statusChip(site.status)}`}
-          >
-            {site.status}
-          </span>
-        </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-4 rounded-lg bg-surface-container-low p-3 md:grid-cols-4">
-          <div>
-            <div className="font-label-sm text-label-sm text-on-surface-variant">Phase</div>
-            <div className="font-body-md text-body-md font-medium text-on-surface">{site.currentPhase ?? '—'}</div>
+          {/* Stats grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-white/5">
+            {[
+              { label: 'Phase', val: site.currentPhase ?? '—', icon: Layers },
+              { label: 'Budget', val: site.budget ? `₹${Number(site.budget).toLocaleString('en-IN')}` : '—', icon: TrendingUp },
+              { label: 'Progress', val: `${progress}%`, icon: Clock, highlight: true },
+              { label: 'Status', val: site.status, icon: AlertCircle },
+            ].map((s) => (
+              <div key={s.label} className="space-y-0.5">
+                <div className="flex items-center gap-1 text-slate-500">
+                  <s.icon className="w-3.5 h-3.5" />
+                  <span className="text-[9px] font-bold uppercase tracking-widest leading-none">{s.label}</span>
+                </div>
+                <p className={`text-xl font-extrabold tracking-tight ${s.highlight ? 'text-sky-400' : 'text-white'}`}>
+                  {s.val}
+                </p>
+              </div>
+            ))}
           </div>
-          <div>
-            <div className="font-label-sm text-label-sm text-on-surface-variant">Budget</div>
-            <div className="font-body-md text-body-md font-medium text-on-surface">
-              {site.budget ? `₹${Number(site.budget).toLocaleString('en-IN')}` : '—'}
-            </div>
-          </div>
-          <div>
-            <div className="font-label-sm text-label-sm text-on-surface-variant">Progress</div>
-            <div className="font-body-md text-body-md font-medium text-primary">{progress}%</div>
-          </div>
-          <div>
-            <div className="font-label-sm text-label-sm text-on-surface-variant">Status</div>
-            <div className="font-body-md text-body-md font-medium text-on-surface">{site.status}</div>
-          </div>
-        </div>
 
-        <div className="mt-4 flex flex-col gap-2">
-          <div className="h-2 w-full overflow-hidden rounded-full bg-surface-variant">
-            <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
+          {/* Progress bar */}
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/5">
+            <div
+              className="h-full rounded-full bg-sky-500 transition-all duration-700"
+              style={{ width: `${progress}%` }}
+            />
           </div>
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Link
-            href={`/app/logs/new?siteId=${encodeURIComponent(siteId)}`}
-            className="flex h-10 items-center gap-2 rounded bg-primary px-4 font-label-md text-label-md uppercase text-on-primary active-press"
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>edit_note</span>
-            Add Log Entry
-          </Link>
-          <Link
-            href={`/app/transfers/new?fromSite=${encodeURIComponent(siteId)}`}
-            className="flex h-10 items-center gap-2 rounded border border-outline px-4 font-label-md text-label-md uppercase text-on-surface-variant active-press"
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>swap_horiz</span>
-            Transfer
-          </Link>
-          <button
-            type="button"
-            onClick={() => void handleDeleteSite()}
-            disabled={role !== 'Admin' || deletingSite}
-            title={role === 'Admin' ? 'Archive site' : 'Only admins can delete sites'}
-            className="flex h-10 items-center gap-2 rounded border border-error/35 px-4 font-label-md text-label-md uppercase text-error disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete</span>
-            {deletingSite ? 'Deleting…' : 'Delete Site'}
-          </button>
         </div>
       </section>
 
-      {entriesResult && !entriesResult.ok && entriesResult.kind === 'endpoint_unavailable' ? (
-        <ApiUnavailableBanner endpoint={entriesResult.endpoint} method={entriesResult.method} />
+      {/* Main Actions */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Link
+          href={`/app/logs/new?siteId=${encodeURIComponent(siteId)}`}
+          className="btn-primary flex py-4 gap-3 uppercase shadow-sky-500/20"
+        >
+          <Plus className="w-5 h-5" />
+          <span className="flex-1 text-center">New Log Entry</span>
+        </Link>
+        <Link
+          href={`/app/transfers/new?fromSite=${encodeURIComponent(siteId)}`}
+          className="btn-secondary flex py-4 gap-3 uppercase border-white/10"
+        >
+          <Repeat className="w-5 h-5 text-sky-500" />
+          <span className="flex-1 text-center">Transfer Resources</span>
+        </Link>
+      </section>
+
+      {/* API Error Banners */}
+      {entriesResult && !entriesResult.ok && (entriesResult as any).kind === 'endpoint_unavailable' ? (
+        <ApiUnavailableBanner
+          endpoint={(entriesResult as any).endpoint}
+          method={(entriesResult as any).method}
+        />
       ) : null}
 
-      {entriesResult && !entriesResult.ok && entriesResult.kind !== 'endpoint_unavailable' ? (
-        <div className="rounded-xl border border-error-container bg-error-container/30 px-4 py-3 font-body-md text-body-md text-on-error-container">
-          {entriesResult.message}
+      {entriesResult && !entriesResult.ok && (entriesResult as any).kind !== 'endpoint_unavailable' ? (
+        <div className="card-standard p-4 border-red-500/20 bg-red-500/5 text-red-400 text-sm font-medium">
+          {(entriesResult as any).message}
         </div>
       ) : null}
 
-      <div className="no-scrollbar -mx-margin-mobile flex gap-2 overflow-x-auto px-margin-mobile">
-        {(['all', 'labour', 'material', 'machinery', 'expense', 'incident'] as EntryType[]).map((next) => (
-          <button
-            key={next}
-            type="button"
-            onClick={() => onChangeType(next)}
-            className={[
-              'flex h-9 shrink-0 items-center rounded-full border px-4 font-label-md text-label-md uppercase transition-colors',
-              type === next
-                ? 'border-primary bg-primary text-on-primary'
-                : 'border-outline-variant bg-surface-container-lowest text-on-surface-variant',
-            ].join(' ')}
-          >
-            {next}
-          </button>
-        ))}
+      {/* Entry Filter Chips */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-1">
+        <h3 className="text-xs font-bold text-slate-300 uppercase tracking-widest flex items-center gap-2">
+          Operations Queue <FileText className="w-4 h-4 text-sky-500" />
+        </h3>
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-2 -mx-2 px-2 scrollbar-none">
+          {(['all', 'labour', 'material', 'machinery', 'expense', 'incident'] as EntryType[]).map((filter) => (
+            <button
+              key={filter}
+              type="button"
+              onClick={() => onChangeType(filter)}
+              className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap border ${
+                type === filter
+                  ? 'bg-sky-500 text-slate-950 border-sky-500 shadow-lg shadow-sky-500/20'
+                  : 'bg-white/5 text-slate-500 border-white/5 hover:border-white/10'
+              }`}
+            >
+              {filter}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="font-headline-sm text-headline-sm text-on-background">
-            {type === 'all' ? 'All entries' : `${type} entries`}
-          </h3>
-          <span className="font-label-sm text-label-sm uppercase text-on-surface-variant">
-            {loading ? 'Loading…' : 'Live'}
-          </span>
-        </div>
-
-        {entriesResult?.ok ? (
-          type === 'all' ? (
-            <div className="grid gap-density-medium md:grid-cols-2">
-              {(['labour', 'material', 'machinery', 'expense', 'incident'] as EditableEntryType[]).map((group) => {
-                const list = (entriesResult.data as Record<string, Entry[]>)[group] ?? [];
-                return (
-                  <div key={group} className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
-                    <div className="mb-3 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-primary" style={{ fontSize: '20px' }}>
-                          {TYPE_ICONS[group]}
-                        </span>
-                        <span className="font-label-md text-label-md uppercase text-on-surface-variant">{group}</span>
-                      </div>
-                      <span className="rounded-full bg-surface-container-low px-2 py-0.5 font-label-sm text-label-sm text-on-surface-variant">
-                        {list.length}
-                      </span>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      {list.length === 0 ? (
-                        <p className="font-body-md text-body-md text-on-surface-variant">No entries.</p>
-                      ) : (
-                        list.slice(0, 3).map((entry) => {
-                          const id = entryRowId(entry, group);
-                          return (
-                            <Link
-                              key={id}
-                              href={`/app/logs/${id}?type=${group}`}
-                              className="block rounded-lg bg-surface-container-low px-3 py-2 active-press"
-                            >
-                              <div className="font-body-md text-body-md font-medium text-on-surface">
-                                {summarizeEntry(entry, group)}
-                              </div>
-                              <div className="font-label-sm text-label-sm mt-0.5 text-on-surface-variant">
-                                {formatDate(entry.date ?? entry.createdAt ?? entry.timestamp)}
-                              </div>
-                            </Link>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="grid gap-density-medium">
-              {Array.isArray(entriesResult.data) && entriesResult.data.length > 0 ? (
-                (entriesResult.data as Entry[]).map((entry) => {
-                  const editableType = type as EditableEntryType;
-                  const id = entryRowId(entry, editableType);
-                  return (
-                    <Link
-                      key={id}
-                      href={`/app/logs/${id}?type=${editableType}`}
-                      className="flex items-start gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest p-4 active-press"
-                    >
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-container text-on-primary-container">
-                        <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                          {TYPE_ICONS[editableType]}
-                        </span>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="font-body-md text-body-md font-semibold text-on-surface">
-                          {summarizeEntry(entry, editableType)}
-                        </div>
-                        <div className="font-label-sm text-label-sm mt-0.5 text-on-surface-variant">
-                          {formatDate(entry.date ?? entry.createdAt ?? entry.timestamp)}
-                        </div>
-                      </div>
-                      <span className="material-symbols-outlined text-on-surface-variant" style={{ fontSize: '20px' }}>
-                        chevron_right
-                      </span>
-                    </Link>
-                  );
-                })
-              ) : (
-                <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 font-body-md text-body-md text-on-surface-variant">
-                  No entries found for this type.
-                </div>
-              )}
-            </div>
-          )
-        ) : (
-          <div className="rounded-xl border border-outline-variant bg-surface-container-lowest p-4 font-body-md text-body-md text-on-surface-variant">
-            Loading entries…
+      {/* Entries List */}
+      <section className="space-y-4">
+        {loading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-sky-500" />
           </div>
+        )}
+
+        {!loading && entriesResult?.ok && (
+          <>
+            {type === 'all' ? (
+              // Grouped view
+              <div className="grid gap-4 md:grid-cols-2">
+                {(['labour', 'material', 'machinery', 'expense', 'incident'] as EditableEntryType[]).map((group) => {
+                  const list = (entriesResult.data as Record<string, Entry[]>)[group] ?? [];
+                  return (
+                    <div key={group} className={`card-standard p-4 border-2 ${getTypeColor(group).split(' ')[2]}`}>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-lg border ${getTypeColor(group)}`}>
+                            {group}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                          {list.length} entries
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        {list.length === 0 ? (
+                          <p className="text-xs text-slate-600 italic">No entries.</p>
+                        ) : (
+                          list.slice(0, 3).map((entry) => {
+                            const id = entryRowId(entry, group);
+                            return (
+                              <Link
+                                key={id}
+                                href={`/app/logs/${id}?type=${group}`}
+                                className="flex items-center justify-between p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-colors group"
+                              >
+                                <div className="min-w-0">
+                                  <div className="text-xs font-semibold text-slate-200 group-hover:text-sky-400 transition-colors truncate">
+                                    {summarizeEntry(entry, group)}
+                                  </div>
+                                  <div className="text-[10px] text-slate-500 mt-0.5">
+                                    {formatDate(entry.date ?? entry.createdAt ?? entry.timestamp)}
+                                  </div>
+                                </div>
+                                <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-sky-400 shrink-0 transition-colors" />
+                              </Link>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              // Single type list view
+              <AnimatePresence initial={false} mode="popLayout">
+                {Array.isArray(entriesResult.data) && entriesResult.data.length > 0 ? (
+                  (entriesResult.data as Entry[]).map((entry, i) => {
+                    const editableType = type as EditableEntryType;
+                    const id = entryRowId(entry, editableType);
+                    return (
+                      <motion.div
+                        key={id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.98 }}
+                        transition={{ delay: i * 0.05 }}
+                      >
+                        <Link
+                          href={`/app/logs/${id}?type=${editableType}`}
+                          className="card-standard group flex items-center justify-between p-5 hover:bg-white/5 transition-all border-white/5"
+                        >
+                          <div className="flex items-center gap-5 min-w-0">
+                            <div className={`w-14 h-14 shrink-0 border-2 rounded-2xl flex items-center justify-center shadow-lg ${getTypeColor(editableType)}`}>
+                              <FileText className="w-7 h-7" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-3 mb-1">
+                                <span className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-lg border shadow-sm ${getTypeColor(editableType)}`}>
+                                  {editableType}
+                                </span>
+                                <span className="text-[10px] font-bold text-slate-600 flex items-center gap-1 uppercase tracking-tighter">
+                                  <Clock className="w-3.5 h-3.5" />
+                                  {formatDate(entry.date ?? entry.createdAt ?? entry.timestamp)}
+                                </span>
+                              </div>
+                              <h4 className="font-bold text-slate-200 group-hover:text-sky-400 transition-colors uppercase tracking-tight text-sm">
+                                {summarizeEntry(entry, editableType)}
+                              </h4>
+                            </div>
+                          </div>
+                          <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-600 group-hover:bg-sky-500 group-hover:text-slate-950 transition-all shrink-0">
+                            <ChevronRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
+                          </div>
+                        </Link>
+                      </motion.div>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-24 bg-white/2 rounded-3xl border border-dashed border-white/5 backdrop-blur-sm">
+                    <Filter className="w-12 h-12 text-slate-700 mx-auto mb-4" />
+                    <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest italic">
+                      No matching operations detected.
+                    </p>
+                  </div>
+                )}
+              </AnimatePresence>
+            )}
+          </>
         )}
       </section>
     </div>

@@ -1,150 +1,153 @@
 'use client';
 
-import { createBrowserClient } from '@supabase/ssr';
+import React, { useState } from 'react';
+import { motion } from 'motion/react';
+import { Mail, Lock, User, UserPlus, Loader2, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { createBrowserClient } from '@supabase/ssr';
 import { toast } from 'sonner';
 
 import { toastSuccess } from '@/lib/ui/toast';
 
 export default function SignUpPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [name, setName] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
   );
-  const [loading, setLoading] = useState(false);
 
   async function ensureProfileExists() {
     try {
       await fetch('/api/auth/create-profile', { method: 'POST' });
     } catch {
-      // Non-blocking
+      // non-blocking
     }
   }
 
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    const fd = new FormData(e.currentTarget);
-    const name = String(fd.get('name') ?? '');
-    const email = String(fd.get('email') ?? '');
-    const password = String(fd.get('password') ?? '');
-    const confirm = String(fd.get('confirmPassword') ?? '');
-    if (password !== confirm) {
+    setIsLoading(true);
+
+    if (password !== confirmPassword) {
       toast.error('Passwords do not match');
-      setLoading(false);
+      setIsLoading(false);
       return;
     }
+
     try {
       const { error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: { data: { name } },
       });
+
       if (signUpError) {
         toast.error(signUpError.message);
         return;
       }
+
       await ensureProfileExists();
       toastSuccess('Account created');
-      router.replace('/app/dashboard');
+      router.push('/app/dashboard');
       router.refresh();
     } catch {
       toast.error('Sign-up failed');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
-  }
-
-  const inputClass =
-    'h-11 w-full rounded border border-outline bg-surface-container-lowest pl-10 pr-4 font-body-md text-body-md text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary';
+  };
 
   return (
-    <>
-      <div className="flex flex-col items-center border-b border-outline-variant bg-surface-container-lowest px-8 pt-8 pb-4">
-        <div className="mb-4 rounded-full bg-primary-container p-3 text-on-primary-container">
-          <span
-            className="material-symbols-outlined"
-            style={{ fontVariationSettings: "'FILL' 1", fontSize: '32px' }}
-          >
-            engineering
-          </span>
+    <div className="min-h-screen bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8 px-4">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="sm:mx-auto sm:w-full sm:max-w-md"
+      >
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-sky-500/10 border border-sky-500/20 mb-6">
+            <UserPlus className="w-8 h-8 text-sky-400" />
+          </div>
+          <h1 className="text-3xl font-extrabold tracking-tight text-white uppercase">Join SITEOPS</h1>
+          <p className="mt-2 text-sm text-slate-500 font-medium">Register New Command Operator</p>
         </div>
-        <h1 className="font-display-lg text-display-lg text-primary mb-1">Join SiteOps</h1>
-        <p className="font-body-md text-body-md text-center text-on-surface-variant">
-          Create your field operations account
-        </p>
-      </div>
+      </motion.div>
 
-      <div className="px-8 pt-6 pb-6">
-        <form onSubmit={onSubmit} className="flex flex-col gap-6">
-          <div className="flex flex-col gap-2">
-            <label htmlFor="name" className="font-label-md text-label-md uppercase text-on-surface">
-              Full Name
-            </label>
-            <div className="relative">
-              <span className="material-symbols-outlined pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-on-surface-variant">
-                person
-              </span>
-              <input id="name" name="name" required className={inputClass} />
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.1 }}
+        className="mt-8 sm:mx-auto sm:w-full sm:max-w-md"
+      >
+        <div className="card-standard py-8 px-6 sm:px-10">
+          <form className="space-y-5" onSubmit={handleSubmit}>
+            <div>
+              <label htmlFor="name" className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-2">
+                FULL NAME
+              </label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                <input id="name" name="name" type="text" required value={name} onChange={(e) => setName(e.target.value)} className="input-standard pl-11" placeholder="John Doe" />
+              </div>
             </div>
-          </div>
 
-          <div className="flex flex-col gap-2">
-            <label htmlFor="email" className="font-label-md text-label-md uppercase text-on-surface">
-              Email Address
-            </label>
-            <div className="relative">
-              <span className="material-symbols-outlined pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-on-surface-variant">
-                mail
-              </span>
-              <input id="email" name="email" type="email" required className={inputClass} />
+            <div>
+              <label htmlFor="email" className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-2">
+                EMAIL ADDRESS
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                <input id="email" name="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="input-standard pl-11" placeholder="you@company.com" />
+              </div>
             </div>
-          </div>
 
-          <div className="flex flex-col gap-2">
-            <label htmlFor="password" className="font-label-md text-label-md uppercase text-on-surface">
-              Password
-            </label>
-            <div className="relative">
-              <span className="material-symbols-outlined pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-on-surface-variant">
-                lock
-              </span>
-              <input id="password" name="password" type="password" required className={inputClass} />
+            <div>
+              <label htmlFor="password" className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-2">
+                PASSWORD
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                <input id="password" name="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="input-standard pl-11" placeholder="••••••••" />
+              </div>
             </div>
-          </div>
 
-          <div className="flex flex-col gap-2">
-            <label htmlFor="confirmPassword" className="font-label-md text-label-md uppercase text-on-surface">
-              Confirm Password
-            </label>
-            <div className="relative">
-              <span className="material-symbols-outlined pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-on-surface-variant">
-                lock_reset
-              </span>
-              <input id="confirmPassword" name="confirmPassword" type="password" required className={inputClass} />
+            <div>
+              <label htmlFor="confirmPassword" className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-2">
+                CONFIRM PASSWORD
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                <input id="confirmPassword" name="confirmPassword" type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="input-standard pl-11" placeholder="••••••••" />
+              </div>
             </div>
+
+            <button type="submit" disabled={isLoading} className="w-full btn-primary py-3.5 text-xs">
+              {isLoading ? (
+                <><Loader2 className="w-5 h-5 animate-spin" />Registering...</>
+              ) : (
+                <><UserPlus className="w-5 h-5 mr-2" />Create Operator Profile <ChevronRight className="w-4 h-4 ml-2" /></>
+              )}
+            </button>
+          </form>
+
+          <div className="mt-6">
+            <p className="text-center text-xs text-slate-500">
+              Already registered?{' '}
+              <Link href="/auth/sign-in" className="font-bold text-sky-400 hover:text-sky-300 transition-colors uppercase tracking-widest">
+                Sign In
+              </Link>
+            </p>
           </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex h-11 w-full items-center justify-center gap-2 rounded bg-primary font-label-md text-label-md uppercase text-on-primary transition-colors hover:bg-surface-tint disabled:opacity-60"
-          >
-            <span>{loading ? 'Creating…' : 'Create Account'}</span>
-            <span className="material-symbols-outlined">person_add</span>
-          </button>
-        </form>
-
-        <p className="font-body-md text-body-md mt-6 text-center text-on-surface-variant">
-          Already have an account?{' '}
-          <Link href="/auth/sign-in" className="font-label-md text-label-md uppercase text-primary">
-            Sign in
-          </Link>
-        </p>
-      </div>
-    </>
+        </div>
+      </motion.div>
+    </div>
   );
 }

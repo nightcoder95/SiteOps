@@ -15,6 +15,8 @@ type RouteCtx = { params: Promise<{ id: string }> };
 
 const updateFieldRequestSchema = z.object({
   status: z.enum(["Approved", "Declined"]),
+  mergeTargetCategoryId: z.string().uuid().optional(),
+  mergeTargetSubcategoryId: z.string().uuid().nullable().optional(),
 });
 
 export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, context) => {
@@ -31,11 +33,27 @@ export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, conte
   const { id } = await context.params;
 
   try {
-    const outcome = await reviewFieldRequest(id, validation.data.status);
+    const outcome = await reviewFieldRequest(id, validation.data.status, {
+      mergeTargetCategoryId: validation.data.mergeTargetCategoryId,
+      mergeTargetSubcategoryId: validation.data.mergeTargetSubcategoryId ?? undefined,
+    });
     if (outcome.type === "not_found") {
       return errorResponse(ERROR_CODES.NOT_FOUND, "Request not found", 404, undefined, requestId);
     }
     if (outcome.type === "conflict") {
+      const existing = await db
+        .select()
+        .from(fieldRequests)
+        .where(eq(fieldRequests.fieldRequestId, id))
+        .limit(1);
+      const req = existing[0];
+      const reviewRow = req?.proposedName.startsWith("[Category Review]") || req?.proposedName.startsWith("[Subcategory Review]");
+      if (reviewRow && validation.data.status === "Declined" && !validation.data.mergeTargetCategoryId) {
+        return errorResponse(ERROR_CODES.CONFLICT, "Select a merge target category to decline this review", 409, undefined, requestId);
+      }
+      if (req?.proposedName.startsWith("[Subcategory Review]") && validation.data.status === "Declined" && !validation.data.mergeTargetSubcategoryId) {
+        return errorResponse(ERROR_CODES.CONFLICT, "Select a merge target subcategory to decline this review", 409, undefined, requestId);
+      }
       return errorResponse(ERROR_CODES.CONFLICT, "Request already reviewed", 409, undefined, requestId);
     }
 

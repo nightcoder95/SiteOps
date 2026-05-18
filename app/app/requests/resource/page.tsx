@@ -106,10 +106,10 @@ export default function ResourceRequestsPage() {
   const items = result?.ok ? result.data : [];
 
   return (
-    <div className="flex flex-col gap-density-medium">
+    <div className="space-y-5 pb-20">
       <header>
-        <h2 className="font-headline-sm text-headline-sm text-on-background">Resource Requests</h2>
-        <p className="font-body-md text-body-md text-on-surface-variant">
+        <h2 className="text-2xl font-extrabold tracking-tight text-on-surface">Resource Requests</h2>
+        <p className="text-sm text-on-surface-variant">
           Request labour, materials, machinery, or funds.
         </p>
       </header>
@@ -123,8 +123,8 @@ export default function ResourceRequestsPage() {
         </div>
       ) : null}
 
-      <form onSubmit={submit} className="flex flex-col gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
-        <h3 className="font-headline-sm text-headline-sm text-on-surface">New Request</h3>
+      <form onSubmit={submit} className="card-standard flex flex-col gap-4 rounded-2xl p-4">
+        <h3 className="text-lg font-extrabold tracking-tight text-on-surface">New Request</h3>
         <div className="flex flex-col gap-2">
           <label htmlFor="siteId" className={labelClass}>Site ID</label>
           <input id="siteId" name="siteId" required className={inputClass} />
@@ -155,7 +155,7 @@ export default function ResourceRequestsPage() {
         </button>
       </form>
 
-      <section className="flex flex-col gap-3">
+      <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="font-headline-sm text-headline-sm text-on-surface">Request Queue</h3>
           <span className="rounded-full bg-surface-container-low px-2 py-1 font-label-sm text-label-sm text-on-surface-variant">
@@ -163,7 +163,7 @@ export default function ResourceRequestsPage() {
           </span>
         </div>
 
-        <div className="divide-y divide-outline-variant rounded-xl border border-outline-variant bg-surface-container-lowest">
+        <div className="card-standard divide-y divide-outline-variant rounded-2xl">
           {items.length === 0 ? (
             <div className="p-4 font-body-md text-body-md text-on-surface-variant">
               {result?.ok ? 'No resource requests found.' : 'Loading…'}

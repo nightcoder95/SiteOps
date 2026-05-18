@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { safeGetSessionFromHeaders } from "@/lib/auth/session";
 import { db } from "@/lib/db/client";
 import { categories } from "@/lib/db/schema";
+import { getAllSites, getSitesBySupervisor } from "@/lib/db/queries/sites";
 
 import { LogsNewPageClient } from "./LogsNewPageClient";
 
@@ -22,26 +23,27 @@ export default async function LogsNewPage({
 
   const { siteId } = await searchParams;
   const list = await db.select().from(categories);
+  const sites =
+    session.user.role === "Admin"
+      ? await getAllSites()
+      : await getSitesBySupervisor(session.user.id);
   const initialCategories = list.map((c) => ({
     categoryId: c.categoryId,
     name: c.name,
     icon: c.icon,
   }));
+  const initialSites = sites.map((s) => ({
+    siteId: s.siteId,
+    name: s.name,
+    location: s.location,
+  }));
 
   return (
-    <div className="flex flex-col gap-density-medium">
-      <header className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-4">
-        <p className="font-label-sm text-label-sm uppercase tracking-[0.16em] text-primary">Field Logging</p>
-        <h2 className="font-headline-sm text-headline-sm text-on-background">Log Entry — Step 1 of 2</h2>
-        <p className="font-body-md text-body-md text-on-surface-variant">
-          Pick a category to start logging.
-        </p>
-      </header>
-      <LogsNewPageClient
-        initialCategories={initialCategories}
-        siteId={siteId}
-        role={session.user.role as "Admin" | "Supervisor"}
-      />
-    </div>
+    <LogsNewPageClient
+      initialCategories={initialCategories}
+      initialSites={initialSites}
+      siteId={siteId}
+      role={session.user.role as "Admin" | "Supervisor"}
+    />
   );
 }

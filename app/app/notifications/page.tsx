@@ -101,11 +101,11 @@ export default function NotificationsPage() {
   const unreadCount = items.filter((item) => !item.readAt).length;
 
   return (
-    <div className="flex flex-col gap-density-medium">
+    <div className="space-y-5 pb-20">
       <header className="flex items-center justify-between">
         <div>
-          <h2 className="font-headline-sm text-headline-sm text-on-background">Alerts</h2>
-          <p className="font-body-md text-body-md text-on-surface-variant">
+          <h2 className="text-2xl font-extrabold tracking-tight text-on-surface">Alerts</h2>
+          <p className="text-sm text-on-surface-variant">
             {unreadCount} unread of {result?.ok ? result.data.total : items.length}
           </p>
         </div>
@@ -113,7 +113,7 @@ export default function NotificationsPage() {
           type="button"
           onClick={markAllRead}
           disabled={refreshing || unreadCount === 0}
-          className="rounded-full border border-outline-variant px-3 py-1.5 font-label-md text-label-md uppercase text-on-surface-variant disabled:opacity-50"
+          className="btn-secondary rounded-full px-3 py-1.5 disabled:opacity-50"
         >
           Mark all read
         </button>
@@ -128,7 +128,7 @@ export default function NotificationsPage() {
         </div>
       ) : null}
 
-      <section className="divide-y divide-outline-variant rounded-xl border border-outline-variant bg-surface-container-lowest">
+      <section className="card-standard divide-y divide-outline-variant rounded-2xl">
         {items.length === 0 ? (
           <div className="p-4 font-body-md text-body-md text-on-surface-variant">
             {result?.ok ? 'No notifications found.' : 'Loading…'}
@@ -138,10 +138,7 @@ export default function NotificationsPage() {
             const meta = TYPE_META[notification.type] ?? TYPE_META.system;
             const unread = !notification.readAt;
             return (
-              <article
-                key={notification.id}
-                className={`flex items-start gap-3 p-4 ${unread ? '' : 'opacity-60'}`}
-              >
+              <article key={notification.id} className={`flex items-start gap-3 p-4 ${unread ? '' : 'opacity-60'}`}>
                 <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${meta.bg} ${meta.fg}`}>
                   <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
                     {meta.icon}
@@ -152,8 +149,8 @@ export default function NotificationsPage() {
                     <h3 className="font-body-md text-body-md font-semibold text-on-surface">{notification.title}</h3>
                     {unread ? <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" aria-label="unread" /> : null}
                   </div>
-                  <p className="font-body-md text-body-md mt-0.5 text-on-surface-variant">{notification.message}</p>
-                  <div className="mt-2 flex items-center justify-between gap-3 font-label-sm text-label-sm text-on-surface-variant">
+                  <p className="mt-0.5 text-sm text-on-surface-variant">{notification.message}</p>
+                  <div className="mt-2 flex items-center justify-between gap-3 text-xs text-on-surface-variant">
                     <span>{new Date(notification.createdAt).toLocaleString()}</span>
                     <div className="flex items-center gap-3">
                       {notification.linkToView ? (

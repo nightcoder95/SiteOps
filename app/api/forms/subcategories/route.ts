@@ -20,6 +20,12 @@ const createSubcategorySchema = z
     name: z.string().min(1).max(100),
     overrideDuplicateWarning: z.boolean().optional(),
     siteId: z.string().uuid().optional(),
+    customFields: z.array(z.object({
+      label: z.string().min(1).max(100),
+      fieldType: z.enum(["Number", "Text"]),
+      unit: z.string().max(50).optional(),
+    })).optional(),
+    remarks: z.string().max(500).optional(),
   })
   .strict();
 
@@ -155,6 +161,36 @@ export const POST = withApi(async ({ request, requestId }) => {
           status: "Pending",
           requestedBy: auth.session.user.id,
         });
+      }
+    }
+
+    if (validation.data.siteId && (validation.data.customFields?.length || validation.data.remarks?.trim())) {
+      const requestRows = [
+        ...(validation.data.customFields ?? [])
+          .filter((item) => item.label.trim())
+          .map((item) => ({
+            siteId: validation.data.siteId as string,
+            proposedName: item.unit?.trim() ? `${item.label.trim()} (${item.unit.trim()})` : item.label.trim(),
+            categoryId: validation.data.categoryId,
+            subcategoryId: created.subcategoryId,
+            fieldType: item.fieldType,
+            status: "Pending" as const,
+            requestedBy: auth.session.user.id,
+          })),
+        ...(validation.data.remarks?.trim()
+          ? [{
+            siteId: validation.data.siteId as string,
+            proposedName: `Remarks: ${validation.data.remarks.trim()}`,
+            categoryId: validation.data.categoryId,
+            subcategoryId: created.subcategoryId,
+            fieldType: "Text" as const,
+            status: "Pending" as const,
+            requestedBy: auth.session.user.id,
+          }]
+          : []),
+      ];
+      if (requestRows.length > 0) {
+        await db.insert(fieldRequests).values(requestRows);
       }
     }
 

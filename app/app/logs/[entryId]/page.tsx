@@ -60,13 +60,11 @@ export default async function LogsEntryPage({
   const entrySiteId = (entry as any).siteId as string | undefined;
 
   return (
-    <div className="flex flex-col gap-density-medium">
-      <header className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-4">
-        <h2 className="font-headline-sm text-headline-sm text-on-background">Edit {categoryName}</h2>
-        <p className="font-body-md text-body-md text-on-surface-variant">
-          Update the fields and save your changes.
-        </p>
-      </header>
+    <div className="max-w-2xl mx-auto space-y-6 pt-2">
+      <div className="px-1">
+        <h2 className="text-2xl font-extrabold tracking-tight text-white uppercase">Edit {categoryName}</h2>
+        <p className="text-sm text-slate-500 font-medium italic mt-1.5">Update the fields and save your changes.</p>
+      </div>
       <EntryForm
         categoryId={categoryId}
         categoryName={categoryName}

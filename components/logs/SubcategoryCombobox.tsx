@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
+import { ModalShell } from "@/components/ui/motion";
 import { requestJson } from "@/lib/http/client";
-import { AnimatePresence, AnimatedList, AnimatedListItem, motion, transitions } from "@/components/ui/motion";
 
 export type SubcategoryOption = {
   subcategoryId: string;
@@ -52,27 +51,18 @@ type Props = {
 export function SubcategoryCombobox({
   label, parentCategoryId, value, onChange, required, role, siteId,
 }: Props) {
-  const [query, setQuery] = useState(value?.name ?? "");
-  const debounced = useDebouncedValue(query.trim(), 250);
   const [catalog, setCatalog] = useState<SubcategoryOption[]>([]);
-  const [matches, setMatches] = useState<SubcategoryOption[]>([]);
-  const [similarity, setSimilarity] = useState<SimilarityResponse | null>(null);
-  const [open, setOpen] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [loadingCatalog, setLoadingCatalog] = useState(false);
+  const [openModal, setOpenModal] = useState(false);
+  const [name, setName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [similarity, setSimilarity] = useState<SimilarityResponse | null>(null);
   const [confirmOverride, setConfirmOverride] = useState<SimilarityCandidate[] | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  // Catalog read via ref so similarity effect doesn't refire on catalog mutate.
-  const catalogRef = useRef(catalog);
-  catalogRef.current = catalog;
 
   useEffect(() => {
     if (!parentCategoryId) {
       setCatalog([]);
-      setMatches([]);
-      setSimilarity(null);
       return;
     }
     const controller = new AbortController();
@@ -88,78 +78,52 @@ export function SubcategoryCombobox({
         if (res.message !== "Request aborted") toast.error(res.message);
         return;
       }
-      const next = (res.data.subcategories ?? []).map((item) => ({
+      setCatalog((res.data.subcategories ?? []).map((item) => ({
         subcategoryId: item.subcategoryId,
         name: item.name,
         categoryId: parentCategoryId,
-      }));
-      setCatalog(next);
-      setMatches(next.slice(0, 8));
+      })));
     })();
-    return () => {
-      controller.abort();
-    };
+    return () => controller.abort();
   }, [parentCategoryId]);
 
-  useEffect(() => {
-    if (!open || !parentCategoryId) return;
-    if (!debounced) {
+  async function checkSimilarity(next: string) {
+    const trimmed = next.trim();
+    if (!trimmed || !parentCategoryId) {
       setSimilarity(null);
-      setMatches(catalogRef.current.slice(0, 8));
-      setLoading(false);
       return;
     }
-    const controller = new AbortController();
-    setLoading(true);
-    void (async () => {
-      const res = await requestJson<SimilarityResponse>("/api/forms/subcategories/similar", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: debounced, categoryId: parentCategoryId }),
-        signal: controller.signal,
-      });
-      if (controller.signal.aborted) return;
-      setLoading(false);
-      if (res.ok) {
-        setSimilarity(res.data);
-        const suggested = res.data.candidates
-          .slice(0, 5)
-          .map((m) => ({
-            subcategoryId: m.id,
-            name: m.name,
-            categoryId: parentCategoryId,
-          }));
-        const local = catalogRef.current
-          .filter((item) => item.name.toLowerCase().includes(debounced.toLowerCase()))
-          .slice(0, 5);
-        const combined = [...suggested];
-        for (const item of local) {
-          if (!combined.find((x) => x.subcategoryId === item.subcategoryId)) combined.push(item);
-        }
-        setMatches(combined);
-      } else if (res.message !== "Request aborted") {
-        setSimilarity(null);
-        toast.error(res.message);
-      }
-    })();
-    return () => { controller.abort(); };
-  }, [debounced, open, parentCategoryId]);
+    const res = await requestJson<SimilarityResponse>("/api/forms/subcategories/similar", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: trimmed, categoryId: parentCategoryId }),
+    });
+    if (!res.ok) return;
+    setSimilarity(res.data);
+  }
+
+  function resetModal() {
+    setName("");
+    setSimilarity(null);
+    setConfirmOverride(null);
+  }
 
   async function createSubcategory(overrideDuplicateWarning: boolean) {
-    const name = query.trim();
-    if (!name || !parentCategoryId) return;
+    const trimmed = name.trim();
+    if (!trimmed || !parentCategoryId) return;
     setCreating(true);
     const res = await requestJson<SubcategoryCreateResponse>("/api/forms/subcategories", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        name,
+        name: trimmed,
         categoryId: parentCategoryId,
         overrideDuplicateWarning,
         siteId,
       }),
     });
     setCreating(false);
+
     if (!res.ok) {
       if (res.status === 409) {
         const details = res.details as
@@ -179,20 +143,15 @@ export function SubcategoryCombobox({
       name: res.data.name,
       categoryId: parentCategoryId,
     };
-    setCatalog((prev) =>
-      prev.find((item) => item.subcategoryId === created.subcategoryId)
-        ? prev
-        : [created, ...prev],
-    );
-    setConfirmOverride(null);
+    setCatalog((prev) => prev.find((item) => item.subcategoryId === created.subcategoryId) ? prev : [created, ...prev]);
     if (res.data.flaggedForReview) {
       toast.success(`Created "${res.data.name}" and flagged for admin review`);
     } else {
       toast.success(`Created "${res.data.name}"`);
     }
     onChange(created);
-    setQuery(created.name);
-    setOpen(false);
+    setOpenModal(false);
+    resetModal();
   }
 
   async function handleDelete(option: SubcategoryOption) {
@@ -200,183 +159,124 @@ export function SubcategoryCombobox({
     const confirmed = window.confirm(`Delete subcategory "${option.name}"?`);
     if (!confirmed) return;
 
-    // Optimistic remove + selection clear. Rollback both on failure.
     const prevCatalog = catalog;
-    const prevMatches = matches;
-    const prevValue = value;
-    const prevQuery = query;
     setCatalog((p) => p.filter((item) => item.subcategoryId !== option.subcategoryId));
-    setMatches((p) => p.filter((item) => item.subcategoryId !== option.subcategoryId));
-    if (value?.subcategoryId === option.subcategoryId) {
-      onChange(null);
-      setQuery("");
-    }
+    if (value?.subcategoryId === option.subcategoryId) onChange(null);
     setDeletingId(option.subcategoryId);
 
     const res = await requestJson<null>(`/api/forms/subcategories/${option.subcategoryId}`, {
       method: "DELETE",
     });
     setDeletingId(null);
-
     if (!res.ok) {
       setCatalog(prevCatalog);
-      setMatches(prevMatches);
-      if (prevValue?.subcategoryId === option.subcategoryId) {
-        onChange(prevValue);
-        setQuery(prevQuery);
-      }
       toast.error(res.message);
       return;
     }
     toast.success(`Deleted "${option.name}"`);
   }
 
-  const exact = catalog.find(
-    (m) => m.name.trim().toLowerCase() === query.trim().toLowerCase(),
-  );
-  const showConflict = Boolean(confirmOverride && confirmOverride.length > 0);
-  const canCreate = query.trim().length > 0 && !exact;
-
   return (
-    <div className="relative flex flex-col gap-2">
+    <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <label className="font-label-md text-label-md uppercase text-on-surface-variant">
+        <label className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
           {label}
           {required && " *"}
         </label>
         <button
           type="button"
-          onClick={() => void createSubcategory(false)}
-          disabled={!canCreate || creating}
-          className="flex h-8 items-center gap-1 rounded-full border border-primary/35 bg-primary/10 px-3 font-label-sm text-label-sm uppercase text-primary disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={() => setOpenModal(true)}
+          className="rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-sky-400 hover:bg-sky-500/20 transition-all"
         >
-          <span className="material-symbols-outlined" style={{ fontSize: "14px" }}>add</span>
-          Add Subcategory
+          + Add Subcategory
         </button>
       </div>
-      <div className="relative">
-        <input
-          type="text"
-          value={query}
+
+      <div className="flex items-center gap-2">
+        <select
+          value={value?.subcategoryId ?? ""}
           onChange={(e) => {
-            setQuery(e.target.value);
-            setOpen(true);
-            if (value) onChange(null);
+            const found = catalog.find((s) => s.subcategoryId === e.target.value) ?? null;
+            onChange(found);
           }}
-          onFocus={() => setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
-          placeholder="Search or create…"
-          aria-required={required}
-          aria-expanded={open}
-          className="h-11 w-full rounded border border-outline bg-surface-container-lowest px-3 pr-10 font-body-md text-body-md text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-        />
-        <span className="material-symbols-outlined pointer-events-none absolute inset-y-0 right-3 flex items-center text-on-surface-variant">
-          arrow_drop_down
-        </span>
+          required={required}
+          disabled={loadingCatalog}
+          className="input-standard appearance-none bg-slate-900 flex-1"
+        >
+          <option value="" className="bg-slate-900">
+            {loadingCatalog ? "Loading\u2026" : catalog.length === 0 ? "No subcategories yet" : "Select\u2026"}
+          </option>
+          {catalog.map((s) => (
+            <option key={s.subcategoryId} value={s.subcategoryId} className="bg-slate-900">
+              {s.name}
+            </option>
+          ))}
+        </select>
+
+        {role === "Admin" && value && (
+          <button
+            type="button"
+            onClick={() => void handleDelete(value)}
+            disabled={deletingId === value.subcategoryId}
+            aria-label="Delete subcategory"
+            className="shrink-0 flex items-center justify-center w-10 h-10 rounded-xl border border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all disabled:opacity-40"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>delete</span>
+          </button>
+        )}
       </div>
-      {showConflict ? (
-        <div className="rounded-xl border border-warning/50 bg-warning/10 p-3">
-          <p className="font-label-md text-label-md uppercase text-warning">Similar subcategories found</p>
-          <ul className="mt-2 flex flex-wrap gap-2">
-            {confirmOverride?.slice(0, 4).map((item) => (
-              <li
-                key={item.id}
-                className="rounded-full bg-surface-container-low px-3 py-1 font-label-sm text-label-sm text-on-surface-variant"
-              >
-                {item.name} ({Math.round(item.score * 100)}%)
-              </li>
-            ))}
-          </ul>
-          <div className="mt-3 flex flex-wrap gap-2">
+
+
+      <ModalShell open={openModal} onClose={() => { setOpenModal(false); resetModal(); }} className="w-full max-w-md rounded-2xl border border-outline-variant bg-surface-container-lowest p-4">
+        <div className="space-y-3">
+          <h3 className="text-lg font-extrabold text-on-background">Create Subcategory</h3>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              void checkSimilarity(e.target.value);
+            }}
+            placeholder="Subcategory name"
+            className="h-11 w-full rounded-xl border border-outline px-3"
+          />
+
+          {confirmOverride?.length ? (
+            <div className="rounded-xl border border-warning/50 bg-warning/10 p-3">
+              <p className="font-label-md text-label-md uppercase text-warning">Similar subcategories found</p>
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {confirmOverride.slice(0, 4).map((item) => (
+                  <li key={item.id} className="rounded-full bg-surface-container-low px-3 py-1 text-xs text-on-surface-variant">
+                    {item.name} ({Math.round(item.score * 100)}%)
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {similarity?.requiresReview && !confirmOverride?.length ? (
+            <p className="text-xs font-semibold text-warning">This looks similar and will require admin review.</p>
+          ) : null}
+
+          <div className="flex gap-2 pt-1">
             <button
               type="button"
-              onClick={() => void createSubcategory(true)}
-              disabled={creating}
-              className="flex h-9 items-center gap-1 rounded bg-primary px-3 font-label-md text-label-md uppercase text-on-primary disabled:opacity-60"
+              disabled={!name.trim() || creating}
+              onClick={() => void createSubcategory(Boolean(confirmOverride?.length))}
+              className="flex-1 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold uppercase text-on-primary disabled:opacity-60"
             >
-              <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>flag</span>
-              {creating ? "Saving…" : "Create and flag review"}
+              {creating ? "Saving..." : confirmOverride?.length ? "Create & Flag Review" : "Create Subcategory"}
             </button>
             <button
               type="button"
-              onClick={() => setConfirmOverride(null)}
-              className="h-9 rounded border border-outline px-3 font-label-md text-label-md uppercase text-on-surface-variant"
+              onClick={() => { setOpenModal(false); resetModal(); }}
+              className="rounded-xl border border-outline px-4 py-2.5 text-sm font-semibold uppercase text-on-surface-variant"
             >
               Cancel
             </button>
           </div>
         </div>
-      ) : null}
-      <AnimatePresence>
-      {open && (matches.length > 0 || canCreate || loading || loadingCatalog) && (
-        <motion.div
-          initial={{ opacity: 0, y: -4, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -4, scale: 0.98 }}
-          transition={transitions.fast}
-          className="absolute left-0 right-0 top-full z-20 mt-1 origin-top overflow-hidden rounded-lg border border-outline-variant bg-surface-container-lowest shadow-md"
-        >
-          <AnimatedList aria-busy={loading} className="divide-y divide-outline-variant">
-            {loadingCatalog ? (
-              <li className="px-4 py-3 font-body-md text-body-md text-on-surface-variant">
-                Loading options…
-              </li>
-            ) : null}
-            {matches.map((s) => (
-              <AnimatedListItem key={s.subcategoryId}>
-                <div className="flex items-center gap-2 px-2 py-1.5">
-                  <button
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      onChange(s);
-                      setQuery(s.name);
-                      setOpen(false);
-                    }}
-                    className="w-full rounded-md px-2 py-2 text-left font-body-md text-body-md hover:bg-surface-container-low"
-                  >
-                    {s.name}
-                  </button>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      void handleDelete(s);
-                    }}
-                    disabled={role !== "Admin" || deletingId === s.subcategoryId}
-                    title={role === "Admin" ? "Delete subcategory" : "Only admins can delete subcategories"}
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-low disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>delete</span>
-                  </button>
-                </div>
-              </AnimatedListItem>
-            ))}
-            {canCreate && (
-              <AnimatedListItem>
-                <button
-                  type="button"
-                  disabled={creating}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    void createSubcategory(false);
-                  }}
-                  className="flex w-full items-center gap-2 px-4 py-3 text-left font-label-md text-label-md uppercase text-primary hover:bg-surface-container-low disabled:opacity-60"
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>add</span>
-                  {creating ? "Creating…" : `Create "${query.trim()}"`}
-                </button>
-              </AnimatedListItem>
-            )}
-          </AnimatedList>
-        </motion.div>
-      )}
-      </AnimatePresence>
-      {similarity?.requiresReview && !showConflict ? (
-        <p className="font-label-sm text-label-sm text-warning">
-          Similar subcategory detected. New creation will be flagged for admin review.
-        </p>
-      ) : null}
+      </ModalShell>
     </div>
   );
 }

@@ -38,20 +38,19 @@ export default async function LogsNewCategoryPage({
     : "/app/logs/new";
 
   return (
-    <div className="flex flex-col gap-density-medium">
-      <header className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-4">
+    <div className="max-w-2xl mx-auto space-y-6 pt-2">
+      <div className="px-1 flex items-center gap-3">
         <Link
           href={backHref}
-          className="mb-2 inline-flex items-center gap-1 font-label-md text-label-md uppercase text-primary"
+          className="p-2 -ml-2 rounded-xl hover:bg-white/5 transition-colors text-slate-400"
         >
           <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_back</span>
-          Pick category
         </Link>
-        <h2 className="font-headline-sm text-headline-sm text-on-background">Log {category.name}</h2>
-        <p className="font-body-md text-body-md text-on-surface-variant">
-          Step 2 of 2 — fill the form to create a new entry.
-        </p>
-      </header>
+        <div>
+          <h2 className="text-2xl font-extrabold tracking-tight text-white uppercase">Log {category.name}</h2>
+          <p className="text-sm text-slate-500 font-medium italic">Step 2 of 2 — fill the form to create a new entry.</p>
+        </div>
+      </div>
       <EntryForm
         categoryId={category.categoryId}
         categoryName={category.name}

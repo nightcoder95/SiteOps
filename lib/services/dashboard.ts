@@ -24,6 +24,7 @@ export type DashboardData = {
     currentProgress: number | null;
     currentPhase: string | null;
     supervisorId: string;
+    updatedAt: Date;
   }>;
   notifications: {
     items: DashboardNotification[];
@@ -38,7 +39,7 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
       : and(eq(sites.supervisorId, user.id), isNull(sites.archivedAt));
 
   const [siteRows, notificationRows] = await Promise.all([
-    db.select().from(sites).where(siteWhere),
+    db.select().from(sites).where(siteWhere).orderBy(desc(sites.updatedAt)),
     db
       .select({
         id: notifications.notificationId,

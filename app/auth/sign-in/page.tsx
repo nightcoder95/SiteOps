@@ -1,149 +1,140 @@
 'use client';
 
-import { createBrowserClient } from '@supabase/ssr';
+import React, { useState } from 'react';
+import { motion } from 'motion/react';
+import { Mail, Lock, LogIn, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { createBrowserClient } from '@supabase/ssr';
 import { toast } from 'sonner';
 
 import { toastSuccess } from '@/lib/ui/toast';
 
 export default function SignInPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
   );
-  const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
 
   async function ensureProfileExists() {
     try {
       await fetch('/api/auth/create-profile', { method: 'POST' });
     } catch {
-      // Non-blocking
+      // non-blocking
     }
   }
 
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    const fd = new FormData(e.currentTarget);
-    const email = String(fd.get('email') ?? '');
-    const password = String(fd.get('password') ?? '');
+    setIsLoading(true);
+
     try {
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       if (signInError) {
         toast.error(signInError.message);
         return;
       }
+
       await ensureProfileExists();
       toastSuccess('Signed in');
-      router.replace('/app/dashboard');
+      router.push('/app/dashboard');
       router.refresh();
     } catch {
       toast.error('Sign-in failed');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
-    <>
-      <div className="flex flex-col items-center border-b border-outline-variant bg-surface-container-lowest px-8 pt-8 pb-4">
-        <div className="mb-4 rounded-full bg-primary-container p-3 text-on-primary-container">
-          <span
-            className="material-symbols-outlined"
-            style={{ fontVariationSettings: "'FILL' 1", fontSize: '32px' }}
-          >
-            construction
-          </span>
+    <div className="min-h-screen bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8 px-4">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="sm:mx-auto sm:w-full sm:max-w-md"
+      >
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-sky-500/10 border border-sky-500/20 mb-6">
+            <LogIn className="w-8 h-8 text-sky-400" />
+          </div>
+          <h1 className="text-3xl font-extrabold tracking-tight text-white uppercase">SITEOPS</h1>
+          <p className="mt-2 text-sm text-slate-500 font-medium">Command Access Portal</p>
         </div>
-        <h1 className="font-display-lg text-display-lg text-primary mb-1">SiteOps</h1>
-        <p className="font-body-md text-body-md text-center text-on-surface-variant">
-          Secure authentication for field personnel
-        </p>
-      </div>
+      </motion.div>
 
-      <div className="px-8 pt-6 pb-6">
-        <form onSubmit={onSubmit} className="flex flex-col gap-6">
-          <div className="flex flex-col gap-2">
-            <label htmlFor="email" className="font-label-md text-label-md uppercase text-on-surface">
-              Email Address
-            </label>
-            <div className="relative">
-              <span className="material-symbols-outlined pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-on-surface-variant">
-                mail
-              </span>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                placeholder="personnel@siteops.com"
-                className="h-11 w-full rounded border border-outline bg-surface-container-lowest pl-10 pr-4 font-body-md text-body-md text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <label htmlFor="password" className="font-label-md text-label-md uppercase text-on-surface">
-                Password
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.1 }}
+        className="mt-8 sm:mx-auto sm:w-full sm:max-w-md"
+      >
+        <div className="card-standard py-8 px-6 sm:px-10">
+          <form className="space-y-6" onSubmit={handleSubmit}>
+            <div>
+              <label htmlFor="email" className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-2">
+                EMAIL ADDRESS
               </label>
-              <Link href="#" className="font-label-md text-label-md uppercase text-primary">
-                Forgot?
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="input-standard pl-11"
+                  placeholder="you@company.com"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-2">
+                PASSWORD
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="input-standard pl-11"
+                  placeholder="••••••••"
+                />
+              </div>
+            </div>
+
+            <button type="submit" disabled={isLoading} className="w-full btn-primary py-3.5 text-xs">
+              {isLoading ? (
+                <><Loader2 className="w-5 h-5 animate-spin" />Authenticating...</>
+              ) : (
+                <><LogIn className="w-5 h-5 mr-2" />Authorize Access</>
+              )}
+            </button>
+          </form>
+
+          <div className="mt-6">
+            <p className="text-center text-xs text-slate-500">
+              Don&apos;t have an access card?{' '}
+              <Link href="/auth/sign-up" className="font-bold text-sky-400 hover:text-sky-300 transition-colors uppercase tracking-widest">
+                Register
               </Link>
-            </div>
-            <div className="relative">
-              <span className="material-symbols-outlined pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-on-surface-variant">
-                lock
-              </span>
-              <input
-                id="password"
-                name="password"
-                type={showPassword ? 'text' : 'password'}
-                required
-                placeholder="••••••••"
-                className="h-11 w-full rounded border border-outline bg-surface-container-lowest pl-10 pr-10 font-body-md text-body-md text-on-surface focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((s) => !s)}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-                className="absolute inset-y-0 right-0 flex items-center pr-3 text-on-surface-variant"
-              >
-                <span className="material-symbols-outlined">
-                  {showPassword ? 'visibility_off' : 'visibility'}
-                </span>
-              </button>
-            </div>
+            </p>
           </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex h-11 w-full items-center justify-center gap-2 rounded bg-primary font-label-md text-label-md uppercase text-on-primary transition-colors hover:bg-surface-tint disabled:opacity-60"
-          >
-            <span>{loading ? 'Signing in…' : 'Sign In'}</span>
-            <span className="material-symbols-outlined">login</span>
-          </button>
-        </form>
-
-        <p className="font-body-md text-body-md mt-6 text-center text-on-surface-variant">
-          Don&apos;t have an account?{' '}
-          <Link href="/auth/sign-up" className="font-label-md text-label-md uppercase text-primary">
-            Sign up
-          </Link>
-        </p>
-      </div>
-
-      <div className="flex items-center justify-center gap-2 border-t border-outline-variant bg-surface-container-low p-4 font-label-sm text-label-sm text-on-surface-variant">
-        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-          verified_user
-        </span>
-        <span>SiteOps Industrial Platform</span>
-      </div>
-    </>
+        </div>
+      </motion.div>
+    </div>
   );
 }

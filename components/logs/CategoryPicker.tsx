@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { motion } from "motion/react";
+import { ChevronRight, Plus, Trash2, Loader2, AlertCircle } from "lucide-react";
 
-import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
+import { ModalShell } from "@/components/ui/motion";
 import { requestJson } from "@/lib/http/client";
-import { AnimatedList, AnimatedListItem } from "@/components/ui/motion";
 
 export type CategoryOption = {
   categoryId: string;
@@ -31,6 +32,12 @@ type CategoryCreateResponse = CategoryOption & {
   flaggedForReview?: boolean;
 };
 
+type CustomFieldDraft = {
+  label: string;
+  fieldType: "Text" | "Number";
+  unit: string;
+};
+
 type Props = {
   initialCategories?: CategoryOption[];
   onSelect: (category: CategoryOption) => void;
@@ -40,77 +47,58 @@ type Props = {
 
 export function CategoryPicker({ initialCategories = [], onSelect, role, siteId }: Props) {
   const [catalog, setCatalog] = useState<CategoryOption[]>(initialCategories);
-  const [query, setQuery] = useState("");
-  const debounced = useDebouncedValue(query.trim(), 250);
-  const [matches, setMatches] = useState<CategoryOption[]>(initialCategories.slice(0, 8));
-  const [similarity, setSimilarity] = useState<SimilarityResponse | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [openModal, setOpenModal] = useState(false);
+  const [name, setName] = useState("");
+  const [remarks, setRemarks] = useState("");
+  const [fields, setFields] = useState<CustomFieldDraft[]>([]);
   const [creating, setCreating] = useState(false);
   const [confirmOverride, setConfirmOverride] = useState<SimilarityCandidate[] | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [similarity, setSimilarity] = useState<SimilarityResponse | null>(null);
 
-  // Local catalog is read via ref so this effect only depends on the debounced
-  // query — mutations to `catalog` (create/delete) no longer trigger a spurious
-  // similarity refetch. AbortController cancels in-flight requests on rerun and
-  // unmount, fixing duplicate StrictMode requests + stale-result races.
-  const catalogRef = useRef(catalog);
-  catalogRef.current = catalog;
+  const canCreate = useMemo(() => name.trim().length > 0, [name]);
 
-  useEffect(() => {
-    if (!debounced) {
+  async function checkSimilarity(next: string) {
+    const trimmed = next.trim();
+    if (!trimmed) {
       setSimilarity(null);
-      setMatches(catalogRef.current.slice(0, 8));
-      setLoading(false);
       return;
     }
+    const res = await requestJson<SimilarityResponse>("/api/forms/categories/similar", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: trimmed }),
+    });
+    if (!res.ok) return;
+    setSimilarity(res.data);
+  }
 
-    const controller = new AbortController();
-    setLoading(true);
-
-    void (async () => {
-      const res = await requestJson<SimilarityResponse>("/api/forms/categories/similar", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: debounced }),
-        signal: controller.signal,
-      });
-      if (controller.signal.aborted) return;
-      setLoading(false);
-      if (res.ok) {
-        setSimilarity(res.data);
-        const suggested = res.data.candidates
-          .slice(0, 5)
-          .map((c) => ({ categoryId: c.id, name: c.name }));
-        const local = catalogRef.current
-          .filter((c) => c.name.toLowerCase().includes(debounced.toLowerCase()))
-          .slice(0, 5);
-        const combined = [...suggested];
-        for (const item of local) {
-          if (!combined.find((x) => x.categoryId === item.categoryId)) combined.push(item);
-        }
-        setMatches(combined);
-      } else if (res.message !== "Request aborted") {
-        setSimilarity(null);
-        toast.error(res.message);
-      }
-    })();
-
-    return () => {
-      controller.abort();
-    };
-  }, [debounced]);
+  function resetModal() {
+    setName("");
+    setRemarks("");
+    setFields([]);
+    setSimilarity(null);
+    setConfirmOverride(null);
+  }
 
   async function createCategory(overrideDuplicateWarning: boolean) {
-    const name = query.trim();
-    if (!name) return;
+    const trimmed = name.trim();
+    if (!trimmed) return;
     setCreating(true);
     const res = await requestJson<CategoryCreateResponse>("/api/forms/categories", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, overrideDuplicateWarning, siteId }),
+      body: JSON.stringify({
+        name: trimmed,
+        overrideDuplicateWarning,
+        siteId,
+        customFields: fields.filter((f) => f.label.trim()),
+        remarks,
+      }),
     });
-    setCreating(false);
+
     if (!res.ok) {
+      setCreating(false);
       if (res.status === 409) {
         const details = res.details as
           | { candidates?: SimilarityCandidate[]; requiresReview?: boolean }
@@ -123,20 +111,23 @@ export function CategoryPicker({ initialCategories = [], onSelect, role, siteId 
       toast.error(res.message);
       return;
     }
+
     const created = {
       categoryId: res.data.categoryId,
       name: res.data.name,
       icon: res.data.icon ?? null,
     };
-    setCatalog((prev) =>
-      prev.find((item) => item.categoryId === created.categoryId) ? prev : [created, ...prev],
-    );
-    setConfirmOverride(null);
+
+    setCreating(false);
+    setCatalog((prev) => (prev.find((item) => item.categoryId === created.categoryId) ? prev : [created, ...prev]));
     if (res.data.flaggedForReview) {
       toast.success(`Created "${created.name}" and flagged for admin review`);
     } else {
       toast.success(`Created "${created.name}"`);
     }
+
+    resetModal();
+    setOpenModal(false);
     onSelect(created);
   }
 
@@ -145,11 +136,8 @@ export function CategoryPicker({ initialCategories = [], onSelect, role, siteId 
     const confirmed = window.confirm(`Delete category "${category.name}"?`);
     if (!confirmed) return;
 
-    // Optimistic: remove from local lists immediately. Rollback on server error.
     const prevCatalog = catalog;
-    const prevMatches = matches;
     setCatalog((prev) => prev.filter((item) => item.categoryId !== category.categoryId));
-    setMatches((prev) => prev.filter((item) => item.categoryId !== category.categoryId));
     setDeletingId(category.categoryId);
 
     const res = await requestJson<null>(`/api/forms/categories/${category.categoryId}`, {
@@ -159,149 +147,201 @@ export function CategoryPicker({ initialCategories = [], onSelect, role, siteId 
 
     if (!res.ok) {
       setCatalog(prevCatalog);
-      setMatches(prevMatches);
       toast.error(res.message);
       return;
     }
     toast.success(`Deleted "${category.name}"`);
   }
 
-  const exactMatch = catalog.find(
-    (m) => m.name.trim().toLowerCase() === query.trim().toLowerCase(),
-  );
-  const canCreate = query.trim().length > 0 && !exactMatch;
-  const showConflict = Boolean(confirmOverride && confirmOverride.length > 0);
-
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-primary/15 bg-surface-container-lowest p-4 shadow-[0_22px_60px_-38px_rgba(7,162,194,0.7)]">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-tertiary/15 via-primary/10 to-transparent" />
-      <div className="relative flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <p className="font-label-md text-label-md uppercase tracking-[0.14em] text-on-surface-variant">
-            Category
+    <div className="space-y-4">
+      {/* Section header */}
+      <div className="flex items-center justify-between px-1 mb-6">
+        <div>
+          <h3 className="text-xl font-extrabold tracking-tight text-white uppercase">Select Log Category</h3>
+          <p className="text-sm text-slate-500 font-medium italic mt-1.5">
+            Pick the type of operation you want to record.
           </p>
-          <button
-            type="button"
-            onClick={() => void createCategory(false)}
-            disabled={!canCreate || creating}
-            className="flex h-9 items-center gap-1 rounded-full border border-primary/35 bg-primary/10 px-3 font-label-md text-label-md uppercase text-primary disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>add</span>
-            Add Category
-          </button>
         </div>
-
-        <div className="flex flex-col gap-2">
-        <label htmlFor="category-search" className="font-label-md text-label-md uppercase text-on-surface-variant">
-          Search
-        </label>
-        <div className="relative">
-          <span className="material-symbols-outlined pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-on-surface-variant">
-            search
-          </span>
-          <input
-            id="category-search"
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search or create…"
-            aria-label="Search categories"
-            className="h-11 w-full rounded border border-outline bg-surface-container-lowest pl-10 pr-4 font-body-md text-body-md text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-          />
-        </div>
+        <button
+          type="button"
+          onClick={() => setOpenModal(true)}
+          className="btn-secondary flex items-center gap-1.5 px-3 py-2"
+        >
+          <Plus className="w-4 h-4" />
+          Add
+        </button>
       </div>
 
-      {showConflict ? (
-        <div className="rounded-xl border border-warning/50 bg-warning/10 p-3">
-          <p className="font-label-md text-label-md uppercase text-warning">Similar categories found</p>
-          <ul className="mt-2 flex flex-wrap gap-2">
-            {confirmOverride?.slice(0, 4).map((item) => (
-              <li
-                key={item.id}
-                className="rounded-full bg-surface-container-low px-3 py-1 font-label-sm text-label-sm text-on-surface-variant"
-              >
-                {item.name} ({Math.round(item.score * 100)}%)
-              </li>
-            ))}
-          </ul>
-          <div className="mt-3 flex flex-wrap gap-2">
+      {/* Category grid */}
+      <div className="grid grid-cols-1 gap-3">
+        {catalog.map((c, i) => (
+          <motion.div
+            key={c.categoryId}
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: i * 0.05 }}
+            className="card-standard group flex items-center justify-between text-left hover:bg-white/5 transition-all active:scale-[0.99]"
+          >
             <button
               type="button"
-              onClick={() => void createCategory(true)}
-              disabled={creating}
-              className="flex h-9 items-center gap-1 rounded bg-primary px-3 font-label-md text-label-md uppercase text-on-primary disabled:opacity-60"
+              onClick={() => onSelect(c)}
+              className="flex-1 flex items-center gap-5 p-5 text-left"
             >
-              <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>flag</span>
-              {creating ? "Saving…" : "Create and flag review"}
+              <div className="w-14 h-14 bg-white/5 border border-white/5 rounded-2xl flex items-center justify-center shadow-lg transition-colors group-hover:bg-white/10 text-sky-400 shrink-0">
+                <span className="material-symbols-outlined text-[24px]">{c.icon ?? "category"}</span>
+              </div>
+              <div className="space-y-1 min-w-0">
+                <h4 className="font-bold text-slate-200 uppercase tracking-tight group-hover:text-sky-400 transition-colors">
+                  {c.name}
+                </h4>
+              </div>
+            </button>
+
+            <div className="flex items-center gap-2 pr-4">
+              {role === "Admin" && (
+                <button
+                  type="button"
+                  onClick={() => void handleDelete(c)}
+                  disabled={deletingId === c.categoryId}
+                  title="Delete category"
+                  className="p-2 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all disabled:opacity-40"
+                >
+                  {deletingId === c.categoryId ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4" />
+                  )}
+                </button>
+              )}
+              <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-600 group-hover:bg-sky-500 group-hover:text-slate-950 transition-all">
+                <ChevronRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
+              </div>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Add Category Modal */}
+      <ModalShell
+        open={openModal}
+        onClose={() => { setOpenModal(false); resetModal(); }}
+        className="w-full max-w-md rounded-2xl border border-white/10 bg-surface p-6 shadow-2xl"
+      >
+        <div className="space-y-4">
+          <h3 className="text-xl font-extrabold tracking-tight text-white uppercase">Add Category</h3>
+
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                void checkSimilarity(e.target.value);
+              }}
+              placeholder="e.g. Concrete Pouring"
+              className="input-standard"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Input Fields</p>
+              <button
+                type="button"
+                onClick={() => setFields((prev) => [...prev, { label: "", fieldType: "Text", unit: "" }])}
+                className="btn-secondary px-3 py-1.5 text-[10px]"
+              >
+                Add Field
+              </button>
+            </div>
+            {fields.map((field, idx) => (
+              <div key={idx} className="grid grid-cols-12 gap-2 rounded-xl border border-white/5 bg-white/5 p-2">
+                <input
+                  type="text"
+                  placeholder="Label"
+                  value={field.label}
+                  onChange={(e) => setFields((prev) => prev.map((item, i) => i === idx ? { ...item, label: e.target.value } : item))}
+                  className="col-span-6 input-standard py-2"
+                />
+                <select
+                  value={field.fieldType}
+                  onChange={(e) => setFields((prev) => prev.map((item, i) => i === idx ? { ...item, fieldType: e.target.value as "Text" | "Number" } : item))}
+                  className="col-span-3 input-standard py-2 appearance-none"
+                >
+                  <option value="Text" className="bg-slate-900">Text</option>
+                  <option value="Number" className="bg-slate-900">Number</option>
+                </select>
+                <input
+                  type="text"
+                  placeholder="Unit"
+                  value={field.unit}
+                  onChange={(e) => setFields((prev) => prev.map((item, i) => i === idx ? { ...item, unit: e.target.value } : item))}
+                  className="col-span-3 input-standard py-2"
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Remarks</label>
+            <textarea
+              value={remarks}
+              onChange={(e) => setRemarks(e.target.value)}
+              rows={2}
+              placeholder="Optional note field"
+              className="input-standard resize-none"
+            />
+          </div>
+
+          {confirmOverride?.length ? (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-3">
+              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400">Similar Categories Found</p>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {confirmOverride.slice(0, 4).map((item) => (
+                    <span key={item.id} className="badge-amber">
+                      {item.name} ({Math.round(item.score * 100)}%)
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {similarity?.requiresReview && !confirmOverride?.length ? (
+            <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">
+              ⚠ Similar category detected — will require admin review.
+            </p>
+          ) : null}
+
+          <div className="flex gap-3 pt-1">
+            <button
+              type="button"
+              disabled={!canCreate || creating}
+              onClick={() => void createCategory(Boolean(confirmOverride?.length))}
+              className="btn-primary flex-1 py-3"
+            >
+              {creating ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : confirmOverride?.length ? (
+                "Create & Flag Review"
+              ) : (
+                "Create Category"
+              )}
             </button>
             <button
               type="button"
-              onClick={() => setConfirmOverride(null)}
-              className="h-9 rounded border border-outline px-3 font-label-md text-label-md uppercase text-on-surface-variant"
+              onClick={() => { setOpenModal(false); resetModal(); }}
+              className="btn-secondary px-6 py-3"
             >
               Cancel
             </button>
           </div>
         </div>
-      ) : null}
-
-      <AnimatedList className="flex flex-col gap-2" aria-busy={loading}>
-        {loading ? (
-          <li className="font-body-md text-body-md text-on-surface-variant">Searching…</li>
-        ) : null}
-        {matches.map((c) => (
-          <AnimatedListItem key={c.categoryId}>
-            <div className="flex items-center gap-2 rounded-xl border border-outline-variant bg-surface-container-low px-3 py-2.5">
-              <button
-                type="button"
-                onClick={() => onSelect(c)}
-                className="flex min-w-0 flex-1 items-center justify-between gap-2 text-left active-press"
-              >
-                <span className="flex min-w-0 items-center gap-2 font-body-md text-body-md font-medium text-on-surface">
-                  <span className="material-symbols-outlined text-primary" style={{ fontSize: "20px" }}>
-                    {c.icon ?? "category"}
-                  </span>
-                  <span className="truncate">{c.name}</span>
-                </span>
-                <span className="flex items-center gap-1 font-label-md text-label-md uppercase text-primary">
-                  Use
-                  <span className="material-symbols-outlined" style={{ fontSize: "16px" }}>arrow_forward</span>
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleDelete(c)}
-                disabled={role !== "Admin" || deletingId === c.categoryId}
-                title={role === "Admin" ? "Delete category" : "Only admins can delete categories"}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>delete</span>
-              </button>
-            </div>
-          </AnimatedListItem>
-        ))}
-        {!loading && matches.length === 0 && query && (
-          <li className="font-body-md text-body-md text-on-surface-variant">No matches.</li>
-        )}
-      </AnimatedList>
-
-      {canCreate && !showConflict ? (
-        <button
-          type="button"
-          onClick={() => void createCategory(false)}
-          disabled={creating}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-primary/50 bg-primary/5 px-4 py-3 font-label-md text-label-md uppercase text-primary disabled:opacity-60"
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>add</span>
-          {creating ? 'Creating…' : `Create "${query.trim()}"`}
-        </button>
-      ) : null}
-      {similarity?.requiresReview && !showConflict ? (
-        <p className="font-label-sm text-label-sm text-warning">
-          Similar category detected. Creating a new one will require admin review.
-        </p>
-      ) : null}
-      </div>
+      </ModalShell>
     </div>
   );
 }

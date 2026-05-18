@@ -80,8 +80,8 @@ export default function ProfilePage() {
   const user = result?.ok ? result.data.user : null;
 
   return (
-    <div className="flex flex-col gap-density-medium">
-      <section className="flex flex-col items-center gap-2 rounded-xl border border-outline-variant bg-surface-container-lowest p-6">
+    <div className="space-y-5 pb-20">
+      <section className="card-standard flex flex-col items-center gap-2 rounded-2xl p-6">
         <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary-container text-on-primary-container">
           <span className="material-symbols-outlined" style={{ fontSize: '40px', fontVariationSettings: "'FILL' 1" }}>
             account_circle
@@ -103,7 +103,7 @@ export default function ProfilePage() {
         </div>
       ) : null}
 
-      <section className="rounded-xl border border-outline-variant bg-surface-container-lowest">
+      <section className="card-standard rounded-2xl">
         <header className="border-b border-outline-variant px-4 py-3">
           <h3 className="font-label-md text-label-md uppercase text-on-surface-variant">Account Details</h3>
         </header>
@@ -112,8 +112,8 @@ export default function ProfilePage() {
         <ReadOnlyRow label="Designation" value={profile?.designation ?? '—'} />
       </section>
 
-      <form onSubmit={update} className="flex flex-col gap-4 rounded-xl border border-outline-variant bg-surface-container-lowest p-4">
-        <h3 className="font-headline-sm text-headline-sm text-on-surface">Update Profile</h3>
+      <form onSubmit={update} className="card-standard flex flex-col gap-4 rounded-2xl p-4">
+        <h3 className="text-lg font-extrabold tracking-tight text-on-surface">Update Profile</h3>
         <div className="flex flex-col gap-2">
           <label htmlFor="phone" className={labelClass}>Phone</label>
           <input id="phone" name="phone" className={inputClass} />
