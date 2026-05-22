@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { createBrowserClient } from '@supabase/ssr';
 
 import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
 import { requestJson, type ClientResult } from '@/lib/http/client';
@@ -36,6 +38,18 @@ function ReadOnlyRow({ label, value }: { label: string; value: string }) {
 export default function ProfilePage() {
   const [result, setResult] = useState<ClientResult<ProfileResponse> | null>(null);
   const [saving, setSaving] = useState(false);
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    );
+    await supabase.auth.signOut();
+    toastSuccess('Signed out successfully');
+    router.replace('/auth/sign-in');
+    router.refresh();
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -135,6 +149,19 @@ export default function ProfilePage() {
           {saving ? 'Saving…' : 'Save'}
         </button>
       </form>
+
+      <section className="card-standard rounded-2xl p-4 flex flex-col gap-3">
+        <h3 className="text-lg font-extrabold tracking-tight text-on-surface">Session Operations</h3>
+        <p className="text-xs text-on-surface-variant">Sign out of your active operator session. This will clear cached resources and require authorization to command again.</p>
+        <button
+          type="button"
+          onClick={handleSignOut}
+          className="flex h-11 w-full items-center justify-center gap-2 rounded border border-error-container bg-error-container/10 font-label-md text-label-md uppercase text-error hover:bg-error-container/20 transition-all active:scale-[0.98]"
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>logout</span>
+          Sign Out
+        </button>
+      </section>
     </div>
   );
 }

@@ -13,11 +13,8 @@ import { PUBLIC_ROUTES, PUBLIC_ROUTE_PREFIXES } from "@/lib/auth/constants";
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
-  // Public routes skip all auth work — no Supabase client, no JWT verify.
-  if (
-    PUBLIC_ROUTES.includes(pathname) ||
-    PUBLIC_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix))
-  ) {
+  // Public route prefixes skip all auth work — no Supabase client, no JWT verify.
+  if (PUBLIC_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
     return NextResponse.next();
   }
 
@@ -83,6 +80,14 @@ export async function middleware(request: NextRequest) {
   cookiesToSet.forEach(({ name, value, options }) => {
     response.cookies.set(name, value, options);
   });
+
+  // Redirect authenticated users trying to access public auth/landing routes.
+  if (PUBLIC_ROUTES.includes(pathname)) {
+    if (userId) {
+      return NextResponse.redirect(new URL("/app/dashboard", request.url));
+    }
+    return response;
+  }
 
   if (!userId) {
     if (pathname.startsWith("/api")) {

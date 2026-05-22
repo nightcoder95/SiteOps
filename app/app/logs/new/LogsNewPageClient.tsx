@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
-import { MapPin, ChevronRight } from "lucide-react";
+import { MapPin, ChevronRight, Plus } from "lucide-react";
 
 import { CategoryPicker, type CategoryOption } from "@/components/logs/CategoryPicker";
 
@@ -39,15 +39,25 @@ export function LogsNewPageClient({ initialCategories, initialSites, siteId, rol
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 20 }}
-            className="space-y-6"
+            className="space-y-4"
           >
-            <div className="px-1 text-center">
-              <h3 className="text-xl font-extrabold tracking-tight text-white uppercase">
-                Where are you reporting from?
-              </h3>
-              <p className="text-sm text-slate-500 font-medium italic mt-1.5">
-                Select the active project zone for this operational log.
-              </p>
+            <div className="flex items-center justify-between px-1 mb-6">
+              <div>
+                <h3 className="text-xl font-extrabold tracking-tight text-white uppercase">
+                  Where are you reporting from?
+                </h3>
+                <p className="text-sm text-slate-500 font-medium italic mt-1.5">
+                  Select the active project zone for this operational log.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => router.push("/app/sites/new")}
+                className="btn-secondary flex items-center gap-1.5 px-3 py-2 shrink-0"
+              >
+                <Plus className="w-4 h-4" />
+                Add
+              </button>
             </div>
 
             <div className="grid grid-cols-1 gap-3">

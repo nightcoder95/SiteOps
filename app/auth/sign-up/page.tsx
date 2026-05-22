@@ -55,7 +55,7 @@ export default function SignUpPage() {
 
       await ensureProfileExists();
       toastSuccess('Account created');
-      router.push('/app/dashboard');
+      router.replace('/app/dashboard');
       router.refresh();
     } catch {
       toast.error('Sign-up failed');

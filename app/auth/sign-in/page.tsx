@@ -42,7 +42,7 @@ export default function SignInPage() {
 
       await ensureProfileExists();
       toastSuccess('Signed in');
-      router.push('/app/dashboard');
+      router.replace('/app/dashboard');
       router.refresh();
     } catch {
       toast.error('Sign-in failed');
