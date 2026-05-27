@@ -129,6 +129,19 @@ export type EntryType =
   | "expense"
   | "incident";
 
+export type MaterialWorkStage =
+  | "Basement Level"
+  | "Brick Level"
+  | "Lintel Level"
+  | "Roof Level"
+  | "Compound Wall"
+  | "Other";
+
+export type SiteOperationSummary = Record<EntryType, {
+  todayCount: number;
+  todaySpend: number | null;
+}>;
+
 export async function getEntryById(entryId: string, type: EntryType) {
   switch (type) {
     case "labour": {
@@ -283,6 +296,9 @@ export type EntriesFilters = {
   from?: string;
   to?: string;
   limit?: number;
+  category?: string;
+  workStage?: MaterialWorkStage;
+  sort?: "newest" | "oldest" | "highest_spend" | "lowest_spend";
 };
 
 // Default page size when caller does not specify. Keeps initial site-detail
@@ -294,9 +310,81 @@ export const DEFAULT_ENTRIES_LIMIT = 50;
 // full page for each of the 5 tables is wasted work and payload.
 export const ALL_TYPE_PREVIEW_LIMIT = 5;
 
+function todayIsoDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function clampLimit(value: number | undefined) {
   if (!value || Number.isNaN(value)) return DEFAULT_ENTRIES_LIMIT;
   return Math.min(Math.max(1, Math.floor(value)), 200);
+}
+
+function sortSpendRows<T>(
+  rows: T[],
+  sort: EntriesFilters["sort"],
+  amount: (row: T) => number,
+) {
+  if (sort === "highest_spend") {
+    return [...rows].sort((a, b) => amount(b) - amount(a));
+  }
+  if (sort === "lowest_spend") {
+    return [...rows].sort((a, b) => amount(a) - amount(b));
+  }
+  return rows;
+}
+
+export async function getSiteOperationSummary(
+  siteId: string,
+  date = todayIsoDate(),
+): Promise<SiteOperationSummary> {
+  const [labour, material, machinery, expense, incident] = await Promise.all([
+    db
+      .select()
+      .from(labourEntries)
+      .where(and(eq(labourEntries.siteId, siteId), eq(labourEntries.date, date))),
+    db
+      .select()
+      .from(materialEntries)
+      .where(and(eq(materialEntries.siteId, siteId), eq(materialEntries.date, date))),
+    db
+      .select()
+      .from(machineryEntries)
+      .where(and(eq(machineryEntries.siteId, siteId), eq(machineryEntries.date, date))),
+    db
+      .select()
+      .from(expenseEntries)
+      .where(and(eq(expenseEntries.siteId, siteId), eq(expenseEntries.date, date))),
+    db
+      .select()
+      .from(incidentReports)
+      .where(and(eq(incidentReports.siteId, siteId), eq(sql`${incidentReports.createdAt}::date`, date))),
+  ]);
+
+  return {
+    labour: {
+      todayCount: labour.length,
+      todaySpend: labour.reduce(
+        (sum, row) => sum + calculateLabourTotal(row.peopleCount, row.wagePerHead),
+        0,
+      ),
+    },
+    material: {
+      todayCount: material.length,
+      todaySpend: material.reduce((sum, row) => sum + Number(row.cost ?? 0), 0),
+    },
+    machinery: {
+      todayCount: machinery.length,
+      todaySpend: null,
+    },
+    expense: {
+      todayCount: expense.length,
+      todaySpend: expense.reduce((sum, row) => sum + Number(row.amount ?? 0), 0),
+    },
+    incident: {
+      todayCount: incident.length,
+      todaySpend: null,
+    },
+  };
 }
 
 export async function getEntriesBySite(
@@ -306,6 +394,9 @@ export async function getEntriesBySite(
 ) {
   const from = filters?.from;
   const to = filters?.to;
+  const category = filters?.category?.trim();
+  const workStage = filters?.workStage;
+  const sort = filters?.sort ?? "newest";
   const limit =
     type === "all"
       ? Math.min(clampLimit(filters?.limit), ALL_TYPE_PREVIEW_LIMIT)
@@ -329,52 +420,85 @@ export async function getEntriesBySite(
     return undefined;
   };
 
-  const fetchLabour = async () =>
-    db
+  const fetchLabour = async () => {
+    const rows = await db
       .select()
       .from(labourEntries)
-      .where(and(eq(labourEntries.siteId, siteId), dateWhere(labourEntries.date)))
-      .orderBy(desc(labourEntries.date), desc(labourEntries.createdAt))
+      .where(and(
+        eq(labourEntries.siteId, siteId),
+        dateWhere(labourEntries.date),
+        category ? eq(labourEntries.workType, category) : undefined,
+      ))
+      .orderBy(
+        sort === "oldest" ? asc(labourEntries.date) : desc(labourEntries.date),
+        sort === "oldest" ? asc(labourEntries.createdAt) : desc(labourEntries.createdAt),
+      )
       .limit(limit);
+    return sortSpendRows(rows, sort, (row) => calculateLabourTotal(row.peopleCount, row.wagePerHead));
+  };
 
-  const fetchMaterial = async () =>
-    db
+  const fetchMaterial = async () => {
+    const rows = await db
       .select()
       .from(materialEntries)
-      .where(
-        and(eq(materialEntries.siteId, siteId), dateWhere(materialEntries.date)),
+      .where(and(
+        eq(materialEntries.siteId, siteId),
+        dateWhere(materialEntries.date),
+        category ? eq(materialEntries.materialType, category) : undefined,
+        workStage ? eq(materialEntries.workStage, workStage) : undefined,
+      ))
+      .orderBy(
+        sort === "oldest" ? asc(materialEntries.date) : desc(materialEntries.date),
+        sort === "oldest" ? asc(materialEntries.createdAt) : desc(materialEntries.createdAt),
       )
-      .orderBy(desc(materialEntries.date), desc(materialEntries.createdAt))
       .limit(limit);
+    return sortSpendRows(rows, sort, (row) => Number(row.cost ?? 0));
+  };
 
   const fetchMachinery = async () =>
     db
       .select()
       .from(machineryEntries)
-      .where(
-        and(eq(machineryEntries.siteId, siteId), dateWhere(machineryEntries.date)),
+      .where(and(
+        eq(machineryEntries.siteId, siteId),
+        dateWhere(machineryEntries.date),
+        category ? eq(machineryEntries.equipmentType, category) : undefined,
+      ))
+      .orderBy(
+        sort === "oldest" ? asc(machineryEntries.date) : desc(machineryEntries.date),
+        sort === "oldest" ? asc(machineryEntries.createdAt) : desc(machineryEntries.createdAt),
       )
-      .orderBy(desc(machineryEntries.date), desc(machineryEntries.createdAt))
       .limit(limit);
 
-  const fetchExpense = async () =>
-    db
+  const fetchExpense = async () => {
+    const rows = await db
       .select()
       .from(expenseEntries)
-      .where(
-        and(eq(expenseEntries.siteId, siteId), dateWhere(expenseEntries.date)),
+      .where(and(
+        eq(expenseEntries.siteId, siteId),
+        dateWhere(expenseEntries.date),
+        category ? eq(expenseEntries.category, category as "Labour" | "Materials" | "Equipment" | "Misc") : undefined,
+      ))
+      .orderBy(
+        sort === "oldest" ? asc(expenseEntries.date) : desc(expenseEntries.date),
+        sort === "oldest" ? asc(expenseEntries.createdAt) : desc(expenseEntries.createdAt),
       )
-      .orderBy(desc(expenseEntries.date), desc(expenseEntries.createdAt))
       .limit(limit);
+    return sortSpendRows(rows, sort, (row) => Number(row.amount ?? 0));
+  };
 
   const fetchIncident = async () =>
     db
       .select()
       .from(incidentReports)
-      .where(
-        and(eq(incidentReports.siteId, siteId), incidentDateWhere()),
-      )
-      .orderBy(desc(incidentReports.createdAt))
+      .where(and(
+        eq(incidentReports.siteId, siteId),
+        incidentDateWhere(),
+        category
+          ? sql`(${incidentReports.incidentType} = ${category} OR ${incidentReports.severity} = ${category})`
+          : undefined,
+      ))
+      .orderBy(sort === "oldest" ? asc(incidentReports.createdAt) : desc(incidentReports.createdAt))
       .limit(limit);
 
   switch (type) {

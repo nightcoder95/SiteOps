@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 
 import { checkOwnership } from '@/lib/auth/ownership';
 import { safeGetSessionFromHeaders } from '@/lib/auth/session';
-import { DEFAULT_ENTRIES_LIMIT, getEntriesBySite } from '@/lib/db/queries/entries';
+import { getSiteOperationSummary } from '@/lib/db/queries/entries';
 import { getSiteById } from '@/lib/db/queries/sites';
 import { serializeRow } from '@/lib/utils/serialize';
 
@@ -25,13 +25,13 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
     notFound();
   }
 
-  const initialEntries = await getEntriesBySite(siteId, 'all', { limit: DEFAULT_ENTRIES_LIMIT });
+  const initialSummary = await getSiteOperationSummary(siteId);
 
   return (
     <SiteDetailPageClient
       siteId={siteId}
       initialSite={serializeRow(site) as any}
-      initialEntries={serializeRow(initialEntries) as any}
+      initialSummary={serializeRow(initialSummary) as any}
       role={session.user.role as "Admin" | "Supervisor"}
     />
   );

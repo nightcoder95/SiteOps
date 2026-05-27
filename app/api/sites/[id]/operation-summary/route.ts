@@ -1,14 +1,12 @@
 import { requireSiteAccess } from "@/lib/auth/guards";
 import { checkOwnership } from "@/lib/auth/ownership";
+import { getSiteOperationSummary } from "@/lib/db/queries/entries";
 import { getSiteById } from "@/lib/db/queries/sites";
-import { getEntriesBySite } from "@/lib/db/queries/entries";
 import { ERROR_CODES } from "@/lib/errors/codes";
 import { errorResponse, successResponse } from "@/lib/errors/response";
 import { withApiRoute } from "@/lib/http/withApi";
 
 type RouteCtx = { params: Promise<{ id: string }> };
-
-const allowedTypes = ["labour", "material", "machinery", "expense", "incident", "all"] as const;
 
 export const GET = withApiRoute<RouteCtx>(async ({ request, requestId }, context) => {
   const { id: siteId } = await context.params;
@@ -37,32 +35,7 @@ export const GET = withApiRoute<RouteCtx>(async ({ request, requestId }, context
   }
 
   const { searchParams } = new URL(request.url);
-  const type = searchParams.get("type");
-  const from = searchParams.get("from") ?? undefined;
-  const to = searchParams.get("to") ?? undefined;
-  const category = searchParams.get("category") ?? undefined;
-  const workStage = searchParams.get("workStage") ?? undefined;
-  const sort = searchParams.get("sort") ?? undefined;
-  const limitRaw = searchParams.get("limit");
-  const limit = limitRaw ? Number(limitRaw) : undefined;
-
-  if (!type || !(allowedTypes as readonly string[]).includes(type)) {
-    return errorResponse(
-      ERROR_CODES.VALIDATION_ERROR,
-      "Invalid or missing type",
-      400,
-      undefined,
-      requestId,
-    );
-  }
-
-  const data = await getEntriesBySite(siteId, type as any, {
-    from,
-    to,
-    limit,
-    category,
-    workStage: workStage as any,
-    sort: sort as any,
-  });
+  const date = searchParams.get("date") ?? undefined;
+  const data = await getSiteOperationSummary(siteId, date ?? undefined);
   return successResponse(data, 200, requestId);
 });
