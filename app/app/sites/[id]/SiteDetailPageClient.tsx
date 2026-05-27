@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 
 import { requestJson, type ClientResult } from '@/lib/http/client';
+import { confirmDialog } from '@/lib/ui/confirm';
 
 type Site = {
   id: number;
@@ -96,7 +97,13 @@ export default function SiteDetailPageClient({
 
   async function handleDeleteSite() {
     if (role !== 'Admin') return;
-    const confirmed = window.confirm(`Archive site "${site.name}"?`);
+    const confirmed = await confirmDialog({
+      title: 'Archive site?',
+      message: `Archive "${site.name}". You can restore from admin tools.`,
+      confirmLabel: 'Archive',
+      cancelLabel: 'Cancel',
+      tone: 'danger',
+    });
     if (!confirmed) return;
     setDeletingSite(true);
     const res = await requestJson<null>(`/api/sites/${siteId}`, { method: 'DELETE' });

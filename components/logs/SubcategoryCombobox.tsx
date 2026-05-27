@@ -59,6 +59,16 @@ export function SubcategoryCombobox({
   const [similarity, setSimilarity] = useState<SimilarityResponse | null>(null);
   const [confirmOverride, setConfirmOverride] = useState<SimilarityCandidate[] | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const selectedCatalogValue = value
+    ? catalog.find((item) => item.subcategoryId === value.subcategoryId || item.name === value.name) ?? value
+    : null;
+
+  function mergeCurrentValue(options: SubcategoryOption[]) {
+    if (!value) return options;
+    return options.some((item) => item.subcategoryId === value.subcategoryId || item.name === value.name)
+      ? options
+      : [value, ...options];
+  }
 
   useEffect(() => {
     if (!parentCategoryId) {
@@ -78,14 +88,19 @@ export function SubcategoryCombobox({
         if (res.message !== "Request aborted") toast.error(res.message);
         return;
       }
-      setCatalog((res.data.subcategories ?? []).map((item) => ({
+      const nextCatalog = (res.data.subcategories ?? []).map((item) => ({
         subcategoryId: item.subcategoryId,
         name: item.name,
         categoryId: parentCategoryId,
-      })));
+      }));
+      setCatalog(mergeCurrentValue(nextCatalog));
     })();
     return () => controller.abort();
-  }, [parentCategoryId]);
+  }, [parentCategoryId, value]);
+
+  useEffect(() => {
+    setCatalog((current) => mergeCurrentValue(current));
+  }, [value]);
 
   async function checkSimilarity(next: string) {
     const trimmed = next.trim();
@@ -194,7 +209,7 @@ export function SubcategoryCombobox({
 
       <div className="flex items-center gap-2">
         <select
-          value={value?.subcategoryId ?? ""}
+          value={selectedCatalogValue?.subcategoryId ?? ""}
           onChange={(e) => {
             const found = catalog.find((s) => s.subcategoryId === e.target.value) ?? null;
             onChange(found);
@@ -213,11 +228,11 @@ export function SubcategoryCombobox({
           ))}
         </select>
 
-        {role === "Admin" && value && (
+        {role === "Admin" && selectedCatalogValue && (
           <button
             type="button"
-            onClick={() => void handleDelete(value)}
-            disabled={deletingId === value.subcategoryId}
+            onClick={() => void handleDelete(selectedCatalogValue)}
+            disabled={deletingId === selectedCatalogValue.subcategoryId}
             aria-label="Delete subcategory"
             className="shrink-0 flex items-center justify-center w-10 h-10 rounded-xl border border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all disabled:opacity-40"
           >

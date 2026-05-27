@@ -6,6 +6,8 @@ import type { ReactNode } from 'react';
 import { Toaster } from 'sonner';
 import 'sonner/dist/styles.css';
 
+import { ConfirmHost } from '@/lib/ui/confirm';
+
 // Lazy-load and init PostHog after window load so analytics never blocks first paint.
 function deferredInitPostHog() {
   const key = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
@@ -67,6 +69,7 @@ export default function Providers({ children }: { children: ReactNode }) {
   return (
     <>
       {children}
+      <ConfirmHost />
       <Toaster position="top-right" richColors closeButton />
     </>
   );

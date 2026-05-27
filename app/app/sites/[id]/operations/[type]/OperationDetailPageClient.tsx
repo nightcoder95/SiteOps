@@ -1,11 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   AlertCircle,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   Edit3,
   FileText,
@@ -16,6 +19,7 @@ import {
 } from "lucide-react";
 
 import { requestJson } from "@/lib/http/client";
+import { confirmDialog } from "@/lib/ui/confirm";
 import type { EntryType } from "@/lib/db/queries/entries";
 
 type Site = {
@@ -39,6 +43,7 @@ type Props = {
   type: EntryType;
   initialEntries: Entry[];
   initialFilters: Filters;
+  categoryOptions: string[];
 };
 
 const materialStages = [
@@ -78,6 +83,50 @@ function formatDate(value: string) {
   if (!value) return "Unknown";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("en-IN");
+}
+
+function formatDateFieldValue(value: string) {
+  if (!value) return "Select date";
+  const date = parseDateValue(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+}
+
+function parseDateValue(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return new Date(Number.NaN);
+  return new Date(year, month - 1, day);
+}
+
+function toDateValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function monthLabel(date: Date) {
+  return date.toLocaleDateString("en-GB", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function calendarDays(viewDate: Date) {
+  const firstOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
+  const gridStart = new Date(firstOfMonth);
+  gridStart.setDate(firstOfMonth.getDate() - firstOfMonth.getDay());
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(gridStart);
+    date.setDate(gridStart.getDate() + index);
+    return date;
+  });
 }
 
 function entryId(entry: Entry, type: EntryType) {
@@ -182,17 +231,187 @@ function renderEntrySummary(entry: Entry, type: EntryType) {
   );
 }
 
+function DateFilterField({
+  id,
+  label,
+  value,
+  onChange,
+  openId,
+  setOpenId,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  openId: string | null;
+  setOpenId: (value: string | null) => void;
+}) {
+  const selectedDate = value ? parseDateValue(value) : null;
+  const open = openId === id;
+  const setOpen = (next: boolean) => setOpenId(next ? id : null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [viewDate, setViewDate] = useState(
+    selectedDate && !Number.isNaN(selectedDate.getTime()) ? selectedDate : new Date(),
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    function handlePointer(event: MouseEvent | TouchEvent) {
+      if (!containerRef.current) return;
+      if (!containerRef.current.contains(event.target as Node)) {
+        setOpenId(null);
+      }
+    }
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpenId(null);
+    }
+    document.addEventListener("mousedown", handlePointer);
+    document.addEventListener("touchstart", handlePointer);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handlePointer);
+      document.removeEventListener("touchstart", handlePointer);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [open, setOpenId]);
+  const todayValue = toDateValue(new Date());
+  const selectedValue = selectedDate && !Number.isNaN(selectedDate.getTime()) ? toDateValue(selectedDate) : "";
+
+  function changeMonth(offset: number) {
+    setViewDate((current) => new Date(current.getFullYear(), current.getMonth() + offset, 1));
+  }
+
+  function selectDate(date: Date) {
+    onChange(toDateValue(date));
+    setViewDate(date);
+    setOpen(false);
+  }
+
+  return (
+    <div ref={containerRef} className={open ? "relative z-[90] space-y-2" : "relative space-y-2"}>
+      <label
+        htmlFor={id}
+        className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400"
+      >
+        {label}
+      </label>
+      <button
+        id={id}
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex h-14 w-full cursor-pointer items-center justify-between rounded-2xl border border-white/8 bg-white/[0.04] px-5 text-left text-slate-100 transition-colors hover:border-sky-500/30 hover:bg-white/[0.06] focus:border-sky-500/70 focus:outline-none focus:ring-2 focus:ring-sky-500/25"
+      >
+        <span className={value ? "text-base font-medium text-slate-100" : "text-base font-medium text-slate-500"}>
+          {formatDateFieldValue(value)}
+        </span>
+        <CalendarDays className="w-5 h-5 text-slate-500" />
+      </button>
+
+      {open ? (
+        <div className="absolute left-0 top-full z-50 mt-2 w-[min(22rem,calc(100vw-3rem))] rounded-2xl border border-sky-500/20 bg-slate-950 p-4 shadow-2xl shadow-sky-950/40">
+          <div className="flex items-center justify-between pb-3">
+            <p className="text-sm font-extrabold uppercase tracking-widest text-white">
+              {monthLabel(viewDate)}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => changeMonth(-1)}
+                aria-label="Previous month"
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-400 transition-colors hover:border-sky-500/30 hover:text-sky-400"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => changeMonth(1)}
+                aria-label="Next month"
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-400 transition-colors hover:border-sky-500/30 hover:text-sky-400"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-7 gap-1 pb-2">
+            {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
+              <div
+                key={`${day}-${index}`}
+                className="flex h-8 items-center justify-center text-[10px] font-extrabold uppercase tracking-widest text-slate-500"
+              >
+                {day}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-1">
+            {calendarDays(viewDate).map((date) => {
+              const dateValue = toDateValue(date);
+              const isSelected = dateValue === selectedValue;
+              const isToday = dateValue === todayValue;
+              const isCurrentMonth = date.getMonth() === viewDate.getMonth();
+
+              return (
+                <button
+                  key={dateValue}
+                  type="button"
+                  onClick={() => selectDate(date)}
+                  className={[
+                    "flex h-10 items-center justify-center rounded-xl text-sm font-bold transition-colors",
+                    isSelected
+                      ? "bg-sky-500 text-slate-950 shadow-lg shadow-sky-500/20"
+                      : "text-slate-200 hover:bg-sky-500/10 hover:text-sky-400",
+                    !isCurrentMonth && !isSelected ? "text-slate-700" : "",
+                    isToday && !isSelected ? "border border-sky-500/40" : "",
+                  ].join(" ")}
+                >
+                  {date.getDate()}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-3">
+            <button
+              type="button"
+              onClick={() => {
+                onChange("");
+                setOpen(false);
+              }}
+              className="rounded-xl px-3 py-2 text-xs font-bold uppercase tracking-widest text-slate-500 transition-colors hover:bg-white/5 hover:text-slate-200"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={() => selectDate(new Date())}
+              className="rounded-xl bg-sky-500 px-3 py-2 text-xs font-extrabold uppercase tracking-widest text-slate-950 transition-colors hover:bg-sky-400"
+            >
+              Today
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function OperationDetailPageClient({
   site,
   siteId,
   type,
   initialEntries,
   initialFilters,
+  categoryOptions: initialCategoryOptions,
 }: Props) {
   const router = useRouter();
   const [filters, setFilters] = useState(initialFilters);
+  const [openDateField, setOpenDateField] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const Icon = typeIcon[type];
+  const categoryOptions = Array.from(
+    new Set(filters.category ? [filters.category, ...initialCategoryOptions] : initialCategoryOptions),
+  );
 
   const totalSpend = initialEntries.reduce((sum, entry) => sum + entrySpend(entry, type), 0);
   const stageTotals = materialStages.map((stage) => ({
@@ -231,7 +450,13 @@ export default function OperationDetailPageClient({
   async function handleDelete(entry: Entry) {
     const id = entryId(entry, type);
     if (!id) return;
-    const confirmed = window.confirm("Delete this log entry?");
+    const confirmed = await confirmDialog({
+      title: "Delete log entry?",
+      message: "This action cannot be undone.",
+      confirmLabel: "Delete",
+      cancelLabel: "Cancel",
+      tone: "danger",
+    });
     if (!confirmed) return;
 
     setDeletingId(id);
@@ -282,61 +507,100 @@ export default function OperationDetailPageClient({
         </div>
       </section>
 
-      <section className="card-standard p-4 grid gap-3 md:grid-cols-5">
-        <input
-          type="date"
+      <section className="card-standard overflow-visible p-4 grid gap-4 md:grid-cols-5">
+        <DateFilterField
+          id="filter-from"
+          label="From Date"
           value={filters.from}
-          onChange={(event) => setFilters((state) => ({ ...state, from: event.target.value }))}
-          className="input-standard"
-          aria-label="From date"
+          onChange={(value) => setFilters((state) => ({ ...state, from: value }))}
+          openId={openDateField}
+          setOpenId={setOpenDateField}
         />
-        <input
-          type="date"
+        <DateFilterField
+          id="filter-to"
+          label="To Date"
           value={filters.to}
-          onChange={(event) => setFilters((state) => ({ ...state, to: event.target.value }))}
-          className="input-standard"
-          aria-label="To date"
+          onChange={(value) => setFilters((state) => ({ ...state, to: value }))}
+          openId={openDateField}
+          setOpenId={setOpenDateField}
         />
-        <input
-          type="text"
-          value={filters.category}
-          onChange={(event) => setFilters((state) => ({ ...state, category: event.target.value }))}
-          className="input-standard"
-          placeholder="Category"
-          aria-label="Category"
-        />
-        {type === "material" ? (
-          <select
-            value={filters.workStage}
-            onChange={(event) => setFilters((state) => ({ ...state, workStage: event.target.value }))}
-            className="input-standard appearance-none bg-slate-900"
-            aria-label="Work stage"
+        <div className="space-y-2">
+          <label
+            htmlFor="filter-category"
+            className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400"
           >
-            <option value="" className="bg-slate-900">All stages</option>
-            {materialStages.map((stage) => (
-              <option key={stage} value={stage} className="bg-slate-900">{stage}</option>
+            Category
+          </label>
+          <select
+            id="filter-category"
+            value={filters.category}
+            onChange={(event) => setFilters((state) => ({ ...state, category: event.target.value }))}
+            className="input-standard appearance-none bg-slate-900"
+            aria-label="Category"
+          >
+            <option value="" className="bg-slate-900">All categories</option>
+            {categoryOptions.map((option) => (
+              <option key={option} value={option} className="bg-slate-900">
+                {option}
+              </option>
             ))}
           </select>
+        </div>
+        {type === "material" ? (
+          <div className="space-y-2">
+            <label
+              htmlFor="filter-stage"
+              className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400"
+            >
+              Work Stage
+            </label>
+            <select
+              id="filter-stage"
+              value={filters.workStage}
+              onChange={(event) => setFilters((state) => ({ ...state, workStage: event.target.value }))}
+              className="input-standard appearance-none bg-slate-900"
+              aria-label="Work stage"
+            >
+              <option value="" className="bg-slate-900">All stages</option>
+              {materialStages.map((stage) => (
+                <option key={stage} value={stage} className="bg-slate-900">{stage}</option>
+              ))}
+            </select>
+          </div>
         ) : (
-          <div className="input-standard flex items-center text-xs uppercase tracking-widest text-slate-500">
-            {site.location}
+          <div className="space-y-2">
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
+              Site
+            </span>
+            <div className="input-standard flex items-center text-xs uppercase tracking-widest text-slate-500">
+              {site.location}
+            </div>
           </div>
         )}
-        <select
-          value={filters.sort}
-          onChange={(event) => setFilters((state) => ({ ...state, sort: event.target.value }))}
-          className="input-standard appearance-none bg-slate-900"
-          aria-label="Sort"
-        >
-          <option value="newest" className="bg-slate-900">Newest first</option>
-          <option value="oldest" className="bg-slate-900">Oldest first</option>
-          {(type === "labour" || type === "material" || type === "expense") ? (
-            <>
-              <option value="highest_spend" className="bg-slate-900">Highest spend</option>
-              <option value="lowest_spend" className="bg-slate-900">Lowest spend</option>
-            </>
-          ) : null}
-        </select>
+        <div className="space-y-2">
+          <label
+            htmlFor="filter-sort"
+            className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400"
+          >
+            Sort By
+          </label>
+          <select
+            id="filter-sort"
+            value={filters.sort}
+            onChange={(event) => setFilters((state) => ({ ...state, sort: event.target.value }))}
+            className="input-standard appearance-none bg-slate-900"
+            aria-label="Sort"
+          >
+            <option value="newest" className="bg-slate-900">Newest first</option>
+            <option value="oldest" className="bg-slate-900">Oldest first</option>
+            {(type === "labour" || type === "material" || type === "expense") ? (
+              <>
+                <option value="highest_spend" className="bg-slate-900">Highest spend</option>
+                <option value="lowest_spend" className="bg-slate-900">Lowest spend</option>
+              </>
+            ) : null}
+          </select>
+        </div>
         <button type="button" onClick={applyFilters} className="btn-primary md:col-span-5 py-3">
           Apply Filters
         </button>
