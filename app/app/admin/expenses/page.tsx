@@ -71,7 +71,7 @@ export default function AdminExpensesPage() {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-[2rem] bg-[linear-gradient(135deg,#fff7ed_0%,#fff_55%,#e2e8f0_100%)] p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+      <section className="card-standard p-5">
         <p className="text-[10px] font-black uppercase tracking-[0.35em] text-on-surface-variant">Expenses</p>
         <h2 className="mt-2 text-2xl font-black text-on-surface">Site spend browser</h2>
         <p className="mt-2 max-w-2xl text-sm font-medium text-on-surface-variant">

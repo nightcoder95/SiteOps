@@ -48,10 +48,20 @@ export const POST = withApi(async ({ request, requestId }) => {
     return errorResponse(ERROR_CODES.NOT_FOUND, "Field definition not found", 404, undefined, requestId);
   }
 
+  // The value must match the field definition's declared type. Without this a
+  // "Number" field would happily store an arbitrary string in the jsonb column.
   if (def.fieldType === "Dropdown") {
     const options = Array.isArray(def.options) ? (def.options as unknown[]) : null;
     if (!options || !options.includes(value)) {
       return errorResponse(ERROR_CODES.VALIDATION_ERROR, "Invalid dropdown option", 400, undefined, requestId);
+    }
+  } else if (def.fieldType === "Number") {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      return errorResponse(ERROR_CODES.VALIDATION_ERROR, `"${def.label}" expects a number`, 400, undefined, requestId);
+    }
+  } else if (def.fieldType === "Text") {
+    if (typeof value !== "string") {
+      return errorResponse(ERROR_CODES.VALIDATION_ERROR, `"${def.label}" expects text`, 400, undefined, requestId);
     }
   }
 

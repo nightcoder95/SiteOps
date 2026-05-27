@@ -1,6 +1,6 @@
 # SiteOps
 
-Mobile-first PWA for site operations, built on Next.js App Router with Better Auth, Drizzle, and Neon.
+Mobile-first PWA for site operations, built on Next.js App Router with Supabase Auth, Drizzle ORM, and Supabase Postgres.
 
 ## Runtime
 

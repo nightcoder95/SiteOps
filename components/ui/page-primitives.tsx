@@ -1,27 +1,14 @@
 'use client';
 
-import { AlertCircle, WifiOff } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
+
+// ApiUnavailableBanner is the canonical implementation in
+// `components/ui/ApiUnavailableBanner.tsx` — re-exported here for the
+// historical import path. Two divergent copies caused theme clashes.
+export { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
 
 export function SimpleCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return <div className={`card-standard p-5 ${className}`}>{children}</div>;
-}
-
-export function ApiUnavailableBanner({
-  endpoint,
-  method,
-  message,
-}: {
-  endpoint?: string;
-  method?: string;
-  message?: string;
-}) {
-  const text = message ?? `Service connection unstable${endpoint ? ` — ${method ?? 'GET'} ${endpoint}` : ''}. Offline updates will sync upon reconnection.`;
-  return (
-    <div className="bg-amber-500/10 border-b border-amber-500/10 py-3 px-4 flex items-center justify-center gap-2 backdrop-blur-md rounded-xl">
-      <WifiOff className="w-4 h-4 text-amber-400 shrink-0" />
-      <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">{text}</span>
-    </div>
-  );
 }
 
 export function PageHeading({ title, subtitle }: { title: string; subtitle?: string }) {

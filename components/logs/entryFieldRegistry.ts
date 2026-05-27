@@ -44,7 +44,7 @@ const REGISTRY: Record<string, EntryField[]> = {
     { name: "date", label: "Date", kind: "date", required: true },
     { name: "equipmentType", label: "Equipment Type", kind: "subcategory", required: true, subcategoryHint: "machinery" },
     { name: "count", label: "Count", kind: "number", required: true, min: 1, step: 1 },
-    { name: "hoursActive", label: "Hours Active", kind: "number", required: true, min: 0, max: 24, step: 0.1 },
+    { name: "hoursActive", label: "Hours Active", kind: "number", required: true, min: 0.1, max: 24, step: 0.1 },
     { name: "remarks", label: "Remarks", kind: "textarea" },
   ],
   expense: [

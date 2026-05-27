@@ -5,9 +5,9 @@ import { motion } from 'motion/react';
 import { Mail, Lock, User, UserPlus, Loader2, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createBrowserClient } from '@supabase/ssr';
 import { toast } from 'sonner';
 
+import { getSupabaseBrowserClient } from '@/lib/auth/browserClient';
 import { toastSuccess } from '@/lib/ui/toast';
 
 export default function SignUpPage() {
@@ -18,10 +18,7 @@ export default function SignUpPage() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-  );
+  const supabase = getSupabaseBrowserClient();
 
   async function ensureProfileExists() {
     try {
@@ -65,7 +62,7 @@ export default function SignUpPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8 px-4">
+    <div className="min-h-dvh bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8 px-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

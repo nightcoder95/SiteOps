@@ -18,32 +18,32 @@ async function runAudit() {
       union all
       select 'orphan_labour_site', count(*)::int
       from labour_entries e
-      left join sites s on s.id = e.site_id
-      where s.id is null
+      left join sites s on s.site_id = e.site_id
+      where s.site_id is null
 
       union all
       select 'orphan_material_site', count(*)::int
       from material_entries e
-      left join sites s on s.id = e.site_id
-      where s.id is null
+      left join sites s on s.site_id = e.site_id
+      where s.site_id is null
 
       union all
       select 'orphan_machinery_site', count(*)::int
       from machinery_entries e
-      left join sites s on s.id = e.site_id
-      where s.id is null
+      left join sites s on s.site_id = e.site_id
+      where s.site_id is null
 
       union all
       select 'orphan_expense_site', count(*)::int
       from expense_entries e
-      left join sites s on s.id = e.site_id
-      where s.id is null
+      left join sites s on s.site_id = e.site_id
+      where s.site_id is null
 
       union all
       select 'orphan_incident_site', count(*)::int
       from incident_reports e
-      left join sites s on s.id = e.site_id
-      where s.id is null
+      left join sites s on s.site_id = e.site_id
+      where s.site_id is null
 
       union all
       select 'orphan_notification_user', count(*)::int

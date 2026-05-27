@@ -18,15 +18,15 @@ export default function AppError({
 
   return (
     <PageStack>
-      <section className="rounded-3xl bg-error-container p-6 text-on-error-container">
-        <h2 className="font-headline-sm text-headline-sm">Something went wrong</h2>
-        <p className="mt-2 font-body-md text-body-md">
+      <section className="rounded-3xl bg-red-500/10 p-6 text-red-300">
+        <h2 className="text-lg font-bold">Something went wrong</h2>
+        <p className="mt-2 text-sm">
           We hit an unexpected error loading this page.
         </p>
         <button
           type="button"
           onClick={reset}
-          className="mt-4 rounded-full bg-error px-4 py-2 font-label-lg text-label-lg text-on-error"
+          className="mt-4 rounded-full bg-red-500 px-4 py-2 text-sm font-semibold text-white"
         >
           Try again
         </button>

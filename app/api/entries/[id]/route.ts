@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { requireSiteAccess } from "@/lib/auth/guards";
 import { checkOwnership } from "@/lib/auth/ownership";
 import { invalidateAdminAnalyticsCache } from "@/lib/cache/invalidate";
+import { db } from "@/lib/db/client";
 import {
   deleteEntryById,
   getEntryById,
@@ -24,6 +25,18 @@ import {
 } from "@/lib/validation/schemas";
 
 type RouteCtx = { params: Promise<{ id: string }> };
+
+// Entries on an archived site are read-only — block edits/deletes even for
+// the original author so a reassigned/closed site can't be mutated.
+async function siteIsArchived(entry: unknown): Promise<boolean> {
+  const siteId = (entry as { siteId?: unknown }).siteId;
+  if (typeof siteId !== "string") return false;
+  const site = await db.query.sites.findFirst({
+    where: (t, { eq }) => eq(t.siteId, siteId),
+    columns: { archivedAt: true },
+  });
+  return !site || site.archivedAt != null;
+}
 
 function parseType(request: NextRequest): EntryType | null {
   const { searchParams } = new URL(request.url);
@@ -61,6 +74,10 @@ export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, conte
   const ownerId = (existing as any).createdBy ?? (existing as any).reportedBy ?? null;
   if (!checkOwnership(auth.session.user, ownerId)) {
     return errorResponse(ERROR_CODES.FORBIDDEN, "Cannot edit another supervisor's entry", 403, undefined, requestId);
+  }
+
+  if (await siteIsArchived(existing)) {
+    return errorResponse(ERROR_CODES.CONFLICT, "Site is archived; entries are read-only", 409, undefined, requestId);
   }
 
   const parsed = await parseJsonBody(request, requestId);
@@ -135,6 +152,10 @@ export const DELETE = withApiRoute<RouteCtx>(async ({ request, requestId }, cont
   const ownerId = (existing as any).createdBy ?? (existing as any).reportedBy ?? null;
   if (!checkOwnership(auth.session.user, ownerId)) {
     return errorResponse(ERROR_CODES.FORBIDDEN, "Cannot delete another supervisor's entry", 403, undefined, requestId);
+  }
+
+  if (await siteIsArchived(existing)) {
+    return errorResponse(ERROR_CODES.CONFLICT, "Site is archived; entries are read-only", 409, undefined, requestId);
   }
 
   await deleteEntryById(id, type);

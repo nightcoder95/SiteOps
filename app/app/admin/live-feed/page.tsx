@@ -22,10 +22,10 @@ const FEED_SOURCES = [
 
 const TYPE_META: Record<ActivityItem['type'], { icon: string; bg: string; fg: string }> = {
   labour: { icon: 'engineering', bg: 'bg-primary-container', fg: 'text-on-primary-container' },
-  material: { icon: 'inventory_2', bg: 'bg-tertiary-container', fg: 'text-on-tertiary-container' },
-  machinery: { icon: 'precision_manufacturing', bg: 'bg-secondary-container', fg: 'text-on-secondary-container' },
+  material: { icon: 'inventory_2', bg: 'bg-amber-500/15', fg: 'text-amber-300' },
+  machinery: { icon: 'precision_manufacturing', bg: 'bg-slate-500/15', fg: 'text-slate-300' },
   expense: { icon: 'account_balance_wallet', bg: 'bg-primary-container', fg: 'text-on-primary-container' },
-  incident: { icon: 'report', bg: 'bg-error-container', fg: 'text-on-error-container' },
+  incident: { icon: 'report', bg: 'bg-red-500/10', fg: 'text-red-300' },
 };
 
 function toActivityItem(payload: RealtimeInsertPayload, type: ActivityItem['type'], idField: string): ActivityItem | null {
@@ -81,14 +81,14 @@ export default function AdminLiveFeedPage() {
   }, [supabase]);
 
   return (
-    <div className="flex flex-col gap-density-medium">
+    <div className="flex flex-col gap-4">
       <header className="flex items-center justify-between">
         <div>
-          <h2 className="font-headline-sm text-headline-sm text-on-background">Live Feed</h2>
-          <p className="font-body-md text-body-md text-on-surface-variant">Real-time activity across all sites.</p>
+          <h2 className="text-lg font-bold text-white">Live Feed</h2>
+          <p className="text-sm text-on-surface-variant">Real-time activity across all sites.</p>
         </div>
         <span
-          className={`flex items-center gap-1.5 rounded-full px-3 py-1 font-label-md text-label-md uppercase ${
+          className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold uppercase ${
             state.kind === 'ready'
               ? 'bg-primary-container text-on-primary-container'
               : 'bg-surface-container-low text-on-surface-variant'
@@ -102,14 +102,14 @@ export default function AdminLiveFeedPage() {
       </header>
 
       {state.kind === 'error' ? (
-        <div className="rounded-xl border border-error-container bg-error-container/30 px-4 py-3 font-body-md text-body-md text-on-error-container">
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
           {state.message}
         </div>
       ) : null}
 
       <section className="divide-y divide-outline-variant rounded-xl border border-outline-variant bg-surface-container-lowest">
         {activities.length === 0 ? (
-          <div className="p-4 font-body-md text-body-md text-on-surface-variant">
+          <div className="p-4 text-sm text-on-surface-variant">
             {state.kind === 'loading' ? 'Connecting to live feed…' : 'No activity yet.'}
           </div>
         ) : (
@@ -123,10 +123,10 @@ export default function AdminLiveFeedPage() {
                   </span>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-body-md text-body-md text-on-background">
+                  <p className="text-sm text-white">
                     <span className="font-semibold uppercase">{activity.type}</span> entry logged at site {activity.siteId}.
                   </p>
-                  <p className="font-label-sm text-label-sm mt-0.5 text-on-surface-variant">
+                  <p className="text-[10px] font-semibold mt-0.5 text-on-surface-variant">
                     {new Date(activity.createdAt).toLocaleString()}
                   </p>
                 </div>

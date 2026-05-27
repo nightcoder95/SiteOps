@@ -127,7 +127,7 @@ export function ModalShell({
     <AnimatePresence>
       {open ? (
         <motion.div
-          className="fixed inset-0 z-[60] flex items-end justify-center bg-scrim/40 p-4 sm:items-center sm:p-0"
+          className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 p-4 sm:items-center sm:p-0"
           {...overlayFade}
           onClick={(e) => {
             if (e.target === e.currentTarget) {

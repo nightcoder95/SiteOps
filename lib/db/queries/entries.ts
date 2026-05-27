@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import {
@@ -261,6 +261,10 @@ export type EntriesFilters = {
 // useful first screen of activity.
 export const DEFAULT_ENTRIES_LIMIT = 50;
 
+// The grouped "all" view only renders a few rows per type, so fetching the
+// full page for each of the 5 tables is wasted work and payload.
+export const ALL_TYPE_PREVIEW_LIMIT = 5;
+
 function clampLimit(value: number | undefined) {
   if (!value || Number.isNaN(value)) return DEFAULT_ENTRIES_LIMIT;
   return Math.min(Math.max(1, Math.floor(value)), 200);
@@ -273,12 +277,26 @@ export async function getEntriesBySite(
 ) {
   const from = filters?.from;
   const to = filters?.to;
-  const limit = clampLimit(filters?.limit);
+  const limit =
+    type === "all"
+      ? Math.min(clampLimit(filters?.limit), ALL_TYPE_PREVIEW_LIMIT)
+      : clampLimit(filters?.limit);
 
   const dateWhere = (tableDateCol: any) => {
     if (from && to) return and(gte(tableDateCol, from), lte(tableDateCol, to));
     if (from) return gte(tableDateCol, from);
     if (to) return lte(tableDateCol, to);
+    return undefined;
+  };
+
+  // incident_reports has no `date` column — it filters on the `created_at`
+  // timestamp. Cast to date so a YYYY-MM-DD upper bound still includes
+  // entries logged later that same day.
+  const incidentDateWhere = () => {
+    const col = sql`${incidentReports.createdAt}::date`;
+    if (from && to) return and(gte(col, from), lte(col, to));
+    if (from) return gte(col, from);
+    if (to) return lte(col, to);
     return undefined;
   };
 
@@ -325,7 +343,7 @@ export async function getEntriesBySite(
       .select()
       .from(incidentReports)
       .where(
-        and(eq(incidentReports.siteId, siteId), dateWhere(incidentReports.createdAt)),
+        and(eq(incidentReports.siteId, siteId), incidentDateWhere()),
       )
       .orderBy(desc(incidentReports.createdAt))
       .limit(limit);

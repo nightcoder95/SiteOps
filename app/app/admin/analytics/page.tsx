@@ -39,7 +39,7 @@ export default function AdminAnalyticsPage() {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-[2rem] bg-[linear-gradient(135deg,#fff7ed_0%,#fff_55%,#e2e8f0_100%)] p-5 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+      <section className="card-standard p-5">
         <p className="text-[10px] font-black uppercase tracking-[0.35em] text-on-surface-variant">Pulse</p>
         <h2 className="mt-2 text-2xl font-black text-on-surface">Admin analytics</h2>
         <p className="mt-2 max-w-2xl text-sm font-medium text-on-surface-variant">
@@ -51,7 +51,7 @@ export default function AdminAnalyticsPage() {
         <ApiUnavailableBanner endpoint={result.endpoint} method={result.method} />
       ) : null}
       {result && !result.ok && result.kind !== 'endpoint_unavailable' ? (
-        <div className="rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-900">
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-300">
           {result.message}
         </div>
       ) : null}

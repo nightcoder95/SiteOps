@@ -229,7 +229,7 @@ export function SubcategoryCombobox({
 
       <ModalShell open={openModal} onClose={() => { setOpenModal(false); resetModal(); }} className="w-full max-w-md rounded-2xl border border-outline-variant bg-surface-container-lowest p-4">
         <div className="space-y-3">
-          <h3 className="text-lg font-extrabold text-on-background">Create Subcategory</h3>
+          <h3 className="text-lg font-extrabold text-white">Create Subcategory</h3>
           <input
             type="text"
             value={name}
@@ -243,7 +243,7 @@ export function SubcategoryCombobox({
 
           {confirmOverride?.length ? (
             <div className="rounded-xl border border-warning/50 bg-warning/10 p-3">
-              <p className="font-label-md text-label-md uppercase text-warning">Similar subcategories found</p>
+              <p className="text-xs font-semibold uppercase text-warning">Similar subcategories found</p>
               <ul className="mt-2 flex flex-wrap gap-2">
                 {confirmOverride.slice(0, 4).map((item) => (
                   <li key={item.id} className="rounded-full bg-surface-container-low px-3 py-1 text-xs text-on-surface-variant">

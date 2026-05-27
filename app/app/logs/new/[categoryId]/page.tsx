@@ -3,7 +3,9 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import { DynamicEntryForm } from "@/components/logs/DynamicEntryForm";
 import { EntryForm } from "@/components/logs/EntryForm";
+import { resolveEntryKind } from "@/components/logs/entryFieldRegistry";
 import { safeGetSessionFromHeaders } from "@/lib/auth/session";
 import { db } from "@/lib/db/client";
 import { categories } from "@/lib/db/schema";
@@ -51,12 +53,20 @@ export default async function LogsNewCategoryPage({
           <p className="text-sm text-slate-500 font-medium italic">Step 2 of 2 — fill the form to create a new entry.</p>
         </div>
       </div>
-      <EntryForm
-        categoryId={category.categoryId}
-        categoryName={category.name}
-        siteId={siteId}
-        role={session.user.role as "Admin" | "Supervisor"}
-      />
+      {resolveEntryKind(category.name) === "dynamic" ? (
+        <DynamicEntryForm
+          categoryId={category.categoryId}
+          categoryName={category.name}
+          siteId={siteId}
+        />
+      ) : (
+        <EntryForm
+          categoryId={category.categoryId}
+          categoryName={category.name}
+          siteId={siteId}
+          role={session.user.role as "Admin" | "Supervisor"}
+        />
+      )}
     </div>
   );
 }

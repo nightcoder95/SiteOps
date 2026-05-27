@@ -15,9 +15,9 @@ type Props = {
 
 type CreatedSite = { siteId: string };
 
-const labelClass = "font-label-md text-label-md uppercase text-on-surface-variant";
+const labelClass = "text-xs font-semibold uppercase text-on-surface-variant";
 const inputClass =
-  "h-11 w-full rounded border border-outline bg-surface-container-lowest px-3 font-body-md text-body-md text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary";
+  "h-11 w-full rounded border border-outline bg-surface-container-lowest px-3 text-sm text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary";
 
 export function SitesNewPageClient({ role, supervisors }: Props) {
   const router = useRouter();
@@ -65,10 +65,10 @@ export function SitesNewPageClient({ role, supervisors }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-density-medium">
+    <div className="flex flex-col gap-4">
       <header>
-        <h2 className="font-headline-sm text-headline-sm text-on-background">Create Site</h2>
-        <p className="font-body-md text-body-md text-on-surface-variant">
+        <h2 className="text-lg font-bold text-white">Create Site</h2>
+        <p className="text-sm text-on-surface-variant">
           Add a new construction site to your operations roster.
         </p>
       </header>
@@ -111,7 +111,7 @@ export function SitesNewPageClient({ role, supervisors }: Props) {
         <button
           type="submit"
           disabled={submitting}
-          className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded bg-primary font-label-md text-label-md uppercase text-on-primary hover:bg-surface-tint disabled:opacity-60"
+          className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded bg-primary text-xs font-semibold uppercase text-on-primary hover:bg-sky-400 disabled:opacity-60"
         >
           <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add_location</span>
           {submitting ? "Creating…" : "Create Site"}

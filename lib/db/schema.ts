@@ -9,6 +9,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -73,6 +74,7 @@ export const sites = pgTable("sites", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
   index("sites_supervisor_id_idx").on(t.supervisorId),
+  index("sites_archived_at_idx").on(t.archivedAt),
   // Partial indexes for the dominant "active sites only" filter.
   index("sites_supervisor_active_idx").on(t.supervisorId).where(isNull(t.archivedAt)),
   index("sites_active_idx").on(t.siteId).where(isNull(t.archivedAt)),
@@ -151,7 +153,10 @@ export const labourEntries = pgTable("labour_entries", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
   index("labour_entries_site_id_date_idx").on(t.siteId, t.date),
+  index("labour_entries_site_date_idx").on(t.siteId, t.date.desc()),
   index("labour_entries_site_date_created_idx").on(t.siteId, t.date.desc(), t.createdAt.desc()),
+  index("labour_entries_created_at_idx").on(t.createdAt.desc()),
+  index("labour_entries_created_by_idx").on(t.createdBy),
 ]);
 
 export const materialEntries = pgTable("material_entries", {
@@ -174,7 +179,10 @@ export const materialEntries = pgTable("material_entries", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
   index("material_entries_site_id_date_idx").on(t.siteId, t.date),
+  index("material_entries_site_date_idx").on(t.siteId, t.date.desc()),
   index("material_entries_site_date_created_idx").on(t.siteId, t.date.desc(), t.createdAt.desc()),
+  index("material_entries_created_at_idx").on(t.createdAt.desc()),
+  index("material_entries_created_by_idx").on(t.createdBy),
 ]);
 
 export const machineryEntries = pgTable("machinery_entries", {
@@ -193,7 +201,10 @@ export const machineryEntries = pgTable("machinery_entries", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
   index("machinery_entries_site_id_date_idx").on(t.siteId, t.date),
+  index("machinery_entries_site_date_idx").on(t.siteId, t.date.desc()),
   index("machinery_entries_site_date_created_idx").on(t.siteId, t.date.desc(), t.createdAt.desc()),
+  index("machinery_entries_created_at_idx").on(t.createdAt.desc()),
+  index("machinery_entries_created_by_idx").on(t.createdBy),
 ]);
 
 export const expenseEntries = pgTable("expense_entries", {
@@ -209,7 +220,10 @@ export const expenseEntries = pgTable("expense_entries", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
   index("expense_entries_site_id_date_idx").on(t.siteId, t.date),
+  index("expense_entries_site_date_idx").on(t.siteId, t.date.desc()),
   index("expense_entries_site_date_created_idx").on(t.siteId, t.date.desc(), t.createdAt.desc()),
+  index("expense_entries_created_at_idx").on(t.createdAt.desc()),
+  index("expense_entries_created_by_idx").on(t.createdBy),
 ]);
 
 export const resourceRequests = pgTable("resource_requests", {
@@ -227,6 +241,9 @@ export const resourceRequests = pgTable("resource_requests", {
 }, (t) => [
   index("resource_requests_site_id_idx").on(t.siteId),
   index("resource_requests_status_idx").on(t.status),
+  index("resource_requests_site_status_created_idx").on(t.siteId, t.status, t.createdAt.desc()),
+  index("resource_requests_requested_by_status_created_idx").on(t.requestedBy, t.status, t.createdAt.desc()),
+  index("resource_requests_status_updated_at_idx").on(t.status, t.updatedAt.desc()),
 ]);
 
 export const fieldRequests = pgTable("field_requests", {
@@ -241,7 +258,10 @@ export const fieldRequests = pgTable("field_requests", {
   requestedBy: uuid("requested_by").notNull().references(() => userProfiles.userId),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (t) => [
+  index("field_requests_site_status_created_idx").on(t.siteId, t.status, t.createdAt.desc()),
+  index("field_requests_requested_by_status_created_idx").on(t.requestedBy, t.status, t.createdAt.desc()),
+]);
 
 export const incidentReports = pgTable("incident_reports", {
   id: identityId(),
@@ -257,6 +277,8 @@ export const incidentReports = pgTable("incident_reports", {
 }, (t) => [
   index("incident_reports_site_id_idx").on(t.siteId),
   index("incident_reports_site_created_idx").on(t.siteId, t.createdAt.desc()),
+  index("incident_reports_site_created_at_idx").on(t.siteId, t.createdAt.desc()),
+  index("incident_reports_reported_by_idx").on(t.reportedBy),
 ]);
 
 export const notifications = pgTable("notifications", {
@@ -271,6 +293,8 @@ export const notifications = pgTable("notifications", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (t) => [
   index("notifications_user_id_created_at_idx").on(t.userId, t.createdAt),
+  index("notifications_user_created_idx").on(t.userId, t.createdAt.desc()),
+  index("notifications_user_read_idx").on(t.userId, t.readAt),
   // Partial index for the common unread-only query — avoids full scan when most notifications are read.
   index("notifications_user_id_unread_idx").on(t.userId, t.readAt).where(isNull(t.readAt)),
 ]);
@@ -307,6 +331,7 @@ export const fieldDefinitions = pgTable("field_definitions", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (t) => [
   index("field_definitions_subcategory_idx").on(t.subcategoryId),
+  uniqueIndex("field_definitions_subcategory_label_uidx").on(t.subcategoryId, t.label),
 ]);
 
 export const genericEntries = pgTable("generic_entries", {
@@ -318,7 +343,10 @@ export const genericEntries = pgTable("generic_entries", {
   value: jsonb("value").notNull(),
   createdBy: uuid("created_by").notNull().references(() => userProfiles.userId),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-});
+}, (t) => [
+  index("generic_entries_site_date_idx").on(t.siteId, t.date.desc()),
+  index("generic_entries_field_definition_idx").on(t.fieldDefinitionId),
+]);
 
 export const resourceTransfers = pgTable("resource_transfers", {
   id: identityId(),

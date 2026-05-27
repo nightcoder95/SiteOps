@@ -26,9 +26,9 @@ type NotificationsResponse = {
 
 const TYPE_META: Record<Notification['type'], { icon: string; bg: string; fg: string }> = {
   approval: { icon: 'fact_check', bg: 'bg-primary-container', fg: 'text-on-primary-container' },
-  budget_alert: { icon: 'account_balance_wallet', bg: 'bg-tertiary-container', fg: 'text-on-tertiary-container' },
-  incident: { icon: 'report', bg: 'bg-error-container', fg: 'text-on-error-container' },
-  system: { icon: 'campaign', bg: 'bg-secondary-container', fg: 'text-on-secondary-container' },
+  budget_alert: { icon: 'account_balance_wallet', bg: 'bg-amber-500/15', fg: 'text-amber-300' },
+  incident: { icon: 'report', bg: 'bg-red-500/10', fg: 'text-red-300' },
+  system: { icon: 'campaign', bg: 'bg-slate-500/15', fg: 'text-slate-300' },
 };
 
 export default function NotificationsPage() {
@@ -123,14 +123,14 @@ export default function NotificationsPage() {
         <ApiUnavailableBanner endpoint={result.endpoint} method={result.method} />
       ) : null}
       {result && !result.ok && result.kind !== 'endpoint_unavailable' ? (
-        <div className="rounded-xl border border-error-container bg-error-container/30 px-4 py-3 font-body-md text-body-md text-on-error-container">
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
           {result.message}
         </div>
       ) : null}
 
       <section className="card-standard divide-y divide-outline-variant rounded-2xl">
         {items.length === 0 ? (
-          <div className="p-4 font-body-md text-body-md text-on-surface-variant">
+          <div className="p-4 text-sm text-on-surface-variant">
             {result?.ok ? 'No notifications found.' : 'Loading…'}
           </div>
         ) : (
@@ -146,7 +146,7 @@ export default function NotificationsPage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-body-md text-body-md font-semibold text-on-surface">{notification.title}</h3>
+                    <h3 className="text-sm font-semibold text-on-surface">{notification.title}</h3>
                     {unread ? <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" aria-label="unread" /> : null}
                   </div>
                   <p className="mt-0.5 text-sm text-on-surface-variant">{notification.message}</p>
@@ -154,7 +154,7 @@ export default function NotificationsPage() {
                     <span>{new Date(notification.createdAt).toLocaleString()}</span>
                     <div className="flex items-center gap-3">
                       {notification.linkToView ? (
-                        <Link href={notification.linkToView} className="font-label-md text-label-md uppercase text-primary">
+                        <Link href={notification.linkToView} className="text-xs font-semibold uppercase text-primary">
                           View
                         </Link>
                       ) : null}
@@ -163,7 +163,7 @@ export default function NotificationsPage() {
                           type="button"
                           onClick={() => markRead(notification.id)}
                           disabled={refreshing}
-                          className="font-label-md text-label-md uppercase text-primary"
+                          className="text-xs font-semibold uppercase text-primary"
                         >
                           Mark read
                         </button>

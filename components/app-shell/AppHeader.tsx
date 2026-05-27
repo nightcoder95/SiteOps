@@ -2,15 +2,38 @@
 
 import { Bell, ChevronLeft, User } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+
+import { requestJson } from '@/lib/http/client';
 
 type Props = {
   role: 'Admin' | 'Supervisor';
 };
 
+type UnreadResponse = { total: number };
+
 export function AppHeader({ role }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const isDashboard = pathname === '/app/dashboard';
+  const [unread, setUnread] = useState(0);
+
+  // Light-weight unread poll so the bell badge reflects real state instead of
+  // a hardcoded dot. Re-fetches whenever the user navigates (pathname change)
+  // so marking-as-read on the notifications page clears the badge on return.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const res = await requestJson<UnreadResponse>(
+        '/api/notifications?limit=1&unreadOnly=true',
+      );
+      if (cancelled) return;
+      setUnread(res.ok ? Number(res.data.total ?? 0) : 0);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname]);
 
   return (
     <header className="glass-header safe-area-top fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-background/80">
@@ -46,7 +69,12 @@ export function AppHeader({ role }: Props) {
             aria-label="Notifications"
           >
             <Bell className="w-5 h-5" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-slate-950" />
+            {unread > 0 ? (
+              <span
+                className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-slate-950"
+                aria-label={`${unread} unread notification${unread === 1 ? '' : 's'}`}
+              />
+            ) : null}
           </button>
 
           <div className="h-8 w-px bg-white/5 mx-2 hidden sm:block"></div>

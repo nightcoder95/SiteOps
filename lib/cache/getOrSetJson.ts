@@ -19,15 +19,18 @@ export async function getOrSetJson<T>(
       logInfo(requestId, "cache_hit", { key });
       return { value: cached, hit: true };
     }
-
     logInfo(requestId, "cache_miss", { key });
-
-    const value = await compute();
-    await redis.set(key, value, { ex: ttlSeconds });
-    return { value, hit: false };
   } catch (error) {
     logWarn(requestId, "cache_error", { key, error: String(error) });
-    const value = await compute();
-    return { value, hit: false };
   }
+
+  // compute() runs exactly once — a cache get OR set failure must not trigger
+  // a second computation.
+  const value = await compute();
+  try {
+    await redis.set(key, value, { ex: ttlSeconds });
+  } catch (error) {
+    logWarn(requestId, "cache_error", { key, error: String(error) });
+  }
+  return { value, hit: false };
 }

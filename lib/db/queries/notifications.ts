@@ -53,7 +53,7 @@ export async function getNotificationCountForUser(
     : eq(notifications.userId, userId);
 
   const result = await db
-    .select({ count: sql<number>`count(*)` })
+    .select({ count: sql<number>`count(*)::int` })
     .from(notifications)
     .where(where);
 

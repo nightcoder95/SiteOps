@@ -2,16 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createBrowserClient } from '@supabase/ssr';
-
+import { getSupabaseBrowserClient } from '@/lib/auth/browserClient';
 import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
 import { requestJson, type ClientResult } from '@/lib/http/client';
 import { toastClientError, toastSuccess } from '@/lib/ui/toast';
 
 type ProfileResponse = {
+  // /api/users/me derives `user` from JWT claims — only id, email, role exist.
   user: {
     id: string;
-    name: string | null;
     email: string;
     role: 'Admin' | 'Supervisor';
   };
@@ -22,15 +21,15 @@ type ProfileResponse = {
   } | null;
 };
 
-const labelClass = 'font-label-md text-label-md uppercase text-on-surface-variant';
+const labelClass = 'text-xs font-semibold uppercase text-on-surface-variant';
 const inputClass =
-  'h-11 w-full rounded border border-outline bg-surface-container-lowest px-3 font-body-md text-body-md text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary';
+  'h-11 w-full rounded border border-outline bg-surface-container-lowest px-3 text-sm text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary';
 
 function ReadOnlyRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between border-b border-outline-variant px-4 py-3 last:border-b-0">
       <span className={labelClass}>{label}</span>
-      <span className="font-body-md text-body-md font-medium text-on-surface">{value}</span>
+      <span className="text-sm font-medium text-on-surface">{value}</span>
     </div>
   );
 }
@@ -41,10 +40,7 @@ export default function ProfilePage() {
   const router = useRouter();
 
   const handleSignOut = async () => {
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-    );
+    const supabase = getSupabaseBrowserClient();
     await supabase.auth.signOut();
     toastSuccess('Signed out successfully');
     router.replace('/auth/sign-in');
@@ -101,9 +97,11 @@ export default function ProfilePage() {
             account_circle
           </span>
         </div>
-        <h2 className="font-headline-md text-headline-md text-on-surface">{user?.name ?? '—'}</h2>
-        <p className="font-body-md text-body-md text-on-surface-variant">{user?.email ?? '—'}</p>
-        <span className="mt-1 rounded-full bg-primary-container px-3 py-1 font-label-md text-label-md uppercase text-on-primary-container">
+        <h2 className="text-xl font-bold text-on-surface">{user?.email ?? '—'}</h2>
+        {profile?.designation ? (
+          <p className="text-sm text-on-surface-variant">{profile.designation}</p>
+        ) : null}
+        <span className="mt-1 rounded-full bg-primary-container px-3 py-1 text-xs font-semibold uppercase text-on-primary-container">
           {user?.role ?? '—'}
         </span>
       </section>
@@ -112,14 +110,14 @@ export default function ProfilePage() {
         <ApiUnavailableBanner endpoint={result.endpoint} method={result.method} />
       ) : null}
       {result && !result.ok && result.kind !== 'endpoint_unavailable' ? (
-        <div className="rounded-xl border border-error-container bg-error-container/30 px-4 py-3 font-body-md text-body-md text-on-error-container">
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
           {result.message}
         </div>
       ) : null}
 
       <section className="card-standard rounded-2xl">
         <header className="border-b border-outline-variant px-4 py-3">
-          <h3 className="font-label-md text-label-md uppercase text-on-surface-variant">Account Details</h3>
+          <h3 className="text-xs font-semibold uppercase text-on-surface-variant">Account Details</h3>
         </header>
         <ReadOnlyRow label="Phone" value={profile?.phone ?? '—'} />
         <ReadOnlyRow label="Region" value={profile?.assignedRegion ?? '—'} />
@@ -143,7 +141,7 @@ export default function ProfilePage() {
         <button
           type="submit"
           disabled={saving}
-          className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded bg-primary font-label-md text-label-md uppercase text-on-primary hover:bg-surface-tint disabled:opacity-60"
+          className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded bg-primary text-xs font-semibold uppercase text-on-primary hover:bg-sky-400 disabled:opacity-60"
         >
           <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>save</span>
           {saving ? 'Saving…' : 'Save'}
@@ -156,7 +154,7 @@ export default function ProfilePage() {
         <button
           type="button"
           onClick={handleSignOut}
-          className="flex h-11 w-full items-center justify-center gap-2 rounded border border-error-container bg-error-container/10 font-label-md text-label-md uppercase text-error hover:bg-error-container/20 transition-all active:scale-[0.98]"
+          className="flex h-11 w-full items-center justify-center gap-2 rounded border border-red-500/30 bg-red-500/10/10 text-xs font-semibold uppercase text-error hover:bg-red-500/10/20 transition-all active:scale-[0.98]"
         >
           <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>logout</span>
           Sign Out

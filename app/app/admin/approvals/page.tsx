@@ -180,10 +180,10 @@ export default function AdminApprovalsPage() {
   );
 
   return (
-    <div className="flex flex-col gap-density-medium">
-      <header className="future-card p-4">
-        <h2 className="font-headline-sm text-headline-sm text-on-background">Review Queues</h2>
-        <p className="font-body-md text-body-md text-on-surface-variant">Resource requests, field requests, transfer requests, and duplicate category reviews.</p>
+    <div className="flex flex-col gap-4">
+      <header className="card-standard p-4">
+        <h2 className="text-lg font-bold text-white">Review Queues</h2>
+        <p className="text-sm text-on-surface-variant">Resource requests, field requests, transfer requests, and duplicate category reviews.</p>
       </header>
 
       {resourceResult && !resourceResult.ok && resourceResult.kind === 'endpoint_unavailable' ? (
@@ -196,8 +196,8 @@ export default function AdminApprovalsPage() {
         <ApiUnavailableBanner endpoint={transferResult.endpoint} method={transferResult.method} />
       ) : null}
 
-      <section className="future-card p-4">
-        <h3 className="font-headline-sm text-headline-sm text-on-surface">Category/Subcategory Duplicate Reviews</h3>
+      <section className="card-standard p-4">
+        <h3 className="text-lg font-bold text-on-surface">Category/Subcategory Duplicate Reviews</h3>
         <div className="mt-3 grid gap-3">
           {reviewRequests.map((request) => {
             const isSub = request.proposedName.startsWith('[Subcategory Review]');
@@ -237,7 +237,7 @@ export default function AdminApprovalsPage() {
                       </select>
                     ) : null}
                     <div className="mt-2 flex flex-wrap gap-2">
-                      <button type="button" disabled={pendingId === request.fieldRequestId} onClick={() => reviewField(request.fieldRequestId, 'Approved')} className="rounded bg-primary px-4 py-2 font-label-md text-label-md uppercase text-on-primary disabled:opacity-60">Approve</button>
+                      <button type="button" disabled={pendingId === request.fieldRequestId} onClick={() => reviewField(request.fieldRequestId, 'Approved')} className="rounded bg-primary px-4 py-2 text-xs font-semibold uppercase text-on-primary disabled:opacity-60">Approve</button>
                       <button
                         type="button"
                         disabled={pendingId === request.fieldRequestId}
@@ -245,7 +245,7 @@ export default function AdminApprovalsPage() {
                           mergeTargetCategoryId: mergeCategory[request.fieldRequestId],
                           mergeTargetSubcategoryId: isSub ? mergeSubcategory[request.fieldRequestId] : undefined,
                         })}
-                        className="rounded border border-outline px-4 py-2 font-label-md text-label-md uppercase text-on-surface-variant disabled:opacity-60"
+                        className="rounded border border-outline px-4 py-2 text-xs font-semibold uppercase text-on-surface-variant disabled:opacity-60"
                       >
                         Decline + Merge
                       </button>
@@ -260,8 +260,8 @@ export default function AdminApprovalsPage() {
       </section>
 
       <section className="grid gap-4">
-        <div className="future-card p-4">
-          <h3 className="font-headline-sm text-headline-sm text-on-surface">Resource requests</h3>
+        <div className="card-standard p-4">
+          <h3 className="text-lg font-bold text-on-surface">Resource requests</h3>
           <div className="mt-4 grid gap-3">
             {resourceResult?.ok ? optimisticResource.map((request) => (
               <article key={request.requestId} className="rounded-2xl bg-surface-container-low px-4 py-4">
@@ -275,8 +275,8 @@ export default function AdminApprovalsPage() {
                 <p className="mt-3 text-sm font-medium text-on-surface">{request.details}</p>
                 {request.status === 'Pending' ? (
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <button type="button" disabled={pendingId === request.requestId} onClick={() => reviewResource(request.requestId, 'Approved')} className="rounded bg-primary px-4 py-2 font-label-md text-label-md uppercase text-on-primary disabled:opacity-60">Approve</button>
-                    <button type="button" disabled={pendingId === request.requestId} onClick={() => reviewResource(request.requestId, 'Declined')} className="rounded border border-outline px-4 py-2 font-label-md text-label-md uppercase text-on-surface-variant disabled:opacity-60">Decline</button>
+                    <button type="button" disabled={pendingId === request.requestId} onClick={() => reviewResource(request.requestId, 'Approved')} className="rounded bg-primary px-4 py-2 text-xs font-semibold uppercase text-on-primary disabled:opacity-60">Approve</button>
+                    <button type="button" disabled={pendingId === request.requestId} onClick={() => reviewResource(request.requestId, 'Declined')} className="rounded border border-outline px-4 py-2 text-xs font-semibold uppercase text-on-surface-variant disabled:opacity-60">Decline</button>
                   </div>
                 ) : null}
               </article>
@@ -284,8 +284,8 @@ export default function AdminApprovalsPage() {
           </div>
         </div>
 
-        <div className="future-card p-4">
-          <h3 className="font-headline-sm text-headline-sm text-on-surface">Field requests</h3>
+        <div className="card-standard p-4">
+          <h3 className="text-lg font-bold text-on-surface">Field requests</h3>
           <div className="mt-4 grid gap-3">
             {normalFieldRequests.map((request) => (
               <article key={request.fieldRequestId} className="rounded-2xl bg-surface-container-low px-4 py-4">
@@ -299,8 +299,8 @@ export default function AdminApprovalsPage() {
                 <div className="mt-3 text-sm font-medium text-on-surface-variant">Type: {request.fieldType} • Category: {request.categoryId}</div>
                 {request.status === 'Pending' ? (
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <button type="button" disabled={pendingId === request.fieldRequestId} onClick={() => reviewField(request.fieldRequestId, 'Approved')} className="rounded bg-primary px-4 py-2 font-label-md text-label-md uppercase text-on-primary disabled:opacity-60">Approve</button>
-                    <button type="button" disabled={pendingId === request.fieldRequestId} onClick={() => reviewField(request.fieldRequestId, 'Declined')} className="rounded border border-outline px-4 py-2 font-label-md text-label-md uppercase text-on-surface-variant disabled:opacity-60">Decline</button>
+                    <button type="button" disabled={pendingId === request.fieldRequestId} onClick={() => reviewField(request.fieldRequestId, 'Approved')} className="rounded bg-primary px-4 py-2 text-xs font-semibold uppercase text-on-primary disabled:opacity-60">Approve</button>
+                    <button type="button" disabled={pendingId === request.fieldRequestId} onClick={() => reviewField(request.fieldRequestId, 'Declined')} className="rounded border border-outline px-4 py-2 text-xs font-semibold uppercase text-on-surface-variant disabled:opacity-60">Decline</button>
                   </div>
                 ) : null}
               </article>
@@ -308,8 +308,8 @@ export default function AdminApprovalsPage() {
           </div>
         </div>
 
-        <div className="future-card p-4">
-          <h3 className="font-headline-sm text-headline-sm text-on-surface">Transfer requests</h3>
+        <div className="card-standard p-4">
+          <h3 className="text-lg font-bold text-on-surface">Transfer requests</h3>
           <div className="mt-4 grid gap-3">
             {transferResult?.ok ? optimisticTransfer.map((transfer) => (
               <article key={transfer.transferId} className="rounded-2xl bg-surface-container-low px-4 py-4">
@@ -323,8 +323,8 @@ export default function AdminApprovalsPage() {
                 <p className="mt-3 text-sm font-medium text-on-surface">Qty: {transfer.quantity}{transfer.remarks ? ` • ${transfer.remarks}` : ''}</p>
                 {transfer.status === 'Pending' ? (
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <button type="button" disabled={pendingId === transfer.transferId} onClick={() => reviewTransfer(transfer.transferId, 'Approved')} className="rounded bg-primary px-4 py-2 font-label-md text-label-md uppercase text-on-primary disabled:opacity-60">Approve</button>
-                    <button type="button" disabled={pendingId === transfer.transferId} onClick={() => reviewTransfer(transfer.transferId, 'Declined')} className="rounded border border-outline px-4 py-2 font-label-md text-label-md uppercase text-on-surface-variant disabled:opacity-60">Decline</button>
+                    <button type="button" disabled={pendingId === transfer.transferId} onClick={() => reviewTransfer(transfer.transferId, 'Approved')} className="rounded bg-primary px-4 py-2 text-xs font-semibold uppercase text-on-primary disabled:opacity-60">Approve</button>
+                    <button type="button" disabled={pendingId === transfer.transferId} onClick={() => reviewTransfer(transfer.transferId, 'Declined')} className="rounded border border-outline px-4 py-2 text-xs font-semibold uppercase text-on-surface-variant disabled:opacity-60">Decline</button>
                   </div>
                 ) : null}
               </article>

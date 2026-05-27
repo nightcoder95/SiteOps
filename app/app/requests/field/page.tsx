@@ -17,18 +17,18 @@ type FieldRequest = {
   requestedBy: string;
 };
 
-const labelClass = 'font-label-md text-label-md uppercase text-on-surface-variant';
+const labelClass = 'text-xs font-semibold uppercase text-on-surface-variant';
 const inputClass =
-  'h-11 w-full rounded border border-outline bg-surface-container-lowest px-3 font-body-md text-body-md text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary';
+  'h-11 w-full rounded border border-outline bg-surface-container-lowest px-3 text-sm text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary';
 
 function statusChip(status: FieldRequest['status']) {
   switch (status) {
     case 'Approved':
       return 'bg-primary-container text-on-primary-container';
     case 'Declined':
-      return 'bg-error-container text-on-error-container';
+      return 'bg-red-500/10 text-red-300';
     default:
-      return 'bg-secondary-container text-on-secondary-container';
+      return 'bg-slate-500/15 text-slate-300';
   }
 }
 
@@ -127,7 +127,7 @@ export default function FieldRequestsPage() {
         <ApiUnavailableBanner endpoint={result.endpoint} method={result.method} />
       ) : null}
       {result && !result.ok && result.kind !== 'endpoint_unavailable' ? (
-        <div className="rounded-xl border border-error-container bg-error-container/30 px-4 py-3 font-body-md text-body-md text-on-error-container">
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
           {result.message}
         </div>
       ) : null}
@@ -160,7 +160,7 @@ export default function FieldRequestsPage() {
         </div>
         <button
           type="submit"
-          className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded bg-primary font-label-md text-label-md uppercase text-on-primary hover:bg-surface-tint"
+          className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded bg-primary text-xs font-semibold uppercase text-on-primary hover:bg-sky-400"
         >
           <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>send</span>
           Submit Request
@@ -169,15 +169,15 @@ export default function FieldRequestsPage() {
 
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="font-headline-sm text-headline-sm text-on-surface">Request Queue</h3>
-          <span className="rounded-full bg-surface-container-low px-2 py-1 font-label-sm text-label-sm text-on-surface-variant">
+          <h3 className="text-lg font-bold text-on-surface">Request Queue</h3>
+          <span className="rounded-full bg-surface-container-low px-2 py-1 text-[10px] font-semibold text-on-surface-variant">
             {items.length}
           </span>
         </div>
 
         <div className="card-standard divide-y divide-outline-variant rounded-2xl">
           {items.length === 0 ? (
-            <div className="p-4 font-body-md text-body-md text-on-surface-variant">
+            <div className="p-4 text-sm text-on-surface-variant">
               {result?.ok ? 'No field requests found.' : 'Loading…'}
             </div>
           ) : (
@@ -185,14 +185,14 @@ export default function FieldRequestsPage() {
               <article key={request.id} className="flex flex-col gap-3 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="font-body-md text-body-md font-semibold text-on-surface">{request.proposedName}</div>
-                    <div className="font-label-sm text-label-sm mt-0.5 text-on-surface-variant">Site {request.siteId}</div>
+                    <div className="text-sm font-semibold text-on-surface">{request.proposedName}</div>
+                    <div className="text-[10px] font-semibold mt-0.5 text-on-surface-variant">Site {request.siteId}</div>
                   </div>
-                  <span className={`rounded-full px-2 py-1 font-label-md text-label-md uppercase ${statusChip(request.status)}`}>
+                  <span className={`rounded-full px-2 py-1 text-xs font-semibold uppercase ${statusChip(request.status)}`}>
                     {request.status}
                   </span>
                 </div>
-                <div className="grid grid-cols-3 gap-3 rounded-lg bg-surface-container-low p-3 font-label-sm text-label-sm">
+                <div className="grid grid-cols-3 gap-3 rounded-lg bg-surface-container-low p-3 text-[10px] font-semibold">
                   <div>
                     <div className={labelClass}>Type</div>
                     <div className="text-on-surface">{request.fieldType}</div>
@@ -212,7 +212,7 @@ export default function FieldRequestsPage() {
                       type="button"
                       disabled={pendingId === request.id}
                       onClick={() => review(request.id, 'Approved')}
-                      className="flex h-9 items-center gap-1 rounded bg-primary px-3 font-label-md text-label-md uppercase text-on-primary disabled:opacity-60"
+                      className="flex h-9 items-center gap-1 rounded bg-primary px-3 text-xs font-semibold uppercase text-on-primary disabled:opacity-60"
                     >
                       <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>check</span>
                       Approve
@@ -221,7 +221,7 @@ export default function FieldRequestsPage() {
                       type="button"
                       disabled={pendingId === request.id}
                       onClick={() => review(request.id, 'Declined')}
-                      className="flex h-9 items-center gap-1 rounded border border-outline px-3 font-label-md text-label-md uppercase text-on-surface-variant disabled:opacity-60"
+                      className="flex h-9 items-center gap-1 rounded border border-outline px-3 text-xs font-semibold uppercase text-on-surface-variant disabled:opacity-60"
                     >
                       <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
                       Decline
@@ -230,7 +230,7 @@ export default function FieldRequestsPage() {
                       type="button"
                       disabled={pendingId === request.id}
                       onClick={() => withdraw(request.id)}
-                      className="flex h-9 items-center gap-1 rounded px-3 font-label-md text-label-md uppercase text-on-surface-variant hover:bg-surface-container disabled:opacity-60"
+                      className="flex h-9 items-center gap-1 rounded px-3 text-xs font-semibold uppercase text-on-surface-variant hover:bg-surface-container disabled:opacity-60"
                     >
                       <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>undo</span>
                       Withdraw
