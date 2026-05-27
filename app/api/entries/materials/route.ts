@@ -25,7 +25,7 @@ export const POST = withApi(async ({ request, requestId }) => {
   const validation = validateBody(materialEntrySchema, parsed.data, requestId);
   if (!validation.ok) return validation.response;
 
-  const { siteId, date, quantity, remarks } = validation.data;
+  const { siteId, date, quantity, workStage, cost, remarks } = validation.data;
 
   const site = await db.query.sites.findFirst({
     where: (t, { eq }) => eq(t.siteId, siteId),
@@ -60,6 +60,8 @@ export const POST = withApi(async ({ request, requestId }) => {
       unitMasterId: "unitMasterId" in validation.data ? validation.data.unitMasterId : null,
       unitCustomId: "unitCustomId" in validation.data ? validation.data.unitCustomId : null,
       unit: "unit" in validation.data ? (validation.data.unit ?? null) : null,
+      workStage,
+      cost: String(cost),
       remarks: remarks || null,
       createdBy: auth.session.user.id,
     });

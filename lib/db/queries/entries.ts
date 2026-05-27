@@ -9,6 +9,26 @@ import {
   materialEntries,
 } from "@/lib/db/schema";
 
+export function calculateLabourTotal(
+  peopleCount: number | null | undefined,
+  wagePerHead: string | number | null | undefined,
+) {
+  const people = Number(peopleCount ?? 0);
+  const wage = Number(wagePerHead ?? 0);
+  if (!Number.isFinite(people) || !Number.isFinite(wage)) return 0;
+  return people * wage;
+}
+
+export function calculateMaterialUnitRate(
+  cost: string | number | null | undefined,
+  quantity: string | number | null | undefined,
+) {
+  const total = Number(cost ?? 0);
+  const qty = Number(quantity ?? 0);
+  if (!Number.isFinite(total) || !Number.isFinite(qty) || qty <= 0) return null;
+  return total / qty;
+}
+
 export async function insertLabourEntry(data: {
   siteId: string;
   date: string;
@@ -28,6 +48,7 @@ export async function insertLabourEntry(data: {
     | null;
   workTypeCustomId?: string | null;
   peopleCount: number;
+  wagePerHead: string;
   remarks: string | null;
   createdBy: string;
 }) {
@@ -47,6 +68,14 @@ export async function insertMaterialEntry(data: {
   unitMasterId?: string | null;
   unitCustomId?: string | null;
   unit: string | null;
+  workStage:
+    | "Basement Level"
+    | "Brick Level"
+    | "Lintel Level"
+    | "Roof Level"
+    | "Compound Wall"
+    | "Other";
+  cost: string;
   remarks: string | null;
   createdBy: string;
 }) {

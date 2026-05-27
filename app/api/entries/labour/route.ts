@@ -25,7 +25,7 @@ export const POST = withApi(async ({ request, requestId }) => {
   const validation = validateBody(labourEntrySchema, parsed.data, requestId);
   if (!validation.ok) return validation.response;
 
-  const { siteId, date, peopleCount, remarks } = validation.data;
+  const { siteId, date, peopleCount, wagePerHead, remarks } = validation.data;
 
   const site = await db.query.sites.findFirst({
     where: (t, { eq }) => eq(t.siteId, siteId),
@@ -54,6 +54,7 @@ export const POST = withApi(async ({ request, requestId }) => {
       workTypeEnum: "workTypeEnum" in validation.data ? validation.data.workTypeEnum : null,
       workTypeCustomId: "workTypeCustomId" in validation.data ? validation.data.workTypeCustomId : null,
       peopleCount,
+      wagePerHead: String(wagePerHead),
       remarks: remarks || null,
       createdBy: auth.session.user.id,
     });

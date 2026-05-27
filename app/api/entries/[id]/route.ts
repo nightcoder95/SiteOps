@@ -107,8 +107,14 @@ export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, conte
   if (type === "expense" && typeof (updateData as any).amount === "number") {
     updateData.amount = String((updateData as any).amount);
   }
+  if (type === "labour" && typeof (updateData as any).wagePerHead === "number") {
+    updateData.wagePerHead = String((updateData as any).wagePerHead);
+  }
   if (type === "material" && typeof (updateData as any).quantity === "number") {
     updateData.quantity = String((updateData as any).quantity);
+  }
+  if (type === "material" && typeof (updateData as any).cost === "number") {
+    updateData.cost = String((updateData as any).cost);
   }
   if (type === "machinery" && typeof (updateData as any).hoursActive === "number") {
     updateData.hoursActive = String((updateData as any).hoursActive);
