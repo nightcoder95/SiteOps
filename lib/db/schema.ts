@@ -39,6 +39,14 @@ export const labourDefaultTypeEnum = pgEnum("labour_default_type", [
 ]);
 
 export const materialDefaultTypeEnum = pgEnum("material_default_type", ["Cement", "M sand", "P sand", "Metal"]);
+export const materialWorkStageEnum = pgEnum("material_work_stage", [
+  "Basement Level",
+  "Brick Level",
+  "Lintel Level",
+  "Roof Level",
+  "Compound Wall",
+  "Other",
+]);
 export const materialUnitModeEnum = pgEnum("material_unit_mode", ["master", "custom"]);
 export const selectorModeEnum = pgEnum("selector_mode", ["default_enum", "custom"]);
 export const transferStatusEnum = pgEnum("transfer_status", ["Pending", "Approved", "Declined"]);
@@ -147,6 +155,7 @@ export const labourEntries = pgTable("labour_entries", {
   workTypeCustomId: uuid("work_type_custom_id").references(() => customLabourTypes.labourTypeId, { onDelete: "set null" }),
   workType: varchar("work_type", { length: 100 }),
   peopleCount: integer("people_count").notNull(),
+  wagePerHead: decimal("wage_per_head", { precision: 12, scale: 2 }),
   remarks: text("remarks"),
   createdBy: uuid("created_by").notNull().references(() => userProfiles.userId),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -173,12 +182,15 @@ export const materialEntries = pgTable("material_entries", {
   unitMasterId: uuid("unit_master_id").references(() => unitMaster.unitId, { onDelete: "set null" }),
   unitCustomId: uuid("unit_custom_id").references(() => customUnits.unitId, { onDelete: "set null" }),
   unit: varchar("unit", { length: 50 }),
+  workStage: materialWorkStageEnum("work_stage"),
+  cost: decimal("cost", { precision: 12, scale: 2 }),
   remarks: text("remarks"),
   createdBy: uuid("created_by").notNull().references(() => userProfiles.userId),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
   index("material_entries_site_id_date_idx").on(t.siteId, t.date),
+  index("material_entries_site_id_work_stage_idx").on(t.siteId, t.workStage),
   index("material_entries_site_date_idx").on(t.siteId, t.date.desc()),
   index("material_entries_site_date_created_idx").on(t.siteId, t.date.desc(), t.createdAt.desc()),
   index("material_entries_created_at_idx").on(t.createdAt.desc()),

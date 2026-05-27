@@ -5,6 +5,16 @@ import { MAX_BACKDATE_DAYS } from "@/lib/validation/constants";
 export const uuidSchema = z.string().uuid();
 export const emailSchema = z.string().email().max(255);
 
+function positiveDecimalSchema(max: number) {
+  return z
+    .number()
+    .positive()
+    .max(max)
+    .refine((value) => Number(value.toFixed(2)) === value, {
+      message: "Value must have at most 2 decimal places",
+    });
+}
+
 const labourDefaultTypes = [
   "Steel work",
   "Shuttering",
@@ -19,6 +29,14 @@ const labourDefaultTypes = [
 ] as const;
 
 const materialDefaultTypes = ["Cement", "M sand", "P sand", "Metal"] as const;
+export const materialWorkStages = [
+  "Basement Level",
+  "Brick Level",
+  "Lintel Level",
+  "Roof Level",
+  "Compound Wall",
+  "Other",
+] as const;
 
 export const entryDateSchema = z.string().date().refine(
   (d) => {
@@ -55,6 +73,7 @@ export const labourEntrySchema = z
     siteId: uuidSchema,
     date: entryDateSchema,
     peopleCount: z.number().int().positive().max(10000),
+    wagePerHead: positiveDecimalSchema(1000000),
     remarks: z.string().max(500).optional(),
   })
   .and(z.union([labourLegacyShape, labourDefaultMode, labourCustomMode]));
@@ -62,6 +81,7 @@ export const labourEntrySchema = z
 export const updateLabourEntrySchema = z.object({
   date: entryDateSchema.optional(),
   peopleCount: z.number().int().positive().max(10000).optional(),
+  wagePerHead: positiveDecimalSchema(1000000).optional(),
   remarks: z.string().max(500).optional(),
   workType: z.string().min(1).max(50).optional(),
   workTypeMode: z.enum(["default_enum", "custom"]).optional(),
@@ -107,6 +127,8 @@ export const materialEntrySchema = z
     siteId: uuidSchema,
     date: entryDateSchema,
     quantity: z.number().positive().max(1000000),
+    workStage: z.enum(materialWorkStages),
+    cost: positiveDecimalSchema(100000000),
     remarks: z.string().max(500).optional(),
   })
   .and(z.union([materialLegacyShape, z.intersection(z.union([materialDefaultMode, materialCustomMode]), z.union([materialMasterUnit, materialCustomUnit]))]));
@@ -114,6 +136,8 @@ export const materialEntrySchema = z
 export const updateMaterialEntrySchema = z.object({
   date: entryDateSchema.optional(),
   quantity: z.number().positive().max(1000000).optional(),
+  workStage: z.enum(materialWorkStages).optional(),
+  cost: positiveDecimalSchema(100000000).optional(),
   remarks: z.string().max(500).optional(),
   materialType: z.string().min(1).max(100).optional(),
   materialTypeMode: z.enum(["default_enum", "custom"]).optional(),
