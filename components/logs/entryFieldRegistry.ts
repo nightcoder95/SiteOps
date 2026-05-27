@@ -4,7 +4,8 @@ export type FieldKind =
   | "text"
   | "textarea"
   | "subcategory"
-  | "select";
+  | "select"
+  | "unit";
 
 export type EntryField = {
   name: string;
@@ -31,13 +32,29 @@ const REGISTRY: Record<string, EntryField[]> = {
     { name: "date", label: "Date", kind: "date", required: true },
     { name: "workType", label: "Work Type", kind: "subcategory", required: true, subcategoryHint: "labour" },
     { name: "peopleCount", label: "People Count", kind: "number", required: true, min: 1, max: 10000, step: 1 },
+    { name: "wagePerHead", label: "Per Head Salary", kind: "number", required: true, min: 0.01, step: 0.01 },
     { name: "remarks", label: "Remarks", kind: "textarea" },
   ],
   material: [
     { name: "date", label: "Date", kind: "date", required: true },
     { name: "materialType", label: "Material Type", kind: "subcategory", required: true, subcategoryHint: "material" },
     { name: "quantity", label: "Quantity", kind: "number", required: true, min: 0, step: 0.01 },
-    { name: "unit", label: "Unit", kind: "subcategory", required: true, subcategoryHint: "unit" },
+    { name: "unit", label: "Unit", kind: "unit", required: true },
+    {
+      name: "workStage",
+      label: "Work Stage",
+      kind: "select",
+      required: true,
+      options: [
+        { value: "Basement Level", label: "Basement Level" },
+        { value: "Brick Level", label: "Brick Level" },
+        { value: "Lintel Level", label: "Lintel Level" },
+        { value: "Roof Level", label: "Roof Level" },
+        { value: "Compound Wall", label: "Compound Wall" },
+        { value: "Other", label: "Other" },
+      ],
+    },
+    { name: "cost", label: "Total Cost", kind: "number", required: true, min: 0.01, step: 0.01 },
     { name: "remarks", label: "Remarks", kind: "textarea" },
   ],
   machinery: [

@@ -10,7 +10,7 @@ import {
 describe("resolveEntryFields", () => {
   it("returns labour fields for 'Labour'", () => {
     const fields = resolveEntryFields("Labour");
-    expect(fields.map((f) => f.name)).toEqual(["date", "workType", "peopleCount", "remarks"]);
+    expect(fields.map((f) => f.name)).toEqual(["date", "workType", "peopleCount", "wagePerHead", "remarks"]);
   });
 
   it("is case-insensitive and trims whitespace", () => {
@@ -19,8 +19,13 @@ describe("resolveEntryFields", () => {
 
   it("returns material fields for 'Material'", () => {
     expect(resolveEntryFields("Material").map((f) => f.name)).toEqual([
-      "date", "materialType", "quantity", "unit", "remarks",
+      "date", "materialType", "quantity", "unit", "workStage", "cost", "remarks",
     ]);
+  });
+
+  it("uses a real unit selector for material units", () => {
+    const unit = resolveEntryFields("Material").find((f) => f.name === "unit");
+    expect(unit?.kind).toBe("unit");
   });
 
   it("returns machinery fields for 'Machinery'", () => {

@@ -1,5 +1,6 @@
 import type { SubcategoryOption } from "./SubcategoryCombobox";
 import type { EntryType } from "./entryTypes";
+import type { UnitOption } from "./UnitSelect";
 
 type AnyEntry = Record<string, unknown>;
 
@@ -11,6 +12,26 @@ function subOpt(
   if (typeof customId === "string" && customId && typeof name === "string") {
     return { subcategoryId: customId, name, categoryId };
   }
+  return null;
+}
+
+function unitOpt(entry: AnyEntry): UnitOption | null {
+  const mode = entry.unitMode;
+  const unitId = mode === "master" ? entry.unitMasterId : entry.unitCustomId;
+
+  if (
+    (mode === "master" || mode === "custom") &&
+    typeof unitId === "string" &&
+    typeof entry.unit === "string"
+  ) {
+    return {
+      unitId,
+      mode,
+      name: entry.unit,
+      label: entry.unit,
+    };
+  }
+
   return null;
 }
 
@@ -27,6 +48,7 @@ export function mapEntryToFormValues(
           subOpt(entry.workTypeCustomId, entry.workType, categoryId) ??
           (typeof entry.workType === "string" ? entry.workType : ""),
         peopleCount: entry.peopleCount ?? "",
+        wagePerHead: entry.wagePerHead ?? "",
         remarks: entry.remarks ?? "",
       };
     case "material":
@@ -36,9 +58,9 @@ export function mapEntryToFormValues(
           subOpt(entry.materialTypeCustomId, entry.materialType, categoryId) ??
           (typeof entry.materialType === "string" ? entry.materialType : ""),
         quantity: entry.quantity ?? "",
-        unit:
-          subOpt(entry.unitCustomId, entry.unit, categoryId) ??
-          (typeof entry.unit === "string" ? entry.unit : ""),
+        unit: unitOpt(entry) ?? "",
+        workStage: entry.workStage ?? "",
+        cost: entry.cost ?? "",
         remarks: entry.remarks ?? "",
       };
     case "machinery":

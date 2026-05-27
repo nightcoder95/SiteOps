@@ -13,6 +13,7 @@ import {
   type EntryField,
 } from "./entryFieldRegistry";
 import { SubcategoryCombobox, type SubcategoryOption } from "./SubcategoryCombobox";
+import { UnitSelect, type UnitOption } from "./UnitSelect";
 
 type Props = {
   categoryId: string;
@@ -24,7 +25,7 @@ type Props = {
   onSuccess?: () => void;
 };
 
-type FieldValue = string | number | SubcategoryOption | null;
+type FieldValue = string | number | SubcategoryOption | UnitOption | null;
 
 const labelClass = "text-[10px] font-extrabold uppercase tracking-widest text-slate-400";
 const inputClass =
@@ -42,6 +43,7 @@ function defaultValue(field: EntryField): FieldValue {
     case "select":
       return "";
     case "subcategory":
+    case "unit":
       return null;
   }
 }
@@ -70,6 +72,8 @@ export function EntryForm({
           name: raw.trim(),
           categoryId,
         };
+      } else if (f.kind === "unit" && raw && typeof raw === "object") {
+        v[f.name] = raw as UnitOption;
       } else {
         v[f.name] = (raw as FieldValue | undefined) ?? defaultValue(f);
       }
@@ -88,7 +92,7 @@ export function EntryForm({
     for (const f of fields) {
       if (!f.required) continue;
       const v = values[f.name];
-      if (f.kind === "subcategory") {
+      if (f.kind === "subcategory" || f.kind === "unit") {
         if (!v) return `${f.label} is required`;
         continue;
       }
@@ -103,7 +107,18 @@ export function EntryForm({
 
     for (const f of fields) {
       const v = values[f.name];
-      if (f.kind === "subcategory") {
+      if (f.kind === "unit") {
+        const unit = v as UnitOption | null;
+        if (unit) {
+          payload.unit = unit.name;
+          payload.unitMode = unit.mode;
+          if (unit.mode === "master") {
+            payload.unitMasterId = unit.unitId;
+          } else {
+            payload.unitCustomId = unit.unitId;
+          }
+        }
+      } else if (f.kind === "subcategory") {
         const sub = v as SubcategoryOption | null;
         if (sub) {
           payload[f.name] = sub.name;
@@ -223,6 +238,17 @@ function FieldRow({
   siteId?: string;
 }) {
   const id = `field-${field.name}`;
+
+  if (field.kind === "unit") {
+    return (
+      <UnitSelect
+        label={field.label}
+        value={value as UnitOption | null}
+        onChange={onChange}
+        required={field.required}
+      />
+    );
+  }
 
   if (field.kind === "subcategory") {
     return (
