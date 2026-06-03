@@ -24,6 +24,10 @@ export const DEFAULT_CATEGORY_CATALOG: Array<{
       'M sand',
       'P sand',
       'Metal',
+      'Steel',
+      'Red Brick',
+      'Cement Block 6in',
+      'Cement Block 4in',
     ],
   },
   {

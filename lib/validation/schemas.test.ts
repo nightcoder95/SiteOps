@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   incidentEntrySchema,
   labourEntrySchema,
+  labourSplitWorkTypes,
+  machineryEntrySchema,
   materialEntrySchema,
   materialWorkStages,
   updateIncidentEntrySchema,
   updateLabourEntrySchema,
+  updateMachineryEntrySchema,
   updateMaterialEntrySchema,
 } from "@/lib/validation/schemas";
 
@@ -232,5 +235,90 @@ describe("material schemas", () => {
     });
 
     expect(result.success).toBe(true);
+  });
+});
+
+describe("operation consolidation schema additions", () => {
+  it("exports the labour work types that use Mason and Helper sections", () => {
+    expect(labourSplitWorkTypes).toEqual(["Plastering", "Brick work", "Brickwork"]);
+  });
+
+  it("accepts split labour payload for Plastering with Mason and Helper amounts", () => {
+    const result = labourEntrySchema.safeParse({
+      siteId: validSiteId,
+      date: validEntryDate,
+      workType: "Plastering",
+      masonCount: 2,
+      masonSalaryAmount: 2600,
+      helperCount: 1,
+      helperSalaryAmount: 900,
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects split labour payload when both Mason and Helper are empty", () => {
+    const result = labourEntrySchema.safeParse({
+      siteId: validSiteId,
+      date: validEntryDate,
+      workType: "Brickwork",
+      masonCount: 0,
+      masonSalaryAmount: 0,
+      helperCount: 0,
+      helperSalaryAmount: 0,
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("requires machinery totalCost on create", () => {
+    const result = machineryEntrySchema.safeParse({
+      siteId: validSiteId,
+      date: validEntryDate,
+      equipmentType: "JCB",
+      count: 1,
+      hoursActive: 4,
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts valid machinery totalCost on create", () => {
+    const result = machineryEntrySchema.safeParse({
+      siteId: validSiteId,
+      date: validEntryDate,
+      equipmentType: "JCB",
+      count: 1,
+      hoursActive: 4,
+      totalCost: 10000,
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("allows machinery totalCost on update", () => {
+    const result = updateMachineryEntrySchema.safeParse({
+      totalCost: 12000,
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts new default material types", () => {
+    for (const materialTypeEnum of ["Steel", "Red Brick", "Cement Block 6in", "Cement Block 4in"] as const) {
+      const result = materialEntrySchema.safeParse({
+        siteId: validSiteId,
+        date: validEntryDate,
+        quantity: 25,
+        cost: 4200,
+        workStage: "Roof Level",
+        materialTypeMode: "default_enum",
+        materialTypeEnum,
+        unitMode: "master",
+        unitMasterId: validUnitId,
+      });
+
+      expect(result.success).toBe(true);
+    }
   });
 });

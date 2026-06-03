@@ -38,7 +38,16 @@ export const labourDefaultTypeEnum = pgEnum("labour_default_type", [
   "Paint work",
 ]);
 
-export const materialDefaultTypeEnum = pgEnum("material_default_type", ["Cement", "M sand", "P sand", "Metal"]);
+export const materialDefaultTypeEnum = pgEnum("material_default_type", [
+  "Cement",
+  "M sand",
+  "P sand",
+  "Metal",
+  "Steel",
+  "Red Brick",
+  "Cement Block 6in",
+  "Cement Block 4in",
+]);
 export const materialWorkStageEnum = pgEnum("material_work_stage", [
   "Basement Level",
   "Brick Level",
@@ -156,6 +165,11 @@ export const labourEntries = pgTable("labour_entries", {
   workType: varchar("work_type", { length: 100 }),
   peopleCount: integer("people_count").notNull(),
   wagePerHead: decimal("wage_per_head", { precision: 12, scale: 2 }),
+  salaryAmount: decimal("salary_amount", { precision: 12, scale: 2 }),
+  masonCount: integer("mason_count"),
+  masonSalaryAmount: decimal("mason_salary_amount", { precision: 12, scale: 2 }),
+  helperCount: integer("helper_count"),
+  helperSalaryAmount: decimal("helper_salary_amount", { precision: 12, scale: 2 }),
   remarks: text("remarks"),
   createdBy: uuid("created_by").notNull().references(() => userProfiles.userId),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -207,6 +221,7 @@ export const machineryEntries = pgTable("machinery_entries", {
   equipmentType: varchar("equipment_type", { length: 100 }),
   count: integer("count").notNull(),
   hoursActive: decimal("hours_active", { precision: 8, scale: 2 }),
+  totalCost: decimal("total_cost", { precision: 12, scale: 2 }),
   remarks: text("remarks"),
   createdBy: uuid("created_by").notNull().references(() => userProfiles.userId),
   createdAt: timestamp("created_at").notNull().defaultNow(),

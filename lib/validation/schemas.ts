@@ -15,6 +15,14 @@ function positiveDecimalSchema(max: number) {
     });
 }
 
+const nonNegativeMoneySchema = z
+  .number()
+  .min(0)
+  .max(100000000)
+  .refine((value) => Number(value.toFixed(2)) === value, {
+    message: "Value must have at most 2 decimal places",
+  });
+
 const labourDefaultTypes = [
   "Steel work",
   "Shuttering",
@@ -28,7 +36,23 @@ const labourDefaultTypes = [
   "Paint work",
 ] as const;
 
-const materialDefaultTypes = ["Cement", "M sand", "P sand", "Metal"] as const;
+export const labourSplitWorkTypes = ["Plastering", "Brick work", "Brickwork"] as const;
+
+export function isSplitLabourWorkType(value: string | null | undefined) {
+  const normalized = String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  return normalized === "plastering" || normalized === "brick work" || normalized === "brickwork";
+}
+
+const materialDefaultTypes = [
+  "Cement",
+  "M sand",
+  "P sand",
+  "Metal",
+  "Steel",
+  "Red Brick",
+  "Cement Block 6in",
+  "Cement Block 4in",
+] as const;
 export const materialWorkStages = [
   "Basement Level",
   "Brick Level",
@@ -68,20 +92,45 @@ const labourCustomMode = z.object({
   workType: z.string().optional(),
 });
 
-export const labourEntrySchema = z
-  .object({
-    siteId: uuidSchema,
-    date: entryDateSchema,
-    peopleCount: z.number().int().positive().max(10000),
-    wagePerHead: positiveDecimalSchema(1000000),
-    remarks: z.string().max(500).optional(),
-  })
-  .and(z.union([labourLegacyShape, labourDefaultMode, labourCustomMode]));
+const labourCommonCreateShape = z.object({
+  siteId: uuidSchema,
+  date: entryDateSchema,
+  remarks: z.string().max(500).optional(),
+});
+
+const labourOrdinaryCostShape = z.object({
+  peopleCount: z.number().int().positive().max(10000),
+  wagePerHead: positiveDecimalSchema(1000000),
+  salaryAmount: positiveDecimalSchema(100000000).optional(),
+});
+
+const labourSplitCostShape = z.object({
+  masonCount: z.number().int().min(0).max(10000).default(0),
+  masonSalaryAmount: nonNegativeMoneySchema.default(0),
+  helperCount: z.number().int().min(0).max(10000).default(0),
+  helperSalaryAmount: nonNegativeMoneySchema.default(0),
+}).refine(
+  (value) =>
+    value.masonCount > 0 ||
+    value.helperCount > 0 ||
+    value.masonSalaryAmount > 0 ||
+    value.helperSalaryAmount > 0,
+  { message: "Mason or Helper values are required" },
+);
+
+export const labourEntrySchema = labourCommonCreateShape
+  .and(z.union([labourLegacyShape, labourDefaultMode, labourCustomMode]))
+  .and(z.union([labourOrdinaryCostShape, labourSplitCostShape]));
 
 export const updateLabourEntrySchema = z.object({
   date: entryDateSchema.optional(),
   peopleCount: z.number().int().positive().max(10000).optional(),
   wagePerHead: positiveDecimalSchema(1000000).optional(),
+  salaryAmount: positiveDecimalSchema(100000000).optional(),
+  masonCount: z.number().int().min(0).max(10000).optional(),
+  masonSalaryAmount: nonNegativeMoneySchema.optional(),
+  helperCount: z.number().int().min(0).max(10000).optional(),
+  helperSalaryAmount: nonNegativeMoneySchema.optional(),
   remarks: z.string().max(500).optional(),
   workType: z.string().min(1).max(50).optional(),
   workTypeMode: z.enum(["default_enum", "custom"]).optional(),
@@ -173,6 +222,7 @@ export const machineryEntrySchema = z
     siteId: uuidSchema,
     date: entryDateSchema,
     count: z.number().int().positive().max(10000),
+    totalCost: positiveDecimalSchema(100000000),
     remarks: z.string().max(500).optional(),
   })
   .and(z.union([machineryLegacyShape, machineryDefaultMode, machineryCustomMode]));
@@ -180,6 +230,7 @@ export const machineryEntrySchema = z
 export const updateMachineryEntrySchema = z.object({
   date: entryDateSchema.optional(),
   count: z.number().int().positive().max(10000).optional(),
+  totalCost: positiveDecimalSchema(100000000).optional(),
   remarks: z.string().max(500).optional(),
   equipmentType: z.string().min(1).max(100).optional(),
   equipmentTypeMode: z.enum(["default_enum", "custom"]).optional(),
