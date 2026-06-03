@@ -43,6 +43,7 @@ type SiteDetailPageClientProps = {
   siteId: string;
   initialSite: Site;
   initialSummary: OperationSummary;
+  trackedSpend: string;
   role: 'Admin' | 'Supervisor';
 };
 
@@ -70,6 +71,12 @@ function formatCurrency(value: number | null) {
   }).format(value);
 }
 
+function formatBudgetPair(current: string, agreed: string | null) {
+  const currentFormatted = formatCurrency(Number(current)) ?? '₹0';
+  const agreedFormatted = agreed ? formatCurrency(Number(agreed)) : null;
+  return agreedFormatted ? `${currentFormatted} / ${agreedFormatted}` : currentFormatted;
+}
+
 const operationMeta: Array<{
   type: OperationType;
   label: string;
@@ -86,6 +93,7 @@ export default function SiteDetailPageClient({
   siteId,
   initialSite,
   initialSummary,
+  trackedSpend,
   role,
 }: SiteDetailPageClientProps) {
   const router = useRouter();
@@ -152,7 +160,12 @@ export default function SiteDetailPageClient({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-white/5">
             {[
               { label: 'Phase', val: site.currentPhase ?? '—', icon: Layers },
-              { label: 'Budget', val: site.budget ? `₹${Number(site.budget).toLocaleString('en-IN')}` : '—', icon: TrendingUp },
+              {
+                label: 'Budget',
+                val: formatBudgetPair(trackedSpend, site.budget),
+                sub: site.budget ? `${Math.round((Number(trackedSpend) / Number(site.budget)) * 100)}% used` : null,
+                icon: TrendingUp,
+              },
               { label: 'Progress', val: `${progress}%`, icon: Clock, highlight: true },
               { label: 'Status', val: site.status, icon: AlertCircle },
             ].map((stat) => (
@@ -164,6 +177,9 @@ export default function SiteDetailPageClient({
                 <p className={`text-xl font-extrabold tracking-tight ${stat.highlight ? 'text-sky-400' : 'text-white'}`}>
                   {stat.val}
                 </p>
+                {'sub' in stat && stat.sub ? (
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{stat.sub}</p>
+                ) : null}
               </div>
             ))}
           </div>

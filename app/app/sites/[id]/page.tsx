@@ -4,7 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { checkOwnership } from '@/lib/auth/ownership';
 import { safeGetSessionFromHeaders } from '@/lib/auth/session';
 import { getSiteOperationSummary } from '@/lib/db/queries/entries';
-import { getSiteById } from '@/lib/db/queries/sites';
+import { getSiteById, getSiteTrackedSpend } from '@/lib/db/queries/sites';
 import { serializeRow } from '@/lib/utils/serialize';
 
 import SiteDetailPageClient from './SiteDetailPageClient';
@@ -25,13 +25,17 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
     notFound();
   }
 
-  const initialSummary = await getSiteOperationSummary(siteId);
+  const [initialSummary, trackedSpend] = await Promise.all([
+    getSiteOperationSummary(siteId),
+    getSiteTrackedSpend(siteId),
+  ]);
 
   return (
     <SiteDetailPageClient
       siteId={siteId}
       initialSite={serializeRow(site) as any}
       initialSummary={serializeRow(initialSummary) as any}
+      trackedSpend={trackedSpend}
       role={session.user.role as "Admin" | "Supervisor"}
     />
   );
