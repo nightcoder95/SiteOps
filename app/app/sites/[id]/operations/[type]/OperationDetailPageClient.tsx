@@ -153,10 +153,17 @@ function entryDate(entry: Entry, type: EntryType) {
 
 function entrySpend(entry: Entry, type: EntryType) {
   if (type === "labour") {
+    const splitTotal = Number(entry.masonSalaryAmount ?? 0) + Number(entry.helperSalaryAmount ?? 0);
+    if (splitTotal > 0) return splitTotal;
+    const stored = Number(entry.salaryAmount ?? 0);
+    if (stored > 0) return stored;
     return Number(entry.peopleCount ?? 0) * Number(entry.wagePerHead ?? 0);
   }
   if (type === "material") {
     return Number(entry.cost ?? 0);
+  }
+  if (type === "machinery") {
+    return Number(entry.totalCost ?? 0);
   }
   if (type === "expense") {
     return Number(entry.amount ?? 0);
@@ -164,15 +171,31 @@ function entrySpend(entry: Entry, type: EntryType) {
   return 0;
 }
 
+function entryCategoryKey(entry: Entry, type: EntryType) {
+  if (type === "labour") return String(entry.workType ?? "Labour");
+  if (type === "material") return `${entry.materialType ?? "Material"}|${entry.workStage ?? "Other"}`;
+  if (type === "machinery") return String(entry.equipmentType ?? "Machinery");
+  if (type === "expense") return String(entry.category ?? "Misc");
+  return String(entry.incidentType ?? "Incident");
+}
+
 function renderEntrySummary(entry: Entry, type: EntryType) {
   if (type === "labour") {
     const wage = Number(entry.wagePerHead ?? 0);
+    const hasSplitRoles = Number(entry.masonCount ?? 0) > 0 || Number(entry.helperCount ?? 0) > 0;
     return (
       <div className="space-y-1">
         <p className="font-bold text-slate-100">{entry.workType ?? "Labour"}</p>
-        <p className="text-xs text-slate-500">
-          {entry.peopleCount ?? 0} people x {formatCurrency(wage)}
-        </p>
+        {hasSplitRoles ? (
+          <div className="space-y-0.5 text-xs text-slate-500">
+            <p>Mason: {entry.masonCount ?? 0} people, {formatCurrency(Number(entry.masonSalaryAmount ?? 0))}</p>
+            <p>Helper: {entry.helperCount ?? 0} people, {formatCurrency(Number(entry.helperSalaryAmount ?? 0))}</p>
+          </div>
+        ) : (
+          <p className="text-xs text-slate-500">
+            {entry.peopleCount ?? 0} people x {formatCurrency(wage)}
+          </p>
+        )}
         <p className="text-sm font-bold text-sky-400">{formatCurrency(entrySpend(entry, type))}</p>
         {entry.remarks ? <p className="text-xs text-slate-500">{entry.remarks}</p> : null}
       </div>
@@ -207,6 +230,7 @@ function renderEntrySummary(entry: Entry, type: EntryType) {
         <p className="font-bold text-slate-100">{entry.equipmentType ?? "Machinery"}</p>
         <p className="text-xs text-slate-500">{entry.count ?? 0} units</p>
         {entry.hoursActive ? <p className="text-xs text-slate-500">{entry.hoursActive} hours active</p> : null}
+        {entry.totalCost ? <p className="text-sm font-bold text-sky-400">{formatCurrency(Number(entry.totalCost ?? 0))}</p> : null}
         {entry.remarks ? <p className="text-xs text-slate-500">{entry.remarks}</p> : null}
       </div>
     );
@@ -420,21 +444,47 @@ export default function OperationDetailPageClient({
       .filter((entry) => entry.workStage === stage)
       .reduce((sum, entry) => sum + Number(entry.cost ?? 0), 0),
   }));
-  const groupedEntries = new Map<string, Entry[]>();
+  const groupedEntries = new Map<string, Map<string, Entry[]>>();
   for (const entry of initialEntries) {
-    const key = entryDate(entry, type) || "Unknown";
-    groupedEntries.set(key, [...(groupedEntries.get(key) ?? []), entry]);
+    const dateKey = entryDate(entry, type) || "Unknown";
+    const categoryKey = entryCategoryKey(entry, type);
+    const dateGroup = groupedEntries.get(dateKey) ?? new Map<string, Entry[]>();
+    dateGroup.set(categoryKey, [...(dateGroup.get(categoryKey) ?? []), entry]);
+    groupedEntries.set(dateKey, dateGroup);
   }
-  const groupedRows = [...groupedEntries.entries()].sort(([leftDate, leftRows], [rightDate, rightRows]) => {
+  const groupedRows = [...groupedEntries.entries()].map(([date, categoryGroups]) => ({
+    date,
+    rows: [...categoryGroups.values()].map((entries) => ({
+      entries,
+      primary: entries[0],
+      total: entries.reduce((sum, entry) => sum + entrySpend(entry, type), 0),
+      editable: entries.length === 1,
+    })),
+  })).sort((left, right) => {
     if (filters.sort === "highest_spend" || filters.sort === "lowest_spend") {
-      const leftTotal = leftRows.reduce((sum, entry) => sum + entrySpend(entry, type), 0);
-      const rightTotal = rightRows.reduce((sum, entry) => sum + entrySpend(entry, type), 0);
+      const leftTotal = left.rows.reduce((sum, row) => sum + row.total, 0);
+      const rightTotal = right.rows.reduce((sum, row) => sum + row.total, 0);
       return filters.sort === "highest_spend" ? rightTotal - leftTotal : leftTotal - rightTotal;
     }
-    const leftTime = new Date(leftDate).getTime();
-    const rightTime = new Date(rightDate).getTime();
+    const leftTime = new Date(left.date).getTime();
+    const rightTime = new Date(right.date).getTime();
     return filters.sort === "oldest" ? leftTime - rightTime : rightTime - leftTime;
   });
+
+  const chronologicalGroups = [...groupedRows].sort(
+    (left, right) => new Date(left.date).getTime() - new Date(right.date).getTime(),
+  );
+  const runningTotals = new Map<string, number>();
+  const runningByCategory = new Map<string, number>();
+  for (const group of chronologicalGroups) {
+    for (const row of group.rows) {
+      const categoryKey = entryCategoryKey(row.primary, type);
+      const key = `${group.date}|${categoryKey}`;
+      const next = (runningByCategory.get(categoryKey) ?? 0) + row.total;
+      runningByCategory.set(categoryKey, next);
+      runningTotals.set(key, next);
+    }
+  }
 
   function applyFilters() {
     const params = new URLSearchParams();
@@ -445,6 +495,11 @@ export default function OperationDetailPageClient({
     if (filters.sort) params.set("sort", filters.sort);
     const query = params.toString();
     router.push(query ? `/app/sites/${siteId}/operations/${type}?${query}` : `/app/sites/${siteId}/operations/${type}`);
+  }
+
+  function clearFilters() {
+    setFilters({ from: "", to: "", category: "", workStage: "", sort: "newest" });
+    router.push(`/app/sites/${siteId}/operations/${type}`);
   }
 
   async function handleDelete(entry: Entry) {
@@ -500,7 +555,7 @@ export default function OperationDetailPageClient({
           <div className="text-right">
             <p className="text-2xl font-extrabold text-white">{initialEntries.length}</p>
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Logs</p>
-            {(type === "labour" || type === "material" || type === "expense") ? (
+            {(type === "labour" || type === "material" || type === "machinery" || type === "expense") ? (
               <p className="mt-2 text-sm font-bold text-sky-400">{formatCurrency(totalSpend)}</p>
             ) : null}
           </div>
@@ -593,7 +648,7 @@ export default function OperationDetailPageClient({
           >
             <option value="newest" className="bg-slate-900">Newest first</option>
             <option value="oldest" className="bg-slate-900">Oldest first</option>
-            {(type === "labour" || type === "material" || type === "expense") ? (
+            {(type === "labour" || type === "material" || type === "machinery" || type === "expense") ? (
               <>
                 <option value="highest_spend" className="bg-slate-900">Highest spend</option>
                 <option value="lowest_spend" className="bg-slate-900">Lowest spend</option>
@@ -601,9 +656,14 @@ export default function OperationDetailPageClient({
             ) : null}
           </select>
         </div>
-        <button type="button" onClick={applyFilters} className="btn-primary md:col-span-5 py-3">
-          Apply Filters
-        </button>
+        <div className="grid gap-3 md:col-span-5 md:grid-cols-[1fr_auto]">
+          <button type="button" onClick={applyFilters} className="btn-primary h-12 py-3">
+            Apply Filters
+          </button>
+          <button type="button" onClick={clearFilters} className="btn-secondary h-12 py-3">
+            Clear Filters
+          </button>
+        </div>
       </section>
 
       {type === "material" ? (
@@ -618,42 +678,57 @@ export default function OperationDetailPageClient({
       ) : null}
 
       <section className="space-y-4">
-        {groupedRows.map(([date, rows]) => (
+        {groupedRows.map(({ date, rows }) => (
           <div key={date} className="space-y-2">
             <div className="flex items-center justify-between px-1">
               <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400">{formatDate(date)}</h2>
-              {(type === "labour" || type === "material" || type === "expense") ? (
-                <span className="text-xs font-bold text-sky-400">
-                  {formatCurrency(rows.reduce((sum, entry) => sum + entrySpend(entry, type), 0))}
-                </span>
+              {(type === "labour" || type === "material" || type === "machinery" || type === "expense") ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Day total</span>
+                  <span className="text-xs font-bold text-sky-400">
+                    {formatCurrency(rows.reduce((sum, row) => sum + row.total, 0))}
+                  </span>
+                </div>
               ) : null}
             </div>
 
-            {rows.map((entry) => {
+            {rows.map((row) => {
+              const entry = row.primary;
               const id = entryId(entry, type);
+              const runningKey = `${date}|${entryCategoryKey(entry, type)}`;
               return (
-                <div key={id} className="card-standard p-4 flex items-start justify-between gap-4">
+                <div key={`${runningKey}|${id ?? "group"}`} className="card-standard p-4 flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     {renderEntrySummary(entry, type)}
+                    {(type === "labour" || type === "material" || type === "machinery" || type === "expense") ? (
+                      <div className="mt-3 rounded-xl border border-sky-500/10 bg-sky-500/5 px-3 py-2">
+                        <p className="text-[9px] font-extrabold uppercase tracking-widest text-slate-500">Running total</p>
+                        <p className="text-sm font-extrabold text-sky-400">
+                          {formatCurrency(runningTotals.get(runningKey) ?? row.total)}
+                        </p>
+                      </div>
+                    ) : null}
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Link
-                      href={`/app/logs/${id}?type=${type}`}
-                      aria-label="Edit entry"
-                      className="w-10 h-10 rounded-xl border border-white/10 bg-white/5 text-slate-400 hover:text-sky-400 hover:bg-sky-500/10 flex items-center justify-center transition-colors"
-                    >
-                      <Edit3 className="w-4 h-4" />
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => void handleDelete(entry)}
-                      disabled={deletingId === id}
-                      aria-label="Delete entry"
-                      className="w-10 h-10 rounded-xl border border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20 flex items-center justify-center transition-colors disabled:opacity-50"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                  {row.editable && id ? (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Link
+                        href={`/app/logs/${id}?type=${type}`}
+                        aria-label="Edit entry"
+                        className="w-10 h-10 rounded-xl border border-white/10 bg-white/5 text-slate-400 hover:text-sky-400 hover:bg-sky-500/10 flex items-center justify-center transition-colors"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => void handleDelete(entry)}
+                        disabled={deletingId === id}
+                        aria-label="Delete entry"
+                        className="w-10 h-10 rounded-xl border border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20 flex items-center justify-center transition-colors disabled:opacity-50"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               );
             })}
