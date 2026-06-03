@@ -76,12 +76,12 @@ export function UnitSelect({ label, value, onChange, required, allowedNames }: P
       mode: "master" as const,
       name: displayUnitName(unit.label),
     })),
-    ...customUnits.map((unit) => ({
+    ...(allowedNames?.length ? [] : customUnits.map((unit) => ({
       unitId: unit.unitId,
       label: displayUnitName(unit.symbol ? `${unit.name} (${unit.symbol})` : unit.name),
       mode: "custom" as const,
       name: displayUnitName(unit.name),
-    })),
+    }))),
   ].filter((unit) => !allowedNames?.length || allowedNames.includes(unit.name));
 
   useEffect(() => {

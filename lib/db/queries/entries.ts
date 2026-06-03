@@ -226,6 +226,10 @@ export async function mergeLabourEntry(existingId: string, data: {
 export async function mergeMaterialEntry(existingId: string, data: {
   quantity: string;
   cost: string;
+  unitMode?: "master" | "custom";
+  unitMasterId?: string | null;
+  unitCustomId?: string | null;
+  unit?: string | null;
   remarks?: string | null;
 }) {
   const existing = await getEntryById(existingId, "material") as typeof materialEntries.$inferSelect | null;
@@ -236,6 +240,10 @@ export async function mergeMaterialEntry(existingId: string, data: {
     .set({
       quantity: addDecimal(existing.quantity, data.quantity),
       cost: addDecimal(existing.cost, data.cost),
+      unitMode: data.unitMode ?? existing.unitMode,
+      unitMasterId: data.unitMasterId === undefined ? existing.unitMasterId : data.unitMasterId,
+      unitCustomId: data.unitCustomId === undefined ? existing.unitCustomId : data.unitCustomId,
+      unit: data.unit === undefined ? existing.unit : data.unit,
       remarks: existing.remarks || data.remarks || null,
       updatedAt: new Date(),
     })

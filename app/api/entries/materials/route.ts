@@ -1,3 +1,5 @@
+import { eq } from "drizzle-orm";
+
 import { requireSiteAccess } from "@/lib/auth/guards";
 import { checkOwnership } from "@/lib/auth/ownership";
 import { invalidateAdminAnalyticsCache } from "@/lib/cache/invalidate";
@@ -7,7 +9,8 @@ import {
   insertMaterialEntry,
   mergeMaterialEntry,
 } from "@/lib/db/queries/entries";
-import { materialUnitRuleFor } from "@/lib/db/queries/materialUnits";
+import { displayUnitName, materialUnitRuleFor } from "@/lib/db/queries/materialUnits";
+import { unitMaster } from "@/lib/db/schema";
 import { ERROR_CODES } from "@/lib/errors/codes";
 import { handleDbError } from "@/lib/errors/db";
 import { errorResponse, successResponse } from "@/lib/errors/response";
@@ -53,11 +56,48 @@ export const POST = withApi(async ({ request, requestId }) => {
   }
 
   try {
+    const activeUnits = await db
+      .select({ unitId: unitMaster.unitId, label: unitMaster.label })
+      .from(unitMaster)
+      .where(eq(unitMaster.isActive, true));
+    let submittedUnitName = "";
+    if ("unitMasterId" in validation.data && validation.data.unitMasterId) {
+      const submittedUnitMasterId = validation.data.unitMasterId;
+      submittedUnitName = displayUnitName(
+        activeUnits.find((unit) => unit.unitId === submittedUnitMasterId)?.label ?? "",
+      );
+    } else if ("unit" in validation.data && validation.data.unit) {
+      submittedUnitName = displayUnitName(validation.data.unit);
+    }
+    const resolvedUnitName =
+      unitRule.allowedNames.length === 1
+        ? unitRule.preferredName
+        : unitRule.allowedNames.includes(submittedUnitName)
+          ? submittedUnitName
+          : null;
+    const resolvedUnit = resolvedUnitName
+      ? activeUnits.find((unit) => displayUnitName(unit.label) === resolvedUnitName)
+      : null;
+
+    if (!resolvedUnitName || !resolvedUnit) {
+      return errorResponse(
+        ERROR_CODES.VALIDATION_ERROR,
+        `${materialType} must use ${unitRule.allowedNames.join(" or ")} as the unit`,
+        400,
+        undefined,
+        requestId,
+      );
+    }
+
     const existing = await findMatchingMaterialEntry(siteId, date, materialType, workStage);
     if (existing) {
       const merged = await mergeMaterialEntry(existing.materialEntryId, {
         quantity: String(quantity),
         cost: String(cost),
+        unitMode: "master",
+        unitMasterId: resolvedUnit.unitId,
+        unitCustomId: null,
+        unit: resolvedUnitName,
         remarks: remarks || null,
       });
 
@@ -80,10 +120,10 @@ export const POST = withApi(async ({ request, requestId }) => {
       materialTypeCustomId:
         "materialTypeCustomId" in validation.data ? validation.data.materialTypeCustomId : null,
       quantity: String(quantity),
-      unitMode: "unitMode" in validation.data ? validation.data.unitMode : "master",
-      unitMasterId: "unitMasterId" in validation.data ? validation.data.unitMasterId : null,
-      unitCustomId: "unitCustomId" in validation.data ? validation.data.unitCustomId : null,
-      unit: unitRule.preferredName,
+      unitMode: "master",
+      unitMasterId: resolvedUnit.unitId,
+      unitCustomId: null,
+      unit: resolvedUnitName,
       workStage,
       cost: String(cost),
       remarks: remarks || null,

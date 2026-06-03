@@ -71,6 +71,20 @@
       "when": 1779000120000,
       "tag": "0009_seed_default_catalog",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1779000180000,
+      "tag": "0010_construction_operation_cost_logs",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1779000240000,
+      "tag": "0011_operation_consolidation_budget_tracking",
+      "breakpoints": true
     }
   ]
 }

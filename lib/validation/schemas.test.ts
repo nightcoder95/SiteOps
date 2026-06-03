@@ -271,6 +271,20 @@ describe("operation consolidation schema additions", () => {
     expect(result.success).toBe(false);
   });
 
+  it("rejects split labour payload for non-split work types", () => {
+    const result = labourEntrySchema.safeParse({
+      siteId: validSiteId,
+      date: validEntryDate,
+      workType: "Plumbing",
+      masonCount: 2,
+      masonSalaryAmount: 2600,
+      helperCount: 1,
+      helperSalaryAmount: 900,
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   it("requires machinery totalCost on create", () => {
     const result = machineryEntrySchema.safeParse({
       siteId: validSiteId,

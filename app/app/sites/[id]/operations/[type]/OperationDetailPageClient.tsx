@@ -171,6 +171,57 @@ function entrySpend(entry: Entry, type: EntryType) {
   return 0;
 }
 
+function sumField(entries: Entry[], field: string) {
+  return entries.reduce((sum, entry) => sum + Number(entry[field] ?? 0), 0);
+}
+
+function mergeVisualEntries(entries: Entry[], type: EntryType) {
+  const first = entries[0] ?? {};
+  if (entries.length <= 1) return first;
+
+  const total = entries.reduce((sum, entry) => sum + entrySpend(entry, type), 0);
+  const merged = { ...first, _mergedEntryCount: entries.length };
+
+  if (type === "labour") {
+    return {
+      ...merged,
+      peopleCount: sumField(entries, "peopleCount"),
+      wagePerHead: null,
+      salaryAmount: total,
+      masonCount: sumField(entries, "masonCount"),
+      masonSalaryAmount: sumField(entries, "masonSalaryAmount"),
+      helperCount: sumField(entries, "helperCount"),
+      helperSalaryAmount: sumField(entries, "helperSalaryAmount"),
+    };
+  }
+
+  if (type === "material") {
+    return {
+      ...merged,
+      quantity: sumField(entries, "quantity"),
+      cost: total,
+    };
+  }
+
+  if (type === "machinery") {
+    return {
+      ...merged,
+      count: sumField(entries, "count"),
+      hoursActive: sumField(entries, "hoursActive"),
+      totalCost: total,
+    };
+  }
+
+  if (type === "expense") {
+    return {
+      ...merged,
+      amount: total,
+    };
+  }
+
+  return merged;
+}
+
 function entryCategoryKey(entry: Entry, type: EntryType) {
   if (type === "labour") return String(entry.workType ?? "Labour");
   if (type === "material") return `${entry.materialType ?? "Material"}|${entry.workStage ?? "Other"}`;
@@ -180,6 +231,7 @@ function entryCategoryKey(entry: Entry, type: EntryType) {
 }
 
 function renderEntrySummary(entry: Entry, type: EntryType) {
+  const isMerged = Number(entry._mergedEntryCount ?? 0) > 1;
   if (type === "labour") {
     const wage = Number(entry.wagePerHead ?? 0);
     const hasSplitRoles = Number(entry.masonCount ?? 0) > 0 || Number(entry.helperCount ?? 0) > 0;
@@ -193,7 +245,7 @@ function renderEntrySummary(entry: Entry, type: EntryType) {
           </div>
         ) : (
           <p className="text-xs text-slate-500">
-            {entry.peopleCount ?? 0} people x {formatCurrency(wage)}
+            {entry.peopleCount ?? 0} people{isMerged ? "" : ` x ${formatCurrency(wage)}`}
           </p>
         )}
         <p className="text-sm font-bold text-sky-400">{formatCurrency(entrySpend(entry, type))}</p>
@@ -203,7 +255,7 @@ function renderEntrySummary(entry: Entry, type: EntryType) {
   }
 
   if (type === "material") {
-    const rate = Number(entry.quantity ?? 0) > 0
+    const rate = !isMerged && Number(entry.quantity ?? 0) > 0
       ? Number(entry.cost ?? 0) / Number(entry.quantity)
       : null;
     return (
@@ -456,7 +508,7 @@ export default function OperationDetailPageClient({
     date,
     rows: [...categoryGroups.values()].map((entries) => ({
       entries,
-      primary: entries[0],
+      primary: mergeVisualEntries(entries, type),
       total: entries.reduce((sum, entry) => sum + entrySpend(entry, type), 0),
       editable: entries.length === 1,
     })),
@@ -485,6 +537,7 @@ export default function OperationDetailPageClient({
       runningTotals.set(key, next);
     }
   }
+  const visibleLogCount = groupedRows.reduce((sum, group) => sum + group.rows.length, 0);
 
   function applyFilters() {
     const params = new URLSearchParams();
@@ -553,7 +606,7 @@ export default function OperationDetailPageClient({
           </div>
 
           <div className="text-right">
-            <p className="text-2xl font-extrabold text-white">{initialEntries.length}</p>
+            <p className="text-2xl font-extrabold text-white">{visibleLogCount}</p>
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Logs</p>
             {(type === "labour" || type === "material" || type === "machinery" || type === "expense") ? (
               <p className="mt-2 text-sm font-bold text-sky-400">{formatCurrency(totalSpend)}</p>

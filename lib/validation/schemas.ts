@@ -43,6 +43,12 @@ export function isSplitLabourWorkType(value: string | null | undefined) {
   return normalized === "plastering" || normalized === "brick work" || normalized === "brickwork";
 }
 
+function labourWorkTypeFromPayload(value: Record<string, unknown>) {
+  if (typeof value.workType === "string" && value.workType.trim()) return value.workType;
+  if (typeof value.workTypeEnum === "string" && value.workTypeEnum.trim()) return value.workTypeEnum;
+  return null;
+}
+
 const materialDefaultTypes = [
   "Cement",
   "M sand",
@@ -120,7 +126,23 @@ const labourSplitCostShape = z.object({
 
 export const labourEntrySchema = labourCommonCreateShape
   .and(z.union([labourLegacyShape, labourDefaultMode, labourCustomMode]))
-  .and(z.union([labourOrdinaryCostShape, labourSplitCostShape]));
+  .and(z.union([labourOrdinaryCostShape, labourSplitCostShape]))
+  .superRefine((value, ctx) => {
+    const workType = labourWorkTypeFromPayload(value);
+    const hasSplitFields =
+      "masonCount" in value ||
+      "masonSalaryAmount" in value ||
+      "helperCount" in value ||
+      "helperSalaryAmount" in value;
+
+    if (hasSplitFields && !isSplitLabourWorkType(workType)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Mason and Helper values are only supported for Plastering and Brickwork",
+        path: ["workType"],
+      });
+    }
+  });
 
 export const updateLabourEntrySchema = z.object({
   date: entryDateSchema.optional(),
