@@ -1,15 +1,18 @@
+import { eq } from "drizzle-orm";
 import type { NextRequest } from "next/server";
 
 import { requireSiteAccess } from "@/lib/auth/guards";
 import { checkOwnership } from "@/lib/auth/ownership";
 import { invalidateAdminAnalyticsCache } from "@/lib/cache/invalidate";
 import { db } from "@/lib/db/client";
+import { displayUnitName, materialUnitRuleFor } from "@/lib/db/queries/materialUnits";
 import {
   deleteEntryById,
   getEntryById,
   updateEntryById,
   type EntryType,
 } from "@/lib/db/queries/entries";
+import { unitMaster } from "@/lib/db/schema";
 import { ERROR_CODES } from "@/lib/errors/codes";
 import { handleDbError } from "@/lib/errors/db";
 import { errorResponse, successResponse } from "@/lib/errors/response";
@@ -22,6 +25,7 @@ import {
   updateLabourEntrySchema,
   updateMachineryEntrySchema,
   updateMaterialEntrySchema,
+  isSplitLabourWorkType,
 } from "@/lib/validation/schemas";
 
 type RouteCtx = { params: Promise<{ id: string }> };
@@ -130,6 +134,101 @@ export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, conte
   }
   if (type === "machinery" && typeof (updateData as any).totalCost === "number") {
     updateData.totalCost = String((updateData as any).totalCost);
+  }
+  if (type === "labour") {
+    const targetWorkType =
+      typeof updateData.workType === "string"
+        ? updateData.workType
+        : typeof (existing as any).workType === "string"
+          ? (existing as any).workType
+          : "";
+    const hasSplitUpdate =
+      "masonCount" in updateData ||
+      "masonSalaryAmount" in updateData ||
+      "helperCount" in updateData ||
+      "helperSalaryAmount" in updateData;
+    const targetUsesSplit = isSplitLabourWorkType(targetWorkType);
+
+    if (hasSplitUpdate && !targetUsesSplit) {
+      return errorResponse(
+        ERROR_CODES.VALIDATION_ERROR,
+        "Mason and Helper values are only supported for Plastering and Brickwork",
+        400,
+        undefined,
+        requestId,
+      );
+    }
+
+    if (targetUsesSplit && hasSplitUpdate) {
+      updateData.peopleCount = 0;
+      updateData.wagePerHead = "0";
+      updateData.salaryAmount = null;
+    } else if (!targetUsesSplit && ("workType" in updateData || "peopleCount" in updateData || "wagePerHead" in updateData)) {
+      updateData.masonCount = null;
+      updateData.masonSalaryAmount = null;
+      updateData.helperCount = null;
+      updateData.helperSalaryAmount = null;
+    }
+  }
+  if (
+    type === "material" &&
+    (
+      "materialType" in updateData ||
+      "materialTypeEnum" in updateData ||
+      "unit" in updateData ||
+      "unitMode" in updateData ||
+      "unitMasterId" in updateData ||
+      "unitCustomId" in updateData
+    )
+  ) {
+    const targetMaterialType =
+      typeof updateData.materialType === "string"
+        ? updateData.materialType
+        : typeof updateData.materialTypeEnum === "string"
+          ? updateData.materialTypeEnum
+          : typeof (existing as any).materialType === "string"
+            ? (existing as any).materialType
+            : "Custom";
+    const unitRule = materialUnitRuleFor(targetMaterialType);
+    const activeUnits = await db
+      .select({ unitId: unitMaster.unitId, label: unitMaster.label })
+      .from(unitMaster)
+      .where(eq(unitMaster.isActive, true));
+    const submittedUnitMasterId =
+      typeof updateData.unitMasterId === "string"
+        ? updateData.unitMasterId
+        : typeof (existing as any).unitMasterId === "string"
+          ? (existing as any).unitMasterId
+          : "";
+    const submittedUnitName = submittedUnitMasterId
+      ? displayUnitName(activeUnits.find((unit) => unit.unitId === submittedUnitMasterId)?.label ?? "")
+      : typeof updateData.unit === "string"
+        ? displayUnitName(updateData.unit)
+        : typeof (existing as any).unit === "string"
+          ? displayUnitName((existing as any).unit)
+          : "";
+    const resolvedUnitName =
+      unitRule.allowedNames.length === 1
+        ? unitRule.preferredName
+        : unitRule.allowedNames.includes(submittedUnitName)
+          ? submittedUnitName
+          : unitRule.preferredName;
+    const resolvedUnit = activeUnits.find((unit) => displayUnitName(unit.label) === resolvedUnitName);
+
+    if (!resolvedUnit) {
+      return errorResponse(
+        ERROR_CODES.VALIDATION_ERROR,
+        `${targetMaterialType} must use ${unitRule.allowedNames.join(" or ")} as the unit`,
+        400,
+        undefined,
+        requestId,
+      );
+    }
+
+    updateData.unitMode = "master";
+    updateData.unitMasterId = resolvedUnit.unitId;
+    updateData.unitCustomId = null;
+    updateData.unit = resolvedUnitName;
   }
 
   try {
