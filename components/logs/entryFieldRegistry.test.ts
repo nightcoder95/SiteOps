@@ -30,8 +30,15 @@ describe("resolveEntryFields", () => {
 
   it("returns machinery fields for 'Machinery'", () => {
     expect(resolveEntryFields("Machinery").map((f) => f.name)).toEqual([
-      "date", "equipmentType", "count", "hoursActive", "remarks",
+      "date", "equipmentType", "count", "hoursActive", "totalCost", "remarks",
     ]);
+  });
+
+  it("keeps labour fields available for dynamic split-role rendering", () => {
+    const fields = resolveEntryFields("Labour");
+    expect(fields.some((f) => f.name === "workType")).toBe(true);
+    expect(fields.some((f) => f.name === "peopleCount")).toBe(true);
+    expect(fields.some((f) => f.name === "wagePerHead")).toBe(true);
   });
 
   it("returns expense fields for 'Expense'", () => {

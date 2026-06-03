@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { requestJson } from "@/lib/http/client";
+import {
+  allowedMaterialUnitNames,
+  materialUnitRuleFor,
+} from "@/lib/db/queries/materialUnits";
+import { isSplitLabourWorkType } from "@/lib/validation/schemas";
 
 import {
   resolveEntryFields,
@@ -48,6 +53,13 @@ function defaultValue(field: EntryField): FieldValue {
   }
 }
 
+function selectedSubcategoryName(value: FieldValue) {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "object" && "name" in value) return String(value.name);
+  return "";
+}
+
 export function EntryForm({
   categoryId,
   categoryName,
@@ -78,6 +90,17 @@ export function EntryForm({
         v[f.name] = (raw as FieldValue | undefined) ?? defaultValue(f);
       }
     }
+    for (const extra of [
+      "salaryAmount",
+      "masonCount",
+      "masonSalaryAmount",
+      "helperCount",
+      "helperSalaryAmount",
+    ]) {
+      if (initialValues?.[extra] !== undefined) {
+        v[extra] = initialValues[extra] as FieldValue;
+      }
+    }
     return v;
   });
   const [submitting, setSubmitting] = useState(false);
@@ -87,9 +110,16 @@ export function EntryForm({
     setValues((s) => ({ ...s, [name]: val }));
   }
 
+  const selectedWorkType = selectedSubcategoryName(values.workType);
+  const selectedMaterialType = selectedSubcategoryName(values.materialType);
+  const splitLabour = kind === "labour" && isSplitLabourWorkType(selectedWorkType);
+
   function validate(): string | null {
     if (!siteId && !isEdit) return "Site is required";
     for (const f of fields) {
+      if (splitLabour && (f.name === "peopleCount" || f.name === "wagePerHead")) {
+        continue;
+      }
       if (!f.required) continue;
       const v = values[f.name];
       if (f.kind === "subcategory" || f.kind === "unit") {
@@ -97,6 +127,15 @@ export function EntryForm({
         continue;
       }
       if (v === "" || v === null || v === undefined) return `${f.label} is required`;
+    }
+    if (splitLabour) {
+      const masonCount = Number(values.masonCount || 0);
+      const masonSalaryAmount = Number(values.masonSalaryAmount || 0);
+      const helperCount = Number(values.helperCount || 0);
+      const helperSalaryAmount = Number(values.helperSalaryAmount || 0);
+      if (masonCount <= 0 && masonSalaryAmount <= 0 && helperCount <= 0 && helperSalaryAmount <= 0) {
+        return "Mason or Helper values are required";
+      }
     }
     return null;
   }
@@ -128,6 +167,23 @@ export function EntryForm({
       } else if (v !== "" && v !== null && v !== undefined) {
         payload[f.name] = v;
       }
+    }
+    if (kind === "labour" && splitLabour) {
+      payload.masonCount = Number(values.masonCount || 0);
+      payload.masonSalaryAmount = Number(values.masonSalaryAmount || 0);
+      payload.helperCount = Number(values.helperCount || 0);
+      payload.helperSalaryAmount = Number(values.helperSalaryAmount || 0);
+      delete payload.peopleCount;
+      delete payload.wagePerHead;
+    }
+
+    if (kind === "labour" && !splitLabour && payload.peopleCount && payload.wagePerHead) {
+      payload.salaryAmount = Number(payload.peopleCount) * Number(payload.wagePerHead);
+    }
+
+    if (kind === "material" && selectedMaterialType) {
+      const rule = materialUnitRuleFor(selectedMaterialType);
+      payload.unit = rule.preferredName;
     }
     return payload;
   }
@@ -184,17 +240,30 @@ export function EntryForm({
 
   return (
     <form onSubmit={handleSubmit} className="card-standard p-6 space-y-5">
-      {fields.map((f) => (
-        <FieldRow
-          key={f.name}
-          field={f}
-          value={values[f.name]}
-          onChange={(v) => update(f.name, v)}
-          categoryId={categoryId}
-          role={role}
-          siteId={siteId}
-        />
-      ))}
+      {fields.map((f) => {
+        if (splitLabour && f.name === "wagePerHead") return null;
+        if (splitLabour && f.name === "peopleCount") {
+          return (
+            <SplitLabourFields
+              key="split-labour-fields"
+              values={values}
+              update={update}
+            />
+          );
+        }
+        return (
+          <FieldRow
+            key={f.name}
+            field={f}
+            value={values[f.name]}
+            onChange={(v) => update(f.name, v)}
+            categoryId={categoryId}
+            role={role}
+            siteId={siteId}
+            allowedUnitNames={kind === "material" ? allowedMaterialUnitNames(selectedMaterialType) : undefined}
+          />
+        );
+      })}
       <div className="pt-4 space-y-3">
         <button
           type="submit"
@@ -229,6 +298,7 @@ function FieldRow({
   categoryId,
   role,
   siteId,
+  allowedUnitNames,
 }: {
   field: EntryField;
   value: FieldValue;
@@ -236,6 +306,7 @@ function FieldRow({
   categoryId: string;
   role: "Admin" | "Supervisor";
   siteId?: string;
+  allowedUnitNames?: string[];
 }) {
   const id = `field-${field.name}`;
 
@@ -246,6 +317,7 @@ function FieldRow({
         value={value as UnitOption | null}
         onChange={onChange}
         required={field.required}
+        allowedNames={allowedUnitNames}
       />
     );
   }
@@ -326,6 +398,49 @@ function FieldRow({
         required={field.required}
         className={inputClass}
       />
+    </div>
+  );
+}
+
+function SplitLabourFields({
+  values,
+  update,
+}: {
+  values: Record<string, FieldValue>;
+  update: (name: string, val: FieldValue) => void;
+}) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      {[
+        ["Mason", "masonCount", "masonSalaryAmount"],
+        ["Helper", "helperCount", "helperSalaryAmount"],
+      ].map(([label, countName, amountName]) => (
+        <section key={label} className="space-y-3 rounded-xl border border-white/10 bg-white/[0.03] p-4">
+          <p className="text-[10px] font-extrabold uppercase tracking-widest text-sky-400">{label}</p>
+          <div className="space-y-2">
+            <label className={labelClass}>Count</label>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={String(values[countName] ?? "")}
+              onChange={(event) => update(countName, event.target.value)}
+              className={inputClass}
+            />
+          </div>
+          <div className="space-y-2">
+            <label className={labelClass}>Salary Amount</label>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={String(values[amountName] ?? "")}
+              onChange={(event) => update(amountName, event.target.value)}
+              className={inputClass}
+            />
+          </div>
+        </section>
+      ))}
     </div>
   );
 }

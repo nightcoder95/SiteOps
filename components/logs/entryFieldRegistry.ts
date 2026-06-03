@@ -62,6 +62,7 @@ const REGISTRY: Record<string, EntryField[]> = {
     { name: "equipmentType", label: "Equipment Type", kind: "subcategory", required: true, subcategoryHint: "machinery" },
     { name: "count", label: "Count", kind: "number", required: true, min: 1, step: 1 },
     { name: "hoursActive", label: "Hours Active", kind: "number", required: true, min: 0.1, max: 24, step: 0.1 },
+    { name: "totalCost", label: "Total Cost", kind: "number", required: true, min: 0.01, step: 0.01 },
     { name: "remarks", label: "Remarks", kind: "textarea" },
   ],
   expense: [

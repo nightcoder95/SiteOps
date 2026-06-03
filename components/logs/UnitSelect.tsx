@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { displayUnitName } from "@/lib/db/queries/materialUnits";
 import { requestJson } from "@/lib/http/client";
 
 export type UnitOption = {
@@ -31,9 +32,10 @@ type Props = {
   value: UnitOption | null;
   onChange: (value: UnitOption | null) => void;
   required?: boolean;
+  allowedNames?: string[];
 };
 
-export function UnitSelect({ label, value, onChange, required }: Props) {
+export function UnitSelect({ label, value, onChange, required, allowedNames }: Props) {
   const [masterUnits, setMasterUnits] = useState<MasterUnit[]>([]);
   const [customUnits, setCustomUnits] = useState<CustomUnit[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,17 +72,22 @@ export function UnitSelect({ label, value, onChange, required }: Props) {
   const options: UnitOption[] = [
     ...masterUnits.map((unit) => ({
       unitId: unit.unitId,
-      label: `${unit.label} (${unit.code})`,
+      label: displayUnitName(unit.label),
       mode: "master" as const,
-      name: unit.label,
+      name: displayUnitName(unit.label),
     })),
     ...customUnits.map((unit) => ({
       unitId: unit.unitId,
-      label: unit.symbol ? `${unit.name} (${unit.symbol})` : unit.name,
+      label: displayUnitName(unit.symbol ? `${unit.name} (${unit.symbol})` : unit.name),
       mode: "custom" as const,
-      name: unit.name,
+      name: displayUnitName(unit.name),
     })),
-  ];
+  ].filter((unit) => !allowedNames?.length || allowedNames.includes(unit.name));
+
+  useEffect(() => {
+    if (!value || !allowedNames?.length) return;
+    if (!allowedNames.includes(value.name)) onChange(null);
+  }, [allowedNames, onChange, value]);
 
   return (
     <div className="flex flex-col gap-2">

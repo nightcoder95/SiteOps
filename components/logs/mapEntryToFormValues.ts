@@ -49,6 +49,11 @@ export function mapEntryToFormValues(
           (typeof entry.workType === "string" ? entry.workType : ""),
         peopleCount: entry.peopleCount ?? "",
         wagePerHead: entry.wagePerHead ?? "",
+        salaryAmount: entry.salaryAmount ?? "",
+        masonCount: entry.masonCount ?? "",
+        masonSalaryAmount: entry.masonSalaryAmount ?? "",
+        helperCount: entry.helperCount ?? "",
+        helperSalaryAmount: entry.helperSalaryAmount ?? "",
         remarks: entry.remarks ?? "",
       };
     case "material":
@@ -71,6 +76,7 @@ export function mapEntryToFormValues(
           (typeof entry.equipmentType === "string" ? entry.equipmentType : ""),
         count: entry.count ?? "",
         hoursActive: entry.hoursActive ?? "",
+        totalCost: entry.totalCost ?? "",
         remarks: entry.remarks ?? "",
       };
     case "expense":
