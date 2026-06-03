@@ -8,26 +8,17 @@ import {
   machineryEntries,
   materialEntries,
 } from "@/lib/db/schema";
+import {
+  calculateLabourTotal,
+  calculateMachineryTotal,
+  calculateMaterialUnitRate,
+} from "@/lib/db/queries/operationTotals";
 
-export function calculateLabourTotal(
-  peopleCount: number | null | undefined,
-  wagePerHead: string | number | null | undefined,
-) {
-  const people = Number(peopleCount ?? 0);
-  const wage = Number(wagePerHead ?? 0);
-  if (!Number.isFinite(people) || !Number.isFinite(wage)) return 0;
-  return people * wage;
-}
-
-export function calculateMaterialUnitRate(
-  cost: string | number | null | undefined,
-  quantity: string | number | null | undefined,
-) {
-  const total = Number(cost ?? 0);
-  const qty = Number(quantity ?? 0);
-  if (!Number.isFinite(total) || !Number.isFinite(qty) || qty <= 0) return null;
-  return total / qty;
-}
+export {
+  calculateLabourTotal,
+  calculateMachineryTotal,
+  calculateMaterialUnitRate,
+};
 
 export async function insertLabourEntry(data: {
   siteId: string;
@@ -61,7 +52,16 @@ export async function insertMaterialEntry(data: {
   date: string;
   materialType: string;
   materialTypeMode?: "default_enum" | "custom";
-  materialTypeEnum?: "Cement" | "M sand" | "P sand" | "Metal" | null;
+  materialTypeEnum?:
+    | "Cement"
+    | "M sand"
+    | "P sand"
+    | "Metal"
+    | "Steel"
+    | "Red Brick"
+    | "Cement Block 6in"
+    | "Cement Block 4in"
+    | null;
   materialTypeCustomId?: string | null;
   quantity: string;
   unitMode?: "master" | "custom";
