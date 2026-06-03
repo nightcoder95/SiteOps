@@ -2,7 +2,11 @@ import { requireSiteAccess } from "@/lib/auth/guards";
 import { checkOwnership } from "@/lib/auth/ownership";
 import { invalidateAdminAnalyticsCache } from "@/lib/cache/invalidate";
 import { db } from "@/lib/db/client";
-import { insertMachineryEntry } from "@/lib/db/queries/entries";
+import {
+  findMatchingMachineryEntry,
+  insertMachineryEntry,
+  mergeMachineryEntry,
+} from "@/lib/db/queries/entries";
 import { ERROR_CODES } from "@/lib/errors/codes";
 import { handleDbError } from "@/lib/errors/db";
 import { errorResponse, successResponse } from "@/lib/errors/response";
@@ -25,7 +29,9 @@ export const POST = withApi(async ({ request, requestId }) => {
   const validation = validateBody(machineryEntrySchema, parsed.data, requestId);
   if (!validation.ok) return validation.response;
 
-  const { siteId, date, count, remarks } = validation.data;
+  const { siteId, date, count, totalCost, remarks } = validation.data;
+  const equipmentType =
+    "equipmentType" in validation.data ? (validation.data.equipmentType ?? "Custom") : "Custom";
 
   const site = await db.query.sites.findFirst({
     where: (t, { eq }) => eq(t.siteId, siteId),
@@ -41,11 +47,31 @@ export const POST = withApi(async ({ request, requestId }) => {
   }
 
   try {
+    const existing = await findMatchingMachineryEntry(siteId, date, equipmentType);
+    if (existing) {
+      const merged = await mergeMachineryEntry(existing.machineryEntryId, {
+        count,
+        hoursActive:
+          "hoursActive" in validation.data && validation.data.hoursActive != null
+            ? String(validation.data.hoursActive)
+            : null,
+        totalCost: String(totalCost),
+        remarks: remarks || null,
+      });
+
+      runNonCritical(
+        requestId,
+        "analytics_cache_invalidation_failed",
+        invalidateAdminAnalyticsCache(requestId),
+      );
+
+      return successResponse(merged, 200, requestId);
+    }
+
     const entry = await insertMachineryEntry({
       siteId,
       date,
-      equipmentType:
-        "equipmentType" in validation.data ? (validation.data.equipmentType ?? "Custom") : "Custom",
+      equipmentType,
       equipmentTypeMode:
         "equipmentTypeMode" in validation.data ? validation.data.equipmentTypeMode : "default_enum",
       equipmentTypeCustomId:
@@ -55,6 +81,7 @@ export const POST = withApi(async ({ request, requestId }) => {
         "hoursActive" in validation.data && validation.data.hoursActive != null
           ? String(validation.data.hoursActive)
           : null,
+      totalCost: String(totalCost),
       remarks: remarks || null,
       createdBy: auth.session.user.id,
     });

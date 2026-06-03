@@ -110,6 +110,15 @@ export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, conte
   if (type === "labour" && typeof (updateData as any).wagePerHead === "number") {
     updateData.wagePerHead = String((updateData as any).wagePerHead);
   }
+  if (type === "labour" && typeof (updateData as any).salaryAmount === "number") {
+    updateData.salaryAmount = String((updateData as any).salaryAmount);
+  }
+  if (type === "labour" && typeof (updateData as any).masonSalaryAmount === "number") {
+    updateData.masonSalaryAmount = String((updateData as any).masonSalaryAmount);
+  }
+  if (type === "labour" && typeof (updateData as any).helperSalaryAmount === "number") {
+    updateData.helperSalaryAmount = String((updateData as any).helperSalaryAmount);
+  }
   if (type === "material" && typeof (updateData as any).quantity === "number") {
     updateData.quantity = String((updateData as any).quantity);
   }
@@ -118,6 +127,9 @@ export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, conte
   }
   if (type === "machinery" && typeof (updateData as any).hoursActive === "number") {
     updateData.hoursActive = String((updateData as any).hoursActive);
+  }
+  if (type === "machinery" && typeof (updateData as any).totalCost === "number") {
+    updateData.totalCost = String((updateData as any).totalCost);
   }
 
   try {

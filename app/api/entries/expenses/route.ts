@@ -2,8 +2,12 @@ import { requireSiteAccess } from "@/lib/auth/guards";
 import { checkOwnership } from "@/lib/auth/ownership";
 import { invalidateAdminAnalyticsCache } from "@/lib/cache/invalidate";
 import { db } from "@/lib/db/client";
-import { insertExpenseEntry } from "@/lib/db/queries/entries";
-import { getSiteTotalExpenses } from "@/lib/db/queries/sites";
+import {
+  findMatchingExpenseEntry,
+  insertExpenseEntry,
+  mergeExpenseEntry,
+} from "@/lib/db/queries/entries";
+import { getSiteTrackedSpend } from "@/lib/db/queries/sites";
 import { createNotification, getAllAdmins } from "@/lib/db/queries/notifications";
 import { ERROR_CODES } from "@/lib/errors/codes";
 import { handleDbError } from "@/lib/errors/db";
@@ -61,16 +65,22 @@ export const POST = withApi(async ({ request, requestId }) => {
   }
 
   try {
-    const entry = await insertExpenseEntry({
-      siteId,
-      date,
-      description,
-      amount: String(amount),
-      category,
-      createdBy: auth.session.user.id,
-    });
+    const existing = await findMatchingExpenseEntry(siteId, date, category);
+    const entry = existing
+      ? await mergeExpenseEntry(existing.expenseEntryId, {
+          amount: String(amount),
+          description,
+        })
+      : await insertExpenseEntry({
+          siteId,
+          date,
+          description,
+          amount: String(amount),
+          category,
+          createdBy: auth.session.user.id,
+        });
 
-    const totalSpend = await getSiteTotalExpenses(siteId);
+    const totalSpend = await getSiteTrackedSpend(siteId);
     if (site.budget && Number(totalSpend) / Number(site.budget) >= 0.8) {
       runNonCritical(
         requestId,
@@ -86,7 +96,7 @@ export const POST = withApi(async ({ request, requestId }) => {
       invalidateAdminAnalyticsCache(requestId),
     );
 
-    return successResponse(entry, 201, requestId);
+    return successResponse(entry, existing ? 200 : 201, requestId);
   } catch (dbError) {
     const handled = handleDbError(dbError, requestId);
     if (handled) return handled;

@@ -40,6 +40,11 @@ export async function insertLabourEntry(data: {
   workTypeCustomId?: string | null;
   peopleCount: number;
   wagePerHead: string;
+  salaryAmount?: string | null;
+  masonCount?: number | null;
+  masonSalaryAmount?: string | null;
+  helperCount?: number | null;
+  helperSalaryAmount?: string | null;
   remarks: string | null;
   createdBy: string;
 }) {
@@ -91,6 +96,7 @@ export async function insertMachineryEntry(data: {
   equipmentTypeCustomId?: string | null;
   count: number;
   hoursActive: string | null;
+  totalCost: string;
   remarks: string | null;
   createdBy: string;
 }) {
@@ -120,6 +126,166 @@ export async function insertIncidentReport(data: {
 }) {
   const result = await db.insert(incidentReports).values(data).returning();
   return result[0];
+}
+
+export async function findMatchingLabourEntry(siteId: string, date: string, workType: string) {
+  const rows = await db
+    .select()
+    .from(labourEntries)
+    .where(and(
+      eq(labourEntries.siteId, siteId),
+      eq(labourEntries.date, date),
+      eq(labourEntries.workType, workType),
+    ))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function findMatchingMaterialEntry(
+  siteId: string,
+  date: string,
+  materialType: string,
+  workStage: MaterialWorkStage,
+) {
+  const rows = await db
+    .select()
+    .from(materialEntries)
+    .where(and(
+      eq(materialEntries.siteId, siteId),
+      eq(materialEntries.date, date),
+      eq(materialEntries.materialType, materialType),
+      eq(materialEntries.workStage, workStage),
+    ))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function findMatchingMachineryEntry(siteId: string, date: string, equipmentType: string) {
+  const rows = await db
+    .select()
+    .from(machineryEntries)
+    .where(and(
+      eq(machineryEntries.siteId, siteId),
+      eq(machineryEntries.date, date),
+      eq(machineryEntries.equipmentType, equipmentType),
+    ))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function findMatchingExpenseEntry(
+  siteId: string,
+  date: string,
+  category: "Labour" | "Materials" | "Equipment" | "Misc",
+) {
+  const rows = await db
+    .select()
+    .from(expenseEntries)
+    .where(and(
+      eq(expenseEntries.siteId, siteId),
+      eq(expenseEntries.date, date),
+      eq(expenseEntries.category, category),
+    ))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+function addDecimal(left: string | number | null | undefined, right: string | number | null | undefined) {
+  return String(Number(left ?? 0) + Number(right ?? 0));
+}
+
+export async function mergeLabourEntry(existingId: string, data: {
+  peopleCount?: number;
+  salaryAmount?: string | null;
+  masonCount?: number | null;
+  masonSalaryAmount?: string | null;
+  helperCount?: number | null;
+  helperSalaryAmount?: string | null;
+  remarks?: string | null;
+}) {
+  const existing = await getEntryById(existingId, "labour") as typeof labourEntries.$inferSelect | null;
+  if (!existing) return null;
+
+  const result = await db
+    .update(labourEntries)
+    .set({
+      peopleCount: Number(existing.peopleCount ?? 0) + Number(data.peopleCount ?? 0),
+      salaryAmount: addDecimal(existing.salaryAmount, data.salaryAmount),
+      masonCount: Number(existing.masonCount ?? 0) + Number(data.masonCount ?? 0),
+      masonSalaryAmount: addDecimal(existing.masonSalaryAmount, data.masonSalaryAmount),
+      helperCount: Number(existing.helperCount ?? 0) + Number(data.helperCount ?? 0),
+      helperSalaryAmount: addDecimal(existing.helperSalaryAmount, data.helperSalaryAmount),
+      remarks: existing.remarks || data.remarks || null,
+      updatedAt: new Date(),
+    })
+    .where(eq(labourEntries.labourEntryId, existingId))
+    .returning();
+  return result[0] ?? null;
+}
+
+export async function mergeMaterialEntry(existingId: string, data: {
+  quantity: string;
+  cost: string;
+  remarks?: string | null;
+}) {
+  const existing = await getEntryById(existingId, "material") as typeof materialEntries.$inferSelect | null;
+  if (!existing) return null;
+
+  const result = await db
+    .update(materialEntries)
+    .set({
+      quantity: addDecimal(existing.quantity, data.quantity),
+      cost: addDecimal(existing.cost, data.cost),
+      remarks: existing.remarks || data.remarks || null,
+      updatedAt: new Date(),
+    })
+    .where(eq(materialEntries.materialEntryId, existingId))
+    .returning();
+  return result[0] ?? null;
+}
+
+export async function mergeMachineryEntry(existingId: string, data: {
+  count: number;
+  hoursActive: string | null;
+  totalCost: string;
+  remarks?: string | null;
+}) {
+  const existing = await getEntryById(existingId, "machinery") as typeof machineryEntries.$inferSelect | null;
+  if (!existing) return null;
+
+  const result = await db
+    .update(machineryEntries)
+    .set({
+      count: Number(existing.count ?? 0) + Number(data.count ?? 0),
+      hoursActive: data.hoursActive == null
+        ? existing.hoursActive
+        : addDecimal(existing.hoursActive, data.hoursActive),
+      totalCost: addDecimal(existing.totalCost, data.totalCost),
+      remarks: existing.remarks || data.remarks || null,
+      updatedAt: new Date(),
+    })
+    .where(eq(machineryEntries.machineryEntryId, existingId))
+    .returning();
+  return result[0] ?? null;
+}
+
+export async function mergeExpenseEntry(existingId: string, data: {
+  amount: string;
+  description: string;
+}) {
+  const existing = await getEntryById(existingId, "expense") as typeof expenseEntries.$inferSelect | null;
+  if (!existing) return null;
+
+  const result = await db
+    .update(expenseEntries)
+    .set({
+      amount: addDecimal(existing.amount, data.amount),
+      description: existing.description || data.description,
+      updatedAt: new Date(),
+    })
+    .where(eq(expenseEntries.expenseEntryId, existingId))
+    .returning();
+  return result[0] ?? null;
 }
 
 export type EntryType =
@@ -364,7 +530,7 @@ export async function getSiteOperationSummary(
     labour: {
       todayCount: labour.length,
       todaySpend: labour.reduce(
-        (sum, row) => sum + calculateLabourTotal(row.peopleCount, row.wagePerHead),
+        (sum, row) => sum + calculateLabourTotal(row),
         0,
       ),
     },
@@ -374,7 +540,7 @@ export async function getSiteOperationSummary(
     },
     machinery: {
       todayCount: machinery.length,
-      todaySpend: null,
+      todaySpend: machinery.reduce((sum, row) => sum + calculateMachineryTotal(row), 0),
     },
     expense: {
       todayCount: expense.length,
@@ -434,7 +600,7 @@ export async function getEntriesBySite(
         sort === "oldest" ? asc(labourEntries.createdAt) : desc(labourEntries.createdAt),
       )
       .limit(limit);
-    return sortSpendRows(rows, sort, (row) => calculateLabourTotal(row.peopleCount, row.wagePerHead));
+    return sortSpendRows(rows, sort, (row) => calculateLabourTotal(row));
   };
 
   const fetchMaterial = async () => {
@@ -455,8 +621,8 @@ export async function getEntriesBySite(
     return sortSpendRows(rows, sort, (row) => Number(row.cost ?? 0));
   };
 
-  const fetchMachinery = async () =>
-    db
+  const fetchMachinery = async () => {
+    const rows = await db
       .select()
       .from(machineryEntries)
       .where(and(
@@ -469,6 +635,8 @@ export async function getEntriesBySite(
         sort === "oldest" ? asc(machineryEntries.createdAt) : desc(machineryEntries.createdAt),
       )
       .limit(limit);
+    return sortSpendRows(rows, sort, (row) => calculateMachineryTotal(row));
+  };
 
   const fetchExpense = async () => {
     const rows = await db

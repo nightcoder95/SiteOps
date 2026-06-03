@@ -1,7 +1,14 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
-import { expenseEntries, sites } from "@/lib/db/schema";
+import {
+  expenseEntries,
+  labourEntries,
+  machineryEntries,
+  materialEntries,
+  sites,
+} from "@/lib/db/schema";
+import { calculateSiteTrackedSpend } from "@/lib/db/queries/operationTotals";
 
 /**
  * Fetch a site by its public UUID.
@@ -36,11 +43,15 @@ export async function getAllSites() {
   return db.select().from(sites).where(isNull(sites.archivedAt));
 }
 
-export async function getSiteTotalExpenses(siteId: string) {
-  const result = await db
-    .select({ total: sql<string>`coalesce(sum(${expenseEntries.amount}), 0)` })
-    .from(expenseEntries)
-    .where(eq(expenseEntries.siteId, siteId));
+export async function getSiteTrackedSpend(siteId: string) {
+  const [labour, material, machinery, expense] = await Promise.all([
+    db.select().from(labourEntries).where(eq(labourEntries.siteId, siteId)),
+    db.select().from(materialEntries).where(eq(materialEntries.siteId, siteId)),
+    db.select().from(machineryEntries).where(eq(machineryEntries.siteId, siteId)),
+    db.select().from(expenseEntries).where(eq(expenseEntries.siteId, siteId)),
+  ]);
 
-  return result[0]?.total ?? "0";
+  return String(calculateSiteTrackedSpend({ labour, material, machinery, expense }));
 }
+
+export const getSiteTotalExpenses = getSiteTrackedSpend;
