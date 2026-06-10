@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { requireAdmin, requireSiteAccess } from "@/lib/auth/guards";
+import { requireCapability } from "@/lib/auth/guards";
+import { checkOwnership } from "@/lib/auth/ownership";
 import { db } from "@/lib/db/client";
 import { fieldRequests } from "@/lib/db/schema";
 import { ERROR_CODES } from "@/lib/errors/codes";
@@ -20,7 +21,7 @@ const updateFieldRequestSchema = z.object({
 });
 
 export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, context) => {
-  const auth = await requireAdmin(request);
+  const auth = await requireCapability(request, "field_request:approve");
   if (!("session" in auth)) {
     return errorResponse(auth.error, "Admin access required", auth.status, undefined, requestId);
   }
@@ -66,7 +67,7 @@ export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, conte
 });
 
 export const DELETE = withApiRoute<RouteCtx>(async ({ request, requestId }, context) => {
-  const auth = await requireSiteAccess(request);
+  const auth = await requireCapability(request, "field_request:delete");
   if (!("session" in auth)) {
     return errorResponse(auth.error, "Authentication required", auth.status, undefined, requestId);
   }
@@ -84,7 +85,7 @@ export const DELETE = withApiRoute<RouteCtx>(async ({ request, requestId }, cont
     return errorResponse(ERROR_CODES.NOT_FOUND, "Request not found", 404, undefined, requestId);
   }
 
-  if (auth.session.user.role !== "Admin" && req.requestedBy !== auth.session.user.id) {
+  if (!checkOwnership(auth.session.user, req.requestedBy)) {
     return errorResponse(ERROR_CODES.FORBIDDEN, "Cannot withdraw another supervisor's request", 403, undefined, requestId);
   }
 

@@ -1,6 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 
+import { can } from "@/lib/auth/capabilities";
 import { requireSiteAccess } from "@/lib/auth/guards";
 import { db } from "@/lib/db/client";
 import { sites } from "@/lib/db/schema";
@@ -35,7 +36,7 @@ export const GET = withApi(async ({ request, requestId }) => {
   const session = auth.session;
   const role = session.user.role;
 
-  if (role === "Admin") {
+  if (can(role, "site:read_all")) {
     const result = await measureDbQuery(requestId, "sites.list.admin", () =>
       db.select().from(sites).where(isNull(sites.archivedAt))
     );
@@ -75,7 +76,7 @@ export const POST = withApi(async ({ request, requestId }) => {
 
   try {
     const supervisorId =
-      session.user.role === "Admin"
+      can(session.user.role, "resource:manage_all")
         ? validation.data.supervisorId ?? session.user.id
         : session.user.id;
 

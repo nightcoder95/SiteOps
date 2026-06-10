@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 
-import { requireAdmin, requireSiteAccess } from "@/lib/auth/guards";
+import { requireCapability } from "@/lib/auth/guards";
 import { invalidateCategoryTreeCache } from "@/lib/cache/invalidate";
 import { db } from "@/lib/db/client";
 import { subcategories } from "@/lib/db/schema";
@@ -12,7 +12,7 @@ import { runNonCritical } from "@/lib/services/nonCritical";
 type RouteCtx = { params: Promise<{ id: string }> };
 
 export const GET = withApiRoute<RouteCtx>(async ({ request, requestId }, context) => {
-  const auth = await requireSiteAccess(request);
+  const auth = await requireCapability(request, "form_subcategory:read");
   if (!("session" in auth)) {
     return errorResponse(auth.error, "Authentication required", auth.status, undefined, requestId);
   }
@@ -33,7 +33,7 @@ export const GET = withApiRoute<RouteCtx>(async ({ request, requestId }, context
 });
 
 export const DELETE = withApiRoute<RouteCtx>(async ({ request, requestId }, context) => {
-  const auth = await requireAdmin(request);
+  const auth = await requireCapability(request, "form_subcategory:delete");
   if (!("session" in auth)) {
     return errorResponse(auth.error, "Admin access required", auth.status, undefined, requestId);
   }

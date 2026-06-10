@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { requireAdmin, requireSiteAccess } from "@/lib/auth/guards";
+import { can } from "@/lib/auth/capabilities";
+import { requireCapability } from "@/lib/auth/guards";
 import { getOrSetJson } from "@/lib/cache/getOrSetJson";
 import { invalidateSiteCache } from "@/lib/cache/invalidate";
 import { siteCacheKey } from "@/lib/cache/keys";
@@ -33,7 +34,7 @@ export const GET = withApiRoute<RouteCtx>(async ({ request, requestId }, context
   const { id } = await context.params;
 
   const [auth, { value: record }] = await Promise.all([
-    requireSiteAccess(request),
+    requireCapability(request, "site:read"),
     getOrSetJson<SiteRow | null>(
       requestId,
       siteCacheKey(id),
@@ -53,7 +54,7 @@ export const GET = withApiRoute<RouteCtx>(async ({ request, requestId }, context
     return errorResponse(ERROR_CODES.NOT_FOUND, "Site not found", 404, undefined, requestId);
   }
 
-  if (auth.session.user.role !== "Admin" && record.supervisorId !== auth.session.user.id) {
+  if (!can(auth.session.user.role, "site:read_all") && record.supervisorId !== auth.session.user.id) {
     return errorResponse(
       ERROR_CODES.FORBIDDEN,
       "You can only access sites you supervise",
@@ -67,7 +68,7 @@ export const GET = withApiRoute<RouteCtx>(async ({ request, requestId }, context
 });
 
 export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, context) => {
-  const auth = await requireAdmin(request);
+  const auth = await requireCapability(request, "site:update");
   if (!("session" in auth)) {
     return errorResponse(auth.error, "Admin access required", auth.status, undefined, requestId);
   }
@@ -110,7 +111,7 @@ export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, conte
 });
 
 export const DELETE = withApiRoute<RouteCtx>(async ({ request, requestId }, context) => {
-  const auth = await requireAdmin(request);
+  const auth = await requireCapability(request, "site:delete");
   if (!("session" in auth)) {
     return errorResponse(auth.error, "Admin access required", auth.status, undefined, requestId);
   }

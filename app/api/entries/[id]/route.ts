@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import type { NextRequest } from "next/server";
 
-import { requireSiteAccess } from "@/lib/auth/guards";
+import { requireCapability } from "@/lib/auth/guards";
 import { checkOwnership } from "@/lib/auth/ownership";
 import { invalidateAdminAnalyticsCache } from "@/lib/cache/invalidate";
 import { db } from "@/lib/db/client";
@@ -58,7 +58,7 @@ function parseType(request: NextRequest): EntryType | null {
 }
 
 export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, context) => {
-  const auth = await requireSiteAccess(request);
+  const auth = await requireCapability(request, "entry:update");
   if (!("session" in auth)) {
     return errorResponse(auth.error, "Authentication required", auth.status, undefined, requestId);
   }
@@ -249,7 +249,7 @@ export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, conte
 });
 
 export const DELETE = withApiRoute<RouteCtx>(async ({ request, requestId }, context) => {
-  const auth = await requireSiteAccess(request);
+  const auth = await requireCapability(request, "entry:delete");
   if (!("session" in auth)) {
     return errorResponse(auth.error, "Authentication required", auth.status, undefined, requestId);
   }

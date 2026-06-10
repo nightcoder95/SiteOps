@@ -67,12 +67,41 @@ export const userProfiles = pgTable("user_profiles", {
   profileId: uuid("profile_id").notNull().unique().defaultRandom(),
   userId: uuid("user_id").notNull().unique(),
   role: userRoleEnum("role").notNull().default("Supervisor"),
+  // Source of truth for temp-password hygiene. Set true on admin provisioning;
+  // mirrored into a JWT claim by custom_access_token_hook so middleware can
+  // force a password change without a per-request DB lookup.
+  mustChangePassword: boolean("must_change_password").notNull().default(false),
   phone: varchar("phone", { length: 20 }),
   assignedRegion: varchar("assigned_region", { length: 100 }),
   designation: varchar("designation", { length: 100 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+// Append-only audit trail for privileged actions and permission denials only —
+// never successful reads/writes (write amplification). actorUserId uses
+// onDelete:"set null" (valid because userProfiles.userId is unique) so audit
+// rows survive user deletion.
+export const auditLogs = pgTable(
+  "audit_logs",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    actorUserId: uuid("actor_user_id").references(() => userProfiles.userId, {
+      onDelete: "set null",
+    }),
+    action: varchar("action", { length: 100 }).notNull(), // permission.denied | role.changed | user.created
+    resourceType: varchar("resource_type", { length: 100 }),
+    resourceId: varchar("resource_id", { length: 100 }),
+    allowed: boolean("allowed").notNull(),
+    role: varchar("role", { length: 50 }).notNull(),
+    metadata: jsonb("metadata"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("audit_logs_actor_created_idx").on(t.actorUserId, t.createdAt.desc().nullsLast()),
+    index("audit_logs_action_created_idx").on(t.action, t.createdAt.desc().nullsLast()),
+  ]
+);
 
 export const sites = pgTable("sites", {
   id: identityId(),

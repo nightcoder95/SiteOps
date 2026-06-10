@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
+import { can } from "@/lib/auth/capabilities";
 import { requestJson } from "@/lib/http/client";
 
 type Supervisor = { userId: string; designation: string | null };
@@ -46,7 +47,7 @@ export function SitesNewPageClient({ role, supervisors }: Props) {
       budget: budgetNum,
     };
     if (currentPhase.trim()) payload.currentPhase = currentPhase.trim();
-    if (role === "Admin" && supervisorId) payload.supervisorId = supervisorId;
+    if (can(role, "resource:manage_all") && supervisorId) payload.supervisorId = supervisorId;
 
     setSubmitting(true);
     const res = await requestJson<CreatedSite>("/api/sites", {
@@ -94,7 +95,7 @@ export function SitesNewPageClient({ role, supervisors }: Props) {
           <input id="phase" type="text" value={currentPhase} onChange={(e) => setCurrentPhase(e.target.value)} placeholder="e.g. Foundation" maxLength={100} className={inputClass} />
         </div>
 
-        {role === "Admin" && (
+        {can(role, "resource:manage_all") && (
           <div className="flex flex-col gap-2">
             <label htmlFor="supervisor" className={labelClass}>Supervisor</label>
             <select id="supervisor" value={supervisorId} onChange={(e) => setSupervisorId(e.target.value)} className={inputClass}>

@@ -1,6 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 
+import { can } from "@/lib/auth/capabilities";
 import { requireSiteAccess } from "@/lib/auth/guards";
 import { getOrSetJson } from "@/lib/cache/getOrSetJson";
 import { invalidateCategoryListCache } from "@/lib/cache/invalidate";
@@ -33,7 +34,7 @@ async function resolveReviewSiteId(
     if (rows[0]?.siteId) return rows[0].siteId;
   }
 
-  const rows = role === "Admin"
+  const rows = can(role, "site:read_all")
     ? await db
       .select({ siteId: sites.siteId })
       .from(sites)

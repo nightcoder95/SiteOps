@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { PageHero, PageStack } from "@/components/ui/page-primitives";
+import { can } from "@/lib/auth/capabilities";
 import { safeGetSessionFromHeaders } from "@/lib/auth/session";
 import { db } from "@/lib/db/client";
 import { userProfiles } from "@/lib/db/schema";
@@ -19,7 +20,7 @@ export default async function SitesNewPage() {
   }
 
   let supervisors: { userId: string; designation: string | null }[] = [];
-  if (session.user.role === "Admin") {
+  if (can(session.user.role, "resource:manage_all")) {
     const rows = await db
       .select({ userId: userProfiles.userId, designation: userProfiles.designation })
       .from(userProfiles)

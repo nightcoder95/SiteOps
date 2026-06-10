@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Mail, Lock, LogIn, Loader2 } from 'lucide-react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -18,13 +17,8 @@ export default function SignInPage() {
 
   const supabase = getSupabaseBrowserClient();
 
-  async function ensureProfileExists() {
-    try {
-      await fetch('/api/auth/create-profile', { method: 'POST' });
-    } catch {
-      // non-blocking
-    }
-  }
+  // Profiles are provisioned by admins (closed system) — no self-service
+  // create-profile call on sign-in anymore.
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +31,6 @@ export default function SignInPage() {
         return;
       }
 
-      await ensureProfileExists();
       toastSuccess('Signed in');
       router.replace('/app/dashboard');
       router.refresh();
@@ -121,15 +114,6 @@ export default function SignInPage() {
               )}
             </button>
           </form>
-
-          <div className="mt-6">
-            <p className="text-center text-xs text-slate-500">
-              Don&apos;t have an access card?{' '}
-              <Link href="/auth/sign-up" className="font-bold text-sky-400 hover:text-sky-300 transition-colors uppercase tracking-widest">
-                Register
-              </Link>
-            </p>
-          </div>
         </div>
       </motion.div>
     </div>

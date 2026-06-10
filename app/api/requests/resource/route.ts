@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 
+import { can } from "@/lib/auth/capabilities";
 import { requireSiteAccess } from "@/lib/auth/guards";
 import { checkOwnership } from "@/lib/auth/ownership";
 import { db } from "@/lib/db/client";
@@ -83,7 +84,7 @@ export const GET = withApi(async ({ request, requestId }) => {
     return errorResponse(auth.error, "Authentication required", auth.status, undefined, requestId);
   }
 
-  if (auth.session.user.role === "Admin") {
+  if (can(auth.session.user.role, "resource:manage_all")) {
     const result = await db.select().from(resourceRequests);
     return successResponse(result, 200, requestId);
   }

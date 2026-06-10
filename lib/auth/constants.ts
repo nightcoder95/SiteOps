@@ -5,7 +5,6 @@ export const PUBLIC_ROUTES = ["/", "/auth/sign-in", "/auth/sign-up"];
 // touches user data.
 export const PUBLIC_ROUTE_PREFIXES = ["/api/health", "/api/webhooks/"];
 
-export const ROLES = {
-  ADMIN: "Admin",
-  SUPERVISOR: "Supervisor",
-} as const;
+// ROLES moved to lib/auth/roles.ts (single source of truth for roles +
+// capabilities). This file intentionally keeps only the public-route config
+// consumed by middleware.ts.
