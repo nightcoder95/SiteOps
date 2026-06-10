@@ -1,11 +1,11 @@
-ALTER TABLE "accounts" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "sessions" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "users" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "verifications" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
-DROP TABLE "accounts" CASCADE;--> statement-breakpoint
-DROP TABLE "sessions" CASCADE;--> statement-breakpoint
-DROP TABLE "users" CASCADE;--> statement-breakpoint
-DROP TABLE "verifications" CASCADE;--> statement-breakpoint
+ALTER TABLE IF EXISTS "accounts" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE IF EXISTS "sessions" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE IF EXISTS "users" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE IF EXISTS "verifications" DISABLE ROW LEVEL SECURITY;--> statement-breakpoint
+DROP TABLE IF EXISTS "accounts" CASCADE;--> statement-breakpoint
+DROP TABLE IF EXISTS "sessions" CASCADE;--> statement-breakpoint
+DROP TABLE IF EXISTS "users" CASCADE;--> statement-breakpoint
+DROP TABLE IF EXISTS "verifications" CASCADE;--> statement-breakpoint
 ALTER TABLE "user_profiles" ADD COLUMN "role" "user_role" DEFAULT 'Supervisor' NOT NULL;--> statement-breakpoint
 ALTER TABLE "custom_labour_types" ADD CONSTRAINT "custom_labour_types_created_by_user_id_user_profiles_user_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."user_profiles"("user_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "custom_labour_types" ADD CONSTRAINT "custom_labour_types_updated_by_user_id_user_profiles_user_id_fk" FOREIGN KEY ("updated_by_user_id") REFERENCES "public"."user_profiles"("user_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint

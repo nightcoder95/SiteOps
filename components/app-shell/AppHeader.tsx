@@ -2,12 +2,16 @@
 
 import { Bell, ChevronLeft, User } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
-import { requestJson } from '@/lib/http/client';
+import type { Role } from '@/lib/auth/roles';
+import { useApiQuery } from '@/lib/http/useApiQuery';
 
 type Props = {
-  role: 'Admin' | 'Supervisor';
+  // Use the canonical Role type rather than a duplicated literal union. The
+  // branches below are label-only (display copy), not access gates — anything
+  // access-relevant must go through can() (lib/auth/capabilities).
+  role: Role;
 };
 
 type UnreadResponse = { total: number };
@@ -16,24 +20,18 @@ export function AppHeader({ role }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const isDashboard = pathname === '/app/dashboard';
-  const [unread, setUnread] = useState(0);
 
-  // Light-weight unread poll so the bell badge reflects real state instead of
-  // a hardcoded dot. Re-fetches whenever the user navigates (pathname change)
-  // so marking-as-read on the notifications page clears the badge on return.
+  // Unread badge via the shared SWR cache (dedupes with any other consumer and
+  // renders the last value instantly). Revalidate on navigation so marking-as-
+  // read on the notifications page clears the badge on return.
+  const { data, mutate } = useApiQuery<UnreadResponse>(
+    '/api/notifications?limit=1&unreadOnly=true',
+  );
+  const unread = data ? Number(data.total ?? 0) : 0;
+
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const res = await requestJson<UnreadResponse>(
-        '/api/notifications?limit=1&unreadOnly=true',
-      );
-      if (cancelled) return;
-      setUnread(res.ok ? Number(res.data.total ?? 0) : 0);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [pathname]);
+    void mutate();
+  }, [pathname, mutate]);
 
   return (
     <header className="glass-header safe-area-top fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-background/80">

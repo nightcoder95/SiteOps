@@ -38,6 +38,9 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#020617",
+  // Extend content under the notch / home indicator so the safe-area-inset env()
+  // vars resolve to real values in standalone PWA mode (PWA1).
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

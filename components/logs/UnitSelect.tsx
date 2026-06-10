@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { useEffect } from "react";
 
 import { displayUnitName } from "@/lib/db/queries/materialUnits";
-import { requestJson } from "@/lib/http/client";
+import { useApiResult } from "@/lib/http/useApiQuery";
+import { notifyError } from "@/lib/ui/toast";
 
 export type UnitOption = {
   unitId: string;
@@ -36,38 +36,19 @@ type Props = {
 };
 
 export function UnitSelect({ label, value, onChange, required, allowedNames }: Props) {
-  const [masterUnits, setMasterUnits] = useState<MasterUnit[]>([]);
-  const [customUnits, setCustomUnits] = useState<CustomUnit[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Unit catalogs change rarely — cache + dedupe so reopening the form is instant.
+  const { data: masterRes } = useApiResult<MasterUnit[]>("/api/catalog/units/master");
+  const { data: customRes } = useApiResult<CustomUnit[]>("/api/catalog/units/custom");
+  const loading = !masterRes || !customRes;
+  const masterUnits = masterRes?.ok ? masterRes.data.filter((unit) => unit.isActive) : [];
+  const customUnits = customRes?.ok ? customRes.data.filter((unit) => unit.isActive) : [];
 
   useEffect(() => {
-    const controller = new AbortController();
-
-    void (async () => {
-      setLoading(true);
-      const [masterRes, customRes] = await Promise.all([
-        requestJson<MasterUnit[]>("/api/catalog/units/master", { signal: controller.signal }),
-        requestJson<CustomUnit[]>("/api/catalog/units/custom", { signal: controller.signal }),
-      ]);
-      if (controller.signal.aborted) return;
-
-      if (!masterRes.ok) {
-        toast.error(masterRes.message);
-      } else {
-        setMasterUnits(masterRes.data.filter((unit) => unit.isActive));
-      }
-
-      if (!customRes.ok) {
-        toast.error(customRes.message);
-      } else {
-        setCustomUnits(customRes.data.filter((unit) => unit.isActive));
-      }
-
-      setLoading(false);
-    })();
-
-    return () => controller.abort();
-  }, []);
+    if (masterRes && !masterRes.ok) notifyError(masterRes);
+  }, [masterRes]);
+  useEffect(() => {
+    if (customRes && !customRes.ok) notifyError(customRes);
+  }, [customRes]);
 
   const options: UnitOption[] = [
     ...masterUnits.map((unit) => ({
@@ -91,7 +72,7 @@ export function UnitSelect({ label, value, onChange, required, allowedNames }: P
 
   return (
     <div className="flex flex-col gap-2">
-      <label className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
+      <label className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">
         {label}
         {required && " *"}
       </label>

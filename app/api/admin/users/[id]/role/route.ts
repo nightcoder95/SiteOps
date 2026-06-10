@@ -6,7 +6,8 @@ import { getActorRoleFromDb } from "@/lib/auth/actorRole";
 import { can } from "@/lib/auth/capabilities";
 import { requireCapability } from "@/lib/auth/guards";
 import { invalidateUserClaims } from "@/lib/auth/refreshClaims";
-import { ALL_ROLES, ROLES } from "@/lib/auth/roles";
+import { revokeUserSessions } from "@/lib/auth/sessions";
+import { ROLES, ROLES_TUPLE, type Role } from "@/lib/auth/roles";
 import { invalidateUserProfileCache } from "@/lib/cache/invalidate";
 import { db } from "@/lib/db/client";
 import { userProfiles } from "@/lib/db/schema";
@@ -16,17 +17,11 @@ import { errorResponse, successResponse } from "@/lib/errors/response";
 import { withNoStore } from "@/lib/http/cacheHeaders";
 import { parseJsonBody, validateBody } from "@/lib/http/request";
 import { withApiRoute } from "@/lib/http/withApi";
+import { resolveRoleChange, type RoleChangeOutcome } from "@/lib/services/users";
 
 type RouteCtx = { params: Promise<{ id: string }> };
 
-const roleEnum = z.enum(ALL_ROLES as unknown as [string, ...string[]]);
-const updateRoleSchema = z.object({ role: roleEnum }).strict();
-
-type ChangeOutcome =
-  | { type: "ok"; previousRole: string }
-  | { type: "not_found" }
-  | { type: "last_admin" }
-  | { type: "noop"; role: string };
+const updateRoleSchema = z.object({ role: z.enum(ROLES_TUPLE) }).strict();
 
 export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, context) => {
   const auth = await requireCapability(request, "user:manage_roles");
@@ -52,7 +47,7 @@ export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, conte
   const { id } = await context.params;
   const newRole = validation.data.role as (typeof userProfiles.$inferInsert)["role"];
 
-  let outcome: ChangeOutcome;
+  let outcome: RoleChangeOutcome;
   try {
     outcome = await db.transaction(async (tx) => {
       // Lock all Admin rows so concurrent demotions serialize and cannot both
@@ -69,21 +64,20 @@ export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, conte
         .where(eq(userProfiles.userId, id))
         .limit(1);
 
-      const current = target[0];
-      if (!current) return { type: "not_found" } as const;
-      if (current.role === newRole) return { type: "noop", role: current.role } as const;
+      const decision = resolveRoleChange({
+        adminCount: admins.length,
+        currentRole: (target[0]?.role as Role | undefined) ?? null,
+        newRole: newRole as Role,
+      });
 
-      const demotingAdmin = current.role === ROLES.ADMIN && newRole !== ROLES.ADMIN;
-      if (demotingAdmin && admins.length <= 1) {
-        return { type: "last_admin" } as const;
+      if (decision.type === "ok") {
+        await tx
+          .update(userProfiles)
+          .set({ role: newRole, updatedAt: new Date() })
+          .where(eq(userProfiles.userId, id));
       }
 
-      await tx
-        .update(userProfiles)
-        .set({ role: newRole, updatedAt: new Date() })
-        .where(eq(userProfiles.userId, id));
-
-      return { type: "ok", previousRole: current.role } as const;
+      return decision;
     });
   } catch (dbError) {
     const handled = handleDbError(dbError, requestId);
@@ -119,6 +113,13 @@ export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, conte
   // cached profile so server reads pick up the change immediately.
   await invalidateUserClaims(id);
   await invalidateUserProfileCache(id, requestId);
+
+  // On a demotion (Admin → lower), revoke the target's live sessions so they
+  // lose elevated access immediately rather than after the JWT TTL — closes the
+  // write-path half of S2. Promotions don't need it.
+  if (outcome.demoted) {
+    await revokeUserSessions(id);
+  }
 
   scheduleAudit({
     actorUserId: auth.session.user.id,

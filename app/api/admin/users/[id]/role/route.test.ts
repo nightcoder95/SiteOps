@@ -6,6 +6,7 @@ const {
   mockGetActorRole,
   mockInvalidateClaims,
   mockInvalidateProfile,
+  mockRevokeSessions,
   mockScheduleAudit,
   mockTransaction,
 } = vi.hoisted(() => ({
@@ -13,6 +14,7 @@ const {
   mockGetActorRole: vi.fn(),
   mockInvalidateClaims: vi.fn(),
   mockInvalidateProfile: vi.fn(),
+  mockRevokeSessions: vi.fn(),
   mockScheduleAudit: vi.fn(),
   mockTransaction: vi.fn(),
 }));
@@ -20,6 +22,7 @@ const {
 vi.mock("@/lib/auth/guards", () => ({ requireCapability: mockRequireCapability }));
 vi.mock("@/lib/auth/actorRole", () => ({ getActorRoleFromDb: mockGetActorRole }));
 vi.mock("@/lib/auth/refreshClaims", () => ({ invalidateUserClaims: mockInvalidateClaims }));
+vi.mock("@/lib/auth/sessions", () => ({ revokeUserSessions: mockRevokeSessions }));
 vi.mock("@/lib/cache/invalidate", () => ({ invalidateUserProfileCache: mockInvalidateProfile }));
 vi.mock("@/lib/audit/log", () => ({ scheduleAudit: mockScheduleAudit }));
 vi.mock("@/lib/db/client", () => ({ db: { transaction: mockTransaction } }));
@@ -89,6 +92,25 @@ describe("PATCH /api/admin/users/[id]/role", () => {
     expect(mockScheduleAudit).toHaveBeenCalledWith(
       expect.objectContaining({ action: "role.changed" }),
     );
+  });
+
+  it("revokes the target's sessions when demoting an admin (two admins exist)", async () => {
+    const updateSpy = vi.fn().mockResolvedValue(undefined);
+    mockTransaction.mockImplementation(async (cb) =>
+      cb(makeTx([{ userId: "a1" }, { userId: "a2" }], [{ role: "Admin" }], updateSpy)),
+    );
+    const res = await patch("a2", "Supervisor");
+    expect(res.status).toBe(200);
+    expect(mockRevokeSessions).toHaveBeenCalledWith("a2");
+  });
+
+  it("does not revoke sessions on a promotion", async () => {
+    const updateSpy = vi.fn().mockResolvedValue(undefined);
+    mockTransaction.mockImplementation(async (cb) =>
+      cb(makeTx([{ userId: "a1" }], [{ role: "Supervisor" }], updateSpy)),
+    );
+    await patch("u2", "Admin");
+    expect(mockRevokeSessions).not.toHaveBeenCalled();
   });
 
   it("returns 404 when the target user does not exist", async () => {

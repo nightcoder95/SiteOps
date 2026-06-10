@@ -15,32 +15,57 @@
 --
 -- Requires the pgcrypto extension (Supabase ships it). The email is marked
 -- pre-confirmed so the admin can sign in immediately. must_change_password is
--- left false for the bootstrap admin — change it to true if you want the first
--- admin forced through the change-password flow too.
+-- seeded TRUE so the bootstrap password (typed into psql/shell history) must be
+-- rotated on first login (S4).
+--
+-- IMPORTANT: Uses bcrypt cost 10 (gen_salt('bf', 10)) and includes an
+-- auth.identities row — both required by modern Supabase GoTrue.
 -- ─────────────────────────────────────────────────────────────────────────
 
 BEGIN;
 
 WITH new_user AS (
   INSERT INTO auth.users (
-    id, email, encrypted_password, email_confirmed_at,
-    aud, role, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+    id, instance_id, email, encrypted_password, email_confirmed_at,
+    aud, role, raw_app_meta_data, raw_user_meta_data,
+    confirmation_token, recovery_token, email_change_token_new, email_change,
+    created_at, updated_at
   )
   VALUES (
     gen_random_uuid(),
+    '00000000-0000-0000-0000-000000000000',
     :email,
-    crypt(:password, gen_salt('bf')),
+    crypt(:password, gen_salt('bf', 10)),
     now(),
     'authenticated',
     'authenticated',
+    '{"provider": "email", "providers": ["email"]}'::jsonb,
     '{}'::jsonb,
-    '{}'::jsonb,
+    '', '', '', '',
     now(),
     now()
   )
-  RETURNING id
+  RETURNING id, email
+),
+-- Modern Supabase requires an auth.identities row for email/password login.
+new_identity AS (
+  INSERT INTO auth.identities (
+    id, user_id, provider_id, provider, identity_data,
+    last_sign_in_at, created_at, updated_at
+  )
+  SELECT
+    id, id, id::text, 'email',
+    jsonb_build_object(
+      'sub', id::text,
+      'email', email,
+      'email_verified', true,
+      'phone_verified', false
+    ),
+    now(), now(), now()
+  FROM new_user
+  RETURNING user_id
 )
 INSERT INTO public.user_profiles (user_id, role, must_change_password)
-SELECT id, 'Admin', false FROM new_user;
+SELECT user_id, 'Admin', true FROM new_identity;
 
 COMMIT;

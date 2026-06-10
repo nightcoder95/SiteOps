@@ -5,7 +5,7 @@ import { getActorRoleFromDb } from "@/lib/auth/actorRole";
 import { can } from "@/lib/auth/capabilities";
 import { createSupabaseServiceClient } from "@/lib/auth/config";
 import { requireCapability } from "@/lib/auth/guards";
-import { ALL_ROLES } from "@/lib/auth/roles";
+import { ROLES_TUPLE } from "@/lib/auth/roles";
 import { db } from "@/lib/db/client";
 import { userProfiles } from "@/lib/db/schema";
 import { ERROR_CODES } from "@/lib/errors/codes";
@@ -15,12 +15,12 @@ import { withNoStore } from "@/lib/http/cacheHeaders";
 import { parseJsonBody, validateBody } from "@/lib/http/request";
 import { withApi } from "@/lib/http/withApi";
 
-const roleEnum = z.enum(ALL_ROLES as unknown as [string, ...string[]]);
+const roleEnum = z.enum(ROLES_TUPLE);
 
 const createUserSchema = z
   .object({
     email: z.string().email().max(255),
-    tempPassword: z.string().min(8).max(72), // bcrypt hard-caps at 72 bytes
+    tempPassword: z.string().min(10).max(72), // bcrypt hard-caps at 72 bytes
     role: roleEnum,
     designation: z.string().max(100).optional(),
     phone: z.string().max(20).optional(),
@@ -37,6 +37,16 @@ export const GET = withApi(async ({ request, requestId }) => {
     );
   }
 
+  // Stateful actor-role check (§8.7): this read leaks every user id + email, so
+  // re-read the actor's role from the DB to deny a demoted admin holding a
+  // still-valid token, rather than trusting the JWT header (S2).
+  const actorRole = await getActorRoleFromDb(auth.session.user.id);
+  if (!actorRole || !can(actorRole, "user:list")) {
+    return withNoStore(
+      errorResponse(ERROR_CODES.FORBIDDEN, "Admin access required", 403, undefined, requestId),
+    );
+  }
+
   const profiles = await db
     .select({
       userId: userProfiles.userId,
@@ -47,12 +57,18 @@ export const GET = withApi(async ({ request, requestId }) => {
     .from(userProfiles);
 
   // Emails live in auth.users — fetch via the service-role admin API and merge.
+  // Paginate so tenants beyond 1000 accounts are not silently truncated (S2).
   const supabase = createSupabaseServiceClient();
   const emailById = new Map<string, string>();
   try {
-    const { data } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    for (const u of data?.users ?? []) {
-      if (u.id && u.email) emailById.set(u.id, u.email);
+    const perPage = 1000;
+    for (let page = 1; ; page += 1) {
+      const { data } = await supabase.auth.admin.listUsers({ page, perPage });
+      const batch = data?.users ?? [];
+      for (const u of batch) {
+        if (u.id && u.email) emailById.set(u.id, u.email);
+      }
+      if (batch.length < perPage) break;
     }
   } catch {
     // Email enrichment is best-effort; the list still returns roles/ids.
@@ -142,7 +158,10 @@ export const POST = withApi(async ({ request, requestId }) => {
     resourceId: authUser.user.id,
     allowed: true,
     role: actorRole,
-    metadata: { email, role },
+    // Don't persist raw email (PII) in audit metadata (S3/GDPR). resourceId
+    // carries the new user's id; join resourceId → auth.users at read time to
+    // resolve the email when displaying the log.
+    metadata: { role },
   });
 
   return withNoStore(

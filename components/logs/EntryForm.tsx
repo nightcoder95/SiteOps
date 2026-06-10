@@ -3,6 +3,7 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { notifyError, notifyGenericError } from "@/lib/ui/toast";
 
 import { requestJson } from "@/lib/http/client";
 import {
@@ -32,7 +33,7 @@ type Props = {
 
 type FieldValue = string | number | SubcategoryOption | UnitOption | null;
 
-const labelClass = "text-[10px] font-extrabold uppercase tracking-widest text-slate-400";
+const labelClass = "text-[11px] font-extrabold uppercase tracking-widest text-slate-400";
 const inputClass =
   "input-standard";
 const textareaClass =
@@ -192,7 +193,7 @@ export function EntryForm({
     e.preventDefault();
     const err = validate();
     if (err) {
-      toast.error(err);
+      notifyGenericError();
       return;
     }
     setSubmitting(true);
@@ -208,7 +209,7 @@ export function EntryForm({
     setSubmitting(false);
 
     if (!res.ok) {
-      toast.error(res.message);
+      notifyError(res);
       return;
     }
     toast.success(isEdit ? "Entry updated" : "Entry created");
@@ -227,7 +228,7 @@ export function EntryForm({
     });
     setDeleting(false);
     if (!res.ok) {
-      toast.error(res.message);
+      notifyError(res);
       return;
     }
     toast.success("Entry deleted");

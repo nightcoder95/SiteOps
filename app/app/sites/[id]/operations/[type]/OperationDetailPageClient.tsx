@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { notifyError } from "@/lib/ui/toast";
 import {
   AlertCircle,
   CalendarDays,
@@ -484,60 +485,73 @@ export default function OperationDetailPageClient({
   const [filters, setFilters] = useState(initialFilters);
   const [openDateField, setOpenDateField] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Local working copy of the SSR entries so delete can remove a row instantly
+  // (optimistic) and roll back on error. Re-synced whenever the server sends a
+  // fresh list (filter navigation / router.refresh()).
+  const [entries, setEntries] = useState(initialEntries);
+  useEffect(() => {
+    setEntries(initialEntries);
+  }, [initialEntries]);
   const Icon = typeIcon[type];
   const categoryOptions = Array.from(
     new Set(filters.category ? [filters.category, ...initialCategoryOptions] : initialCategoryOptions),
   );
 
-  const totalSpend = initialEntries.reduce((sum, entry) => sum + entrySpend(entry, type), 0);
-  const stageTotals = materialStages.map((stage) => ({
-    stage,
-    total: initialEntries
-      .filter((entry) => entry.workStage === stage)
-      .reduce((sum, entry) => sum + Number(entry.cost ?? 0), 0),
-  }));
-  const groupedEntries = new Map<string, Map<string, Entry[]>>();
-  for (const entry of initialEntries) {
-    const dateKey = entryDate(entry, type) || "Unknown";
-    const categoryKey = entryCategoryKey(entry, type);
-    const dateGroup = groupedEntries.get(dateKey) ?? new Map<string, Entry[]>();
-    dateGroup.set(categoryKey, [...(dateGroup.get(categoryKey) ?? []), entry]);
-    groupedEntries.set(dateKey, dateGroup);
-  }
-  const groupedRows = [...groupedEntries.entries()].map(([date, categoryGroups]) => ({
-    date,
-    rows: [...categoryGroups.values()].map((entries) => ({
-      entries,
-      primary: mergeVisualEntries(entries, type),
-      total: entries.reduce((sum, entry) => sum + entrySpend(entry, type), 0),
-      editable: entries.length === 1,
-    })),
-  })).sort((left, right) => {
-    if (filters.sort === "highest_spend" || filters.sort === "lowest_spend") {
-      const leftTotal = left.rows.reduce((sum, row) => sum + row.total, 0);
-      const rightTotal = right.rows.reduce((sum, row) => sum + row.total, 0);
-      return filters.sort === "highest_spend" ? rightTotal - leftTotal : leftTotal - rightTotal;
+  // Grouping, sorting and running totals are O(n) over every entry and only
+  // depend on the data + sort. Memoize so unrelated state (open date picker,
+  // pending delete) doesn't re-run the whole pipeline each render.
+  const { totalSpend, stageTotals, groupedRows, runningTotals, visibleLogCount } = useMemo(() => {
+    const totalSpend = entries.reduce((sum, entry) => sum + entrySpend(entry, type), 0);
+    const stageTotals = materialStages.map((stage) => ({
+      stage,
+      total: entries
+        .filter((entry) => entry.workStage === stage)
+        .reduce((sum, entry) => sum + Number(entry.cost ?? 0), 0),
+    }));
+    const groupedEntries = new Map<string, Map<string, Entry[]>>();
+    for (const entry of entries) {
+      const dateKey = entryDate(entry, type) || "Unknown";
+      const categoryKey = entryCategoryKey(entry, type);
+      const dateGroup = groupedEntries.get(dateKey) ?? new Map<string, Entry[]>();
+      dateGroup.set(categoryKey, [...(dateGroup.get(categoryKey) ?? []), entry]);
+      groupedEntries.set(dateKey, dateGroup);
     }
-    const leftTime = new Date(left.date).getTime();
-    const rightTime = new Date(right.date).getTime();
-    return filters.sort === "oldest" ? leftTime - rightTime : rightTime - leftTime;
-  });
+    const groupedRows = [...groupedEntries.entries()].map(([date, categoryGroups]) => ({
+      date,
+      rows: [...categoryGroups.values()].map((groupEntries) => ({
+        entries: groupEntries,
+        primary: mergeVisualEntries(groupEntries, type),
+        total: groupEntries.reduce((sum, entry) => sum + entrySpend(entry, type), 0),
+        editable: groupEntries.length === 1,
+      })),
+    })).sort((left, right) => {
+      if (filters.sort === "highest_spend" || filters.sort === "lowest_spend") {
+        const leftTotal = left.rows.reduce((sum, row) => sum + row.total, 0);
+        const rightTotal = right.rows.reduce((sum, row) => sum + row.total, 0);
+        return filters.sort === "highest_spend" ? rightTotal - leftTotal : leftTotal - rightTotal;
+      }
+      const leftTime = new Date(left.date).getTime();
+      const rightTime = new Date(right.date).getTime();
+      return filters.sort === "oldest" ? leftTime - rightTime : rightTime - leftTime;
+    });
 
-  const chronologicalGroups = [...groupedRows].sort(
-    (left, right) => new Date(left.date).getTime() - new Date(right.date).getTime(),
-  );
-  const runningTotals = new Map<string, number>();
-  const runningByCategory = new Map<string, number>();
-  for (const group of chronologicalGroups) {
-    for (const row of group.rows) {
-      const categoryKey = entryCategoryKey(row.primary, type);
-      const key = `${group.date}|${categoryKey}`;
-      const next = (runningByCategory.get(categoryKey) ?? 0) + row.total;
-      runningByCategory.set(categoryKey, next);
-      runningTotals.set(key, next);
+    const chronologicalGroups = [...groupedRows].sort(
+      (left, right) => new Date(left.date).getTime() - new Date(right.date).getTime(),
+    );
+    const runningTotals = new Map<string, number>();
+    const runningByCategory = new Map<string, number>();
+    for (const group of chronologicalGroups) {
+      for (const row of group.rows) {
+        const categoryKey = entryCategoryKey(row.primary, type);
+        const key = `${group.date}|${categoryKey}`;
+        const next = (runningByCategory.get(categoryKey) ?? 0) + row.total;
+        runningByCategory.set(categoryKey, next);
+        runningTotals.set(key, next);
+      }
     }
-  }
-  const visibleLogCount = groupedRows.reduce((sum, group) => sum + group.rows.length, 0);
+    const visibleLogCount = groupedRows.reduce((sum, group) => sum + group.rows.length, 0);
+    return { totalSpend, stageTotals, groupedRows, runningTotals, visibleLogCount };
+  }, [entries, type, filters.sort]);
 
   function applyFilters() {
     const params = new URLSearchParams();
@@ -568,11 +582,15 @@ export default function OperationDetailPageClient({
     if (!confirmed) return;
 
     setDeletingId(id);
+    // Optimistic: drop the row now, restore it if the server rejects.
+    const prevEntries = entries;
+    setEntries((current) => current.filter((item) => entryId(item, type) !== id));
     const res = await requestJson<null>(`/api/entries/${id}?type=${type}`, { method: "DELETE" });
     setDeletingId(null);
 
     if (!res.ok) {
-      toast.error(res.message);
+      setEntries(prevEntries);
+      notifyError(res);
       return;
     }
 
@@ -788,7 +806,7 @@ export default function OperationDetailPageClient({
           </div>
         ))}
 
-        {initialEntries.length === 0 ? (
+        {entries.length === 0 ? (
           <div className="text-center py-20 bg-white/2 rounded-3xl border border-dashed border-white/5">
             <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest italic">
               No matching logs found.

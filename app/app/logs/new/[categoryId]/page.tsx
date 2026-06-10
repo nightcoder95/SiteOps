@@ -1,11 +1,20 @@
 import { eq } from "drizzle-orm";
+import dynamicImport from "next/dynamic";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { DynamicEntryForm } from "@/components/logs/DynamicEntryForm";
-import { EntryForm } from "@/components/logs/EntryForm";
 import { resolveEntryKind } from "@/components/logs/entryFieldRegistry";
+
+// Code-split the two entry forms (446 + ~210 LOC). Only one renders per request,
+// so the browser downloads just the matching chunk. SSR stays on (default) — no
+// hydration/SEO regression, only a lighter initial bundle for this route.
+const DynamicEntryForm = dynamicImport(() =>
+  import("@/components/logs/DynamicEntryForm").then((m) => m.DynamicEntryForm),
+);
+const EntryForm = dynamicImport(() =>
+  import("@/components/logs/EntryForm").then((m) => m.EntryForm),
+);
 import { safeGetSessionFromHeaders } from "@/lib/auth/session";
 import { db } from "@/lib/db/client";
 import { categories } from "@/lib/db/schema";

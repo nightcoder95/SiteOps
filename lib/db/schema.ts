@@ -433,3 +433,19 @@ export const resourceTransfers = pgTable("resource_transfers", {
   index("resource_transfers_from_site_id_idx").on(t.fromSiteId),
   index("resource_transfers_to_site_id_idx").on(t.toSiteId),
 ]);
+
+// PWA6 — Web Push subscriptions. One row per browser/device endpoint a user has
+// opted in from. `endpoint` is unique (the browser rotates it on resubscribe).
+// Keys (p256dh/auth) are required by the Web Push protocol to encrypt payloads.
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: identityId(),
+  subscriptionId: uuid("subscription_id").notNull().unique().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => userProfiles.userId, { onDelete: "cascade" }),
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  userAgent: varchar("user_agent", { length: 255 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("push_subscriptions_user_id_idx").on(t.userId),
+]);

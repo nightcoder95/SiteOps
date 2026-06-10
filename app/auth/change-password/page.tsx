@@ -8,9 +8,10 @@ import { toast } from 'sonner';
 
 import { getSupabaseBrowserClient } from '@/lib/auth/browserClient';
 import { requestJson } from '@/lib/http/client';
-import { toastSuccess } from '@/lib/ui/toast';
+import { notifyError, toastSuccess } from '@/lib/ui/toast';
 
 export default function ChangePasswordPage() {
+  const [currentPassword, setCurrentPassword] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -25,8 +26,12 @@ export default function ChangePasswordPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password.length < 8) {
-      toast.error('Password must be at least 8 characters');
+    if (!currentPassword) {
+      toast.error('Enter your current password');
+      return;
+    }
+    if (password.length < 10) {
+      toast.error('Password must be at least 10 characters');
       return;
     }
     if (password !== confirmPassword) {
@@ -39,19 +44,19 @@ export default function ChangePasswordPage() {
       const res = await requestJson<{ success: boolean }>('/api/auth/change-password', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ newPassword: password }),
+        body: JSON.stringify({ currentPassword, newPassword: password }),
       });
       if (!res.ok) {
-        toast.error(res.message);
+        notifyError(res);
         return;
       }
 
-      // CRITICAL: re-mint the token so the cleared must_change_password claim is
-      // in effect before navigating — otherwise the stale claim bounces us back.
-      await supabase.auth.refreshSession();
-
-      toastSuccess('Password updated');
-      router.replace('/app/dashboard');
+      // The server revoked every session (including this one) on success, so the
+      // old token is dead. Sign out locally and re-authenticate with the new
+      // password — this also mints a fresh claim with must_change_password=false.
+      await supabase.auth.signOut();
+      toastSuccess('Password updated — please sign in');
+      router.replace('/auth/sign-in');
       router.refresh();
     } catch {
       toast.error('Could not update password');
@@ -61,7 +66,7 @@ export default function ChangePasswordPage() {
   };
 
   return (
-    <div className="min-h-dvh bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8 px-4">
+    <div className="min-h-dvh bg-background flex flex-col justify-center py-12 sm:px-6 lg:px-8 px-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -69,11 +74,11 @@ export default function ChangePasswordPage() {
         className="sm:mx-auto sm:w-full sm:max-w-md"
       >
         <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-sky-500/10 border border-sky-500/20 mb-6">
-            <KeyRound className="w-8 h-8 text-sky-400" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary-container border border-outline mb-6">
+            <KeyRound className="w-8 h-8 text-primary" />
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-white uppercase">Set a new password</h1>
-          <p className="mt-2 text-sm text-slate-500 font-medium">
+          <h1 className="text-3xl font-extrabold tracking-tight text-on-surface uppercase">Set a new password</h1>
+          <p className="mt-2 text-sm text-on-surface-variant font-medium">
             Your account was provisioned with a temporary password. Choose a new one to continue.
           </p>
         </div>
@@ -88,11 +93,31 @@ export default function ChangePasswordPage() {
         <div className="card-standard py-8 px-6 sm:px-10">
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
-              <label htmlFor="password" className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-2">
+              <label htmlFor="currentPassword" className="block text-xs font-extrabold uppercase tracking-widest text-on-surface-variant mb-2">
+                CURRENT / TEMPORARY PASSWORD
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface-variant" />
+                <input
+                  id="currentPassword"
+                  name="currentPassword"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="input-standard pl-11"
+                  placeholder="••••••••"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-xs font-extrabold uppercase tracking-widest text-on-surface-variant mb-2">
                 NEW PASSWORD
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface-variant" />
                 <input
                   id="password"
                   name="password"
@@ -108,11 +133,11 @@ export default function ChangePasswordPage() {
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-2">
+              <label htmlFor="confirmPassword" className="block text-xs font-extrabold uppercase tracking-widest text-on-surface-variant mb-2">
                 CONFIRM PASSWORD
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface-variant" />
                 <input
                   id="confirmPassword"
                   name="confirmPassword"
@@ -137,12 +162,12 @@ export default function ChangePasswordPage() {
           </form>
 
           <div className="mt-6">
-            <p className="text-center text-xs text-slate-500">
+            <p className="text-center text-xs text-on-surface-variant">
               Not you?{' '}
               <button
                 type="button"
                 onClick={handleSignOut}
-                className="font-bold text-sky-400 hover:text-sky-300 transition-colors uppercase tracking-widest"
+                className="font-bold text-primary hover:text-primary/80 transition-colors uppercase tracking-widest"
               >
                 Sign out
               </button>

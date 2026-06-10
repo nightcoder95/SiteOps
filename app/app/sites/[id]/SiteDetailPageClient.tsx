@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { notifyError } from '@/lib/ui/toast';
 import {
   AlertCircle,
   Clock,
@@ -119,7 +120,7 @@ export default function SiteDetailPageClient({
     const res = await requestJson<null>(`/api/sites/${siteId}`, { method: 'DELETE' });
     setDeletingSite(false);
     if (!res.ok) {
-      toast.error(res.message);
+      notifyError(res);
       return;
     }
     toast.success('Site archived');
@@ -153,6 +154,7 @@ export default function SiteDetailPageClient({
               onClick={() => void handleDeleteSite()}
               disabled={!canDeleteSite || deletingSite}
               title={canDeleteSite ? 'Archive site' : 'Only admins can delete sites'}
+              aria-label={canDeleteSite ? 'Archive site' : 'Only admins can delete sites'}
               className="md:self-start p-3 bg-white/5 border border-white/10 rounded-2xl hover:bg-red-500/10 hover:text-red-400 transition-all text-slate-500 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {deletingSite ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}

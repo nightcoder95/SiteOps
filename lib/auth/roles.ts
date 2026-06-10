@@ -20,6 +20,10 @@ export type Role = (typeof ROLES)[keyof typeof ROLES];
 
 export const ALL_ROLES: readonly Role[] = Object.values(ROLES);
 
+// Non-empty tuple form for `z.enum(...)` — preserves the literal `Role` typing
+// that `z.enum(ALL_ROLES as unknown as [string, ...string[]])` threw away.
+export const ROLES_TUPLE = Object.values(ROLES) as [Role, ...Role[]];
+
 export function isRole(value: unknown): value is Role {
   return typeof value === "string" && (ALL_ROLES as readonly string[]).includes(value);
 }

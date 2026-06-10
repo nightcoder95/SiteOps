@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRightLeft, MapPin, Truck, Package, Users, ChevronDown, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { notifyError } from '@/lib/ui/toast';
 
 import { requestJson } from '@/lib/http/client';
 
@@ -99,7 +100,7 @@ export function TransferForm({ sites, defaultFromSiteId, onSuccess }: Props) {
     setIsLoading(false);
 
     if (!res.ok) {
-      toast.error(res.message);
+      notifyError(res);
       return;
     }
 
@@ -119,7 +120,7 @@ export function TransferForm({ sites, defaultFromSiteId, onSuccess }: Props) {
         <section className="card-standard p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
             <div className="space-y-2">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-1.5 ml-1">
+              <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-1.5 ml-1">
                 From (Source)
               </label>
               <div className="relative">
@@ -137,7 +138,7 @@ export function TransferForm({ sites, defaultFromSiteId, onSuccess }: Props) {
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-1.5 ml-1">
+              <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-1.5 ml-1">
                 To (Destination)
               </label>
               <div className="relative">
@@ -154,7 +155,7 @@ export function TransferForm({ sites, defaultFromSiteId, onSuccess }: Props) {
           <hr className="border-white/5" />
 
           <div className="space-y-3">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Resource Type</label>
+            <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500 ml-1">Resource Type</label>
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
@@ -179,7 +180,7 @@ export function TransferForm({ sites, defaultFromSiteId, onSuccess }: Props) {
 
           {resourceType === 'Labour' ? (
             <div className="space-y-2">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Work Type</label>
+              <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500 ml-1">Work Type</label>
               <select value={workTypeEnum} onChange={(e) => setWorkTypeEnum(e.target.value)} className="input-standard appearance-none bg-slate-900">
                 {LABOUR_WORK_TYPES.map((v) => <option key={v} value={v}>{v}</option>)}
               </select>
@@ -187,13 +188,13 @@ export function TransferForm({ sites, defaultFromSiteId, onSuccess }: Props) {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Material Type</label>
+                <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500 ml-1">Material Type</label>
                 <select value={materialTypeEnum} onChange={(e) => setMaterialTypeEnum(e.target.value)} className="input-standard appearance-none bg-slate-900">
                   {MATERIAL_TYPES.map((v) => <option key={v} value={v} className="bg-slate-900">{v}</option>)}
                 </select>
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Unit ID</label>
+                <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500 ml-1">Unit ID</label>
                 <input value={unitCustomId} onChange={(e) => setUnitCustomId(e.target.value)} className="input-standard" placeholder="Unit UUID" required />
               </div>
             </div>
@@ -201,11 +202,11 @@ export function TransferForm({ sites, defaultFromSiteId, onSuccess }: Props) {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-2 md:col-span-1">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Quantity</label>
+              <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500 ml-1">Quantity</label>
               <input type="number" min="0" step="0.01" required value={quantity} onChange={(e) => setQuantity(e.target.value)} className="input-standard" />
             </div>
             <div className="space-y-2 md:col-span-2">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1">Transfer Remarks</label>
+              <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500 ml-1">Transfer Remarks</label>
               <input type="text" value={remarks} onChange={(e) => setRemarks(e.target.value)} className="input-standard" placeholder="Add loading/transport details..." />
             </div>
           </div>

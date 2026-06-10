@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 
 import { can } from "@/lib/auth/capabilities";
 import { safeGetSessionFromHeaders } from "@/lib/auth/session";
+import { AdminTabNav } from "@/components/app-shell/AdminTabNav";
 
 // Server-side guard for the entire /app/admin/* subtree. Reads the session from
 // headers already populated by middleware (no extra DB call). Anyone without an
@@ -14,5 +15,10 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   if (!session || !can(session.user.role, "resource:manage_all")) {
     notFound();
   }
-  return <>{children}</>;
+  return (
+    <>
+      <AdminTabNav />
+      {children}
+    </>
+  );
 }

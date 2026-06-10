@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { notifyError } from "@/lib/ui/toast";
 import { motion } from "motion/react";
 import { ChevronRight, Plus, Trash2, Loader2, AlertCircle } from "lucide-react";
 
@@ -108,7 +109,7 @@ export function CategoryPicker({ initialCategories = [], onSelect, role, siteId 
           return;
         }
       }
-      toast.error(res.message);
+      notifyError(res);
       return;
     }
 
@@ -147,7 +148,7 @@ export function CategoryPicker({ initialCategories = [], onSelect, role, siteId 
 
     if (!res.ok) {
       setCatalog(prevCatalog);
-      toast.error(res.message);
+      notifyError(res);
       return;
     }
     toast.success(`Deleted "${category.name}"`);
@@ -205,6 +206,7 @@ export function CategoryPicker({ initialCategories = [], onSelect, role, siteId 
                   onClick={() => void handleDelete(c)}
                   disabled={deletingId === c.categoryId}
                   title="Delete category"
+                  aria-label={`Delete category ${c.name}`}
                   className="p-2 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all disabled:opacity-40"
                 >
                   {deletingId === c.categoryId ? (
@@ -232,7 +234,7 @@ export function CategoryPicker({ initialCategories = [], onSelect, role, siteId 
           <h3 className="text-xl font-extrabold tracking-tight text-white uppercase">Add Category</h3>
 
           <div className="space-y-1.5">
-            <label className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Name</label>
+            <label className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Name</label>
             <input
               type="text"
               value={name}
@@ -247,7 +249,7 @@ export function CategoryPicker({ initialCategories = [], onSelect, role, siteId 
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Input Fields</p>
+              <p className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Input Fields</p>
               <button
                 type="button"
                 onClick={() => setFields((prev) => [...prev, { label: "", fieldType: "Text", unit: "" }])}
@@ -285,7 +287,7 @@ export function CategoryPicker({ initialCategories = [], onSelect, role, siteId 
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Remarks</label>
+            <label className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Remarks</label>
             <textarea
               value={remarks}
               onChange={(e) => setRemarks(e.target.value)}

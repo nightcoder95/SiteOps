@@ -10,7 +10,7 @@ import Link from 'next/link';
 // block below.
 export default function SignUpPage() {
   return (
-    <div className="min-h-dvh bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8 px-4">
+    <div className="min-h-dvh bg-background flex flex-col justify-center py-12 sm:px-6 lg:px-8 px-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -18,11 +18,11 @@ export default function SignUpPage() {
         className="sm:mx-auto sm:w-full sm:max-w-md"
       >
         <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-sky-500/10 border border-sky-500/20 mb-6">
-            <ShieldAlert className="w-8 h-8 text-sky-400" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary-container border border-outline mb-6">
+            <ShieldAlert className="w-8 h-8 text-primary" />
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-white uppercase">Registration closed</h1>
-          <p className="mt-2 text-sm text-slate-500 font-medium">
+          <h1 className="text-3xl font-extrabold tracking-tight text-on-surface uppercase">Registration closed</h1>
+          <p className="mt-2 text-sm text-on-surface-variant font-medium">
             SiteOps accounts are provisioned by an administrator. Contact your admin to get access.
           </p>
         </div>
@@ -37,7 +37,7 @@ export default function SignUpPage() {
         <div className="card-standard py-8 px-6 sm:px-10 text-center">
           <Link
             href="/auth/sign-in"
-            className="font-bold text-sky-400 hover:text-sky-300 transition-colors uppercase tracking-widest text-xs"
+            className="font-bold text-primary hover:text-primary/80 transition-colors uppercase tracking-widest text-xs"
           >
             Back to sign in
           </Link>

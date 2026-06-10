@@ -4,6 +4,9 @@ export type ClientResult<T> =
       ok: false;
       kind: 'endpoint_unavailable' | 'api_error' | 'network_error';
       message: string;
+      // Stable error code from the API envelope (ERROR_CODES). Use this — not
+      // `message` — to drive user-facing copy via notifyError().
+      code?: string;
       endpoint: string;
       method: string;
       status?: number;
@@ -116,6 +119,7 @@ export async function requestJson<T>(
       ok: false,
       kind: 'api_error',
       message: extractApiMessage(payload, `Request failed with status ${response.status}`),
+      code: extractApiCode(payload),
       endpoint,
       method,
       status: response.status,
@@ -133,6 +137,7 @@ export async function requestJson<T>(
       ok: false,
       kind: 'api_error',
       message: extractApiMessage(payload, 'Request failed'),
+      code: extractApiCode(payload),
       endpoint,
       method,
       status: response.status,

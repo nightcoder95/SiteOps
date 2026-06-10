@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Loader2, UserPlus, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
+import { notifyError } from '@/lib/ui/toast';
 
 import { ALL_ROLES, type Role } from '@/lib/auth/roles';
-import { requestJson, type ClientResult } from '@/lib/http/client';
+import { requestJson } from '@/lib/http/client';
+import { useApiResult } from '@/lib/http/useApiQuery';
 
 type AdminUser = {
   userId: string;
@@ -20,9 +22,16 @@ const inputClass =
   'h-11 w-full rounded border border-outline bg-surface-container-lowest px-3 text-sm text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary';
 
 export default function AdminUsersPage() {
+  // SWR owns the fetch (cache-then-revalidate + dedupe). `users` is a local
+  // working copy so role changes can pessimistically patch a single row
+  // (server is the authority — see handleRoleChange) without a full refetch.
+  const { data: listResult, mutate } = useApiResult<AdminUser[]>('/api/admin/users');
   const [users, setUsers] = useState<AdminUser[]>([]);
-  const [listResult, setListResult] = useState<ClientResult<AdminUser[]> | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (listResult?.ok) setUsers(listResult.data);
+  }, [listResult]);
 
   // Create-account form
   const [email, setEmail] = useState('');
@@ -32,14 +41,8 @@ export default function AdminUsersPage() {
   const [creating, setCreating] = useState(false);
 
   const loadUsers = useCallback(async () => {
-    const res = await requestJson<AdminUser[]>('/api/admin/users');
-    setListResult(res);
-    if (res.ok) setUsers(res.data);
-  }, []);
-
-  useEffect(() => {
-    void loadUsers();
-  }, [loadUsers]);
+    await mutate();
+  }, [mutate]);
 
   async function handleRoleChange(userId: string, nextRole: Role) {
     setSavingId(userId);
@@ -54,7 +57,7 @@ export default function AdminUsersPage() {
     setSavingId(null);
 
     if (!res.ok) {
-      toast.error(res.message);
+      notifyError(res);
       void loadUsers(); // resync the dropdown to the server's truth
       return;
     }
@@ -82,7 +85,7 @@ export default function AdminUsersPage() {
     setCreating(false);
 
     if (!res.ok) {
-      toast.error(res.message);
+      notifyError(res);
       return;
     }
     toast.success('Account created. Share the temp password with the user.');

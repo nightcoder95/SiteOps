@@ -1,8 +1,12 @@
 import { eq } from "drizzle-orm";
+import dynamicImport from "next/dynamic";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
-import { EntryForm } from "@/components/logs/EntryForm";
+// Lazy chunk for the heavy entry form so the route shell ships less JS up front.
+const EntryForm = dynamicImport(() =>
+  import("@/components/logs/EntryForm").then((m) => m.EntryForm),
+);
 import {
   ENTRY_TYPE_TO_CATEGORY_NAME,
   mapEntryToFormValues,

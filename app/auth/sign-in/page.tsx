@@ -27,7 +27,9 @@ export default function SignInPage() {
     try {
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       if (signInError) {
-        toast.error(signInError.message);
+        // Don't surface raw GoTrue text ("Invalid login credentials") — keep
+        // copy controllable and non-enumerating.
+        toast.error('Invalid email or password');
         return;
       }
 
@@ -42,7 +44,7 @@ export default function SignInPage() {
   };
 
   return (
-    <div className="min-h-dvh bg-slate-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8 px-4">
+    <div className="min-h-dvh bg-background flex flex-col justify-center py-12 sm:px-6 lg:px-8 px-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -50,11 +52,11 @@ export default function SignInPage() {
         className="sm:mx-auto sm:w-full sm:max-w-md"
       >
         <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-sky-500/10 border border-sky-500/20 mb-6">
-            <LogIn className="w-8 h-8 text-sky-400" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary-container border border-outline mb-6">
+            <LogIn className="w-8 h-8 text-primary" />
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-white uppercase">SITEOPS</h1>
-          <p className="mt-2 text-sm text-slate-500 font-medium">Command Access Portal</p>
+          <h1 className="text-3xl font-extrabold tracking-tight text-on-surface uppercase">SITEOPS</h1>
+          <p className="mt-2 text-sm text-on-surface-variant font-medium">Command Access Portal</p>
         </div>
       </motion.div>
 
@@ -67,11 +69,11 @@ export default function SignInPage() {
         <div className="card-standard py-8 px-6 sm:px-10">
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
-              <label htmlFor="email" className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-2">
+              <label htmlFor="email" className="block text-xs font-extrabold uppercase tracking-widest text-on-surface-variant mb-2">
                 EMAIL ADDRESS
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface-variant" />
                 <input
                   id="email"
                   name="email"
@@ -87,11 +89,11 @@ export default function SignInPage() {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-2">
+              <label htmlFor="password" className="block text-xs font-extrabold uppercase tracking-widest text-on-surface-variant mb-2">
                 PASSWORD
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-on-surface-variant" />
                 <input
                   id="password"
                   name="password"

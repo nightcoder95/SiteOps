@@ -13,6 +13,7 @@ import { handleDbError } from "@/lib/errors/db";
 import { errorResponse, successResponse } from "@/lib/errors/response";
 import { parseJsonBody, validateBody } from "@/lib/http/request";
 import { withApiRoute } from "@/lib/http/withApi";
+import { coerceDecimals } from "@/lib/services/decimals";
 
 type RouteCtx = { params: Promise<{ id: string }> };
 
@@ -33,22 +34,22 @@ type SiteRow = typeof sites.$inferSelect;
 export const GET = withApiRoute<RouteCtx>(async ({ request, requestId }, context) => {
   const { id } = await context.params;
 
-  const [auth, { value: record }] = await Promise.all([
-    requireCapability(request, "site:read"),
-    getOrSetJson<SiteRow | null>(
-      requestId,
-      siteCacheKey(id),
-      300,
-      async () => {
-        const rows = await db.select().from(sites).where(eq(sites.siteId, id)).limit(1);
-        return rows[0] ?? null;
-      },
-    ),
-  ]);
-
+  // Confirm the session BEFORE touching the cache/DB (S5): an unauthenticated or
+  // forbidden caller must not trigger a DB read or populate the cache key.
+  const auth = await requireCapability(request, "site:read");
   if (!("session" in auth)) {
     return errorResponse(auth.error, "Authentication required", auth.status, undefined, requestId);
   }
+
+  const { value: record } = await getOrSetJson<SiteRow | null>(
+    requestId,
+    siteCacheKey(id),
+    300,
+    async () => {
+      const rows = await db.select().from(sites).where(eq(sites.siteId, id)).limit(1);
+      return rows[0] ?? null;
+    },
+  );
 
   if (!record || record.archivedAt) {
     return errorResponse(ERROR_CODES.NOT_FOUND, "Site not found", 404, undefined, requestId);
@@ -90,9 +91,7 @@ export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, conte
     ...validation.data,
     updatedAt: new Date(),
   };
-  if (typeof validation.data.budget === "number") {
-    updates.budget = String(validation.data.budget);
-  }
+  coerceDecimals(updates, ["budget"]);
 
   try {
     const updated = await db

@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { notifyError } from "@/lib/ui/toast";
 
 import { can } from "@/lib/auth/capabilities";
 import { requestJson } from "@/lib/http/client";
@@ -58,7 +59,7 @@ export function SitesNewPageClient({ role, supervisors }: Props) {
     setSubmitting(false);
 
     if (!res.ok) {
-      toast.error(res.message);
+      notifyError(res);
       return;
     }
     toast.success("Site created");

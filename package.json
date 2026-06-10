@@ -22,6 +22,7 @@
     "@serwist/next": "^9.5.7",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.50.2",
+    "@types/web-push": "^3.6.4",
     "@upstash/ratelimit": "^2.0.6",
     "@upstash/redis": "^1.35.3",
     "@vercel/speed-insights": "^2.0.0",
@@ -36,6 +37,9 @@
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "sonner": "^2.0.7",
+    "swr": "^2.4.1",
+    "web-push": "^3.6.7",
+    "web-vitals": "^5.2.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {

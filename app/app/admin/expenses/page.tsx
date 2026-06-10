@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
-import { requestJson, type ClientResult } from '@/lib/http/client';
+import { useApiResult } from '@/lib/http/useApiQuery';
 
 type Site = {
   id: string;
@@ -23,47 +23,20 @@ type ExpenseEntry = {
 };
 
 export default function AdminExpensesPage() {
-  const [sitesResult, setSitesResult] = useState<ClientResult<Site[]> | null>(null);
-  const [expensesResult, setExpensesResult] = useState<ClientResult<ExpenseEntry[]> | null>(null);
   const [siteId, setSiteId] = useState<string>('');
+  const { data: sitesResult } = useApiResult<Site[]>('/api/sites');
+  // Conditional key: expenses don't fetch until a site is selected (null key
+  // = SWR skip). Each site's expenses are cached independently.
+  const { data: expensesResult } = useApiResult<ExpenseEntry[]>(
+    siteId ? `/api/sites/${siteId}/entries?type=expense` : null,
+  );
 
+  // Default to the first site once the list arrives.
   useEffect(() => {
-    let cancelled = false;
-
-    async function loadSites() {
-      const next = await requestJson<Site[]>('/api/sites');
-      if (!cancelled) {
-        setSitesResult(next);
-        if (next.ok && next.data[0]?.id && !siteId) {
-          setSiteId(next.data[0].id);
-        }
-      }
+    if (!siteId && sitesResult?.ok && sitesResult.data[0]?.id) {
+      setSiteId(sitesResult.data[0].id);
     }
-
-    loadSites();
-
-    return () => {
-      cancelled = true;
-    };
-    // siteId intentionally omitted to prevent a loop when the initial site is set
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadExpenses() {
-      if (!siteId) return;
-      const next = await requestJson<ExpenseEntry[]>(`/api/sites/${siteId}/entries?type=expense`);
-      if (!cancelled) setExpensesResult(next);
-    }
-
-    loadExpenses();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [siteId]);
+  }, [siteId, sitesResult]);
 
   const sites = sitesResult?.ok ? sitesResult.data : [];
   const expenses = expensesResult?.ok ? expensesResult.data : [];
