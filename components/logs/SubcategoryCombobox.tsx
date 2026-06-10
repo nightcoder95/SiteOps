@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { notifyError } from "@/lib/ui/toast";
 
 import { ModalShell } from "@/components/ui/motion";
 import { requestJson } from "@/lib/http/client";
@@ -85,7 +86,7 @@ export function SubcategoryCombobox({
       if (controller.signal.aborted) return;
       setLoadingCatalog(false);
       if (!res.ok) {
-        if (res.message !== "Request aborted") toast.error(res.message);
+        if (res.message !== "Request aborted") notifyError(res);
         return;
       }
       const nextCatalog = (res.data.subcategories ?? []).map((item) => ({
@@ -149,7 +150,7 @@ export function SubcategoryCombobox({
           return;
         }
       }
-      toast.error(res.message);
+      notifyError(res);
       return;
     }
 
@@ -185,7 +186,7 @@ export function SubcategoryCombobox({
     setDeletingId(null);
     if (!res.ok) {
       setCatalog(prevCatalog);
-      toast.error(res.message);
+      notifyError(res);
       return;
     }
     toast.success(`Deleted "${option.name}"`);
@@ -194,7 +195,7 @@ export function SubcategoryCombobox({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <label className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
+        <label className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">
           {label}
           {required && " *"}
         </label>

@@ -4,11 +4,12 @@ import { LayoutDashboard, ClipboardList, Repeat, Activity, BarChart3, PlusCircle
 import { usePathname, useRouter } from 'next/navigation';
 import { motion } from 'motion/react';
 
+import { can } from '@/lib/auth/capabilities';
+import type { Role } from '@/lib/auth/roles';
+
 function cn(...classes: (string | boolean | undefined | null)[]) {
   return classes.filter(Boolean).join(' ');
 }
-
-type Role = 'Admin' | 'Supervisor';
 
 export function AppFooterNav({ role }: { role: Role }) {
   const pathname = usePathname();
@@ -19,7 +20,7 @@ export function AppFooterNav({ role }: { role: Role }) {
     { label: 'Requests', icon: Activity, href: '/app/requests/resource', active: pathname.startsWith('/app/requests') },
     { label: 'New Log', icon: PlusCircle, href: '/app/logs/new', active: pathname.startsWith('/app/logs'), primary: true },
     { label: 'Transfers', icon: Repeat, href: '/app/transfers/new', active: pathname.startsWith('/app/transfers') },
-    ...(role === 'Admin'
+    ...(can(role, 'resource:manage_all')
       ? [{ label: 'Admin', icon: BarChart3, href: '/app/admin/approvals', active: pathname.startsWith('/app/admin') }]
       : [{ label: 'Profile', icon: ClipboardList, href: '/app/profile', active: pathname === '/app/profile' }]),
   ];

@@ -85,6 +85,20 @@
       "when": 1779000240000,
       "tag": "0011_operation_consolidation_budget_tracking",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1780858127166,
+      "tag": "0012_nifty_squadron_sinister",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1780858169510,
+      "tag": "0013_custom_access_token_hook_must_change_password",
+      "breakpoints": true
     }
   ]
 }

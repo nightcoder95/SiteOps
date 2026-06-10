@@ -1,12 +1,17 @@
 'use client';
 
 import { createBrowserClient } from '@supabase/ssr';
+import { MotionConfig } from 'motion/react';
 import { useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { Toaster } from 'sonner';
+import { SWRConfig } from 'swr';
 import 'sonner/dist/styles.css';
 
+import { reportWebVitals } from '@/lib/analytics/webVitals';
 import { ConfirmHost } from '@/lib/ui/confirm';
+import { InstallPrompt } from '@/components/pwa/InstallPrompt';
+import { SyncStatus } from '@/components/pwa/SyncStatus';
 
 // Lazy-load and init PostHog after window load so analytics never blocks first paint.
 function deferredInitPostHog() {
@@ -26,6 +31,7 @@ function deferredInitPostHog() {
 
 export default function Providers({ children }: { children: ReactNode }) {
   useEffect(() => {
+    reportWebVitals();
     if (document.readyState === 'complete') {
       deferredInitPostHog();
       return;
@@ -66,11 +72,19 @@ export default function Providers({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // reducedMotion="user" makes every motion/react animation in the app honor
+  // the OS "reduce motion" setting (WCAG 2.3.3) without touching each call site.
   return (
-    <>
-      {children}
-      <ConfirmHost />
-      <Toaster position="top-right" richColors closeButton />
-    </>
+    <MotionConfig reducedMotion="user">
+      {/* Client data cache (P2): dedupe in-flight requests, revalidate on focus,
+          and don't auto-retry on error (the API codes drive user-facing copy). */}
+      <SWRConfig value={{ revalidateOnFocus: true, dedupingInterval: 2000, shouldRetryOnError: false }}>
+        {children}
+        <ConfirmHost />
+        <InstallPrompt />
+        <SyncStatus />
+        <Toaster position="top-right" richColors closeButton />
+      </SWRConfig>
+    </MotionConfig>
   );
 }

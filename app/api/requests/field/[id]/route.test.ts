@@ -3,14 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PATCH } from "./route";
 
-const { mockRequireAdmin, mockReviewFieldRequest } = vi.hoisted(() => ({
-  mockRequireAdmin: vi.fn(),
+const { mockRequireCapability, mockReviewFieldRequest } = vi.hoisted(() => ({
+  mockRequireCapability: vi.fn(),
   mockReviewFieldRequest: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/guards", () => ({
-  requireAdmin: mockRequireAdmin,
-  requireSiteAccess: vi.fn(),
+  requireCapability: mockRequireCapability,
 }));
 
 vi.mock("@/lib/services/reviews", () => ({
@@ -28,7 +27,7 @@ vi.mock("@/lib/utils/requestId", () => ({
 describe("field request review route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRequireAdmin.mockResolvedValue({
+    mockRequireCapability.mockResolvedValue({
       session: { user: { id: "admin-1", role: "Admin" } },
     });
   });

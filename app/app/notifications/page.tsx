@@ -1,10 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useOptimistic, useState } from 'react';
+import { useOptimistic, useState } from 'react';
 
 import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
-import { requestJson, type ClientResult } from '@/lib/http/client';
+import { PushOptIn } from '@/components/pwa/PushOptIn';
+import { requestJson } from '@/lib/http/client';
+import { useApiResult } from '@/lib/http/useApiQuery';
 import { toastClientError, toastSuccess } from '@/lib/ui/toast';
 
 type Notification = {
@@ -32,7 +34,9 @@ const TYPE_META: Record<Notification['type'], { icon: string; bg: string; fg: st
 };
 
 export default function NotificationsPage() {
-  const [result, setResult] = useState<ClientResult<NotificationsResponse> | null>(null);
+  const { data: result, mutate } = useApiResult<NotificationsResponse>(
+    '/api/notifications?limit=50&offset=0&unreadOnly=false',
+  );
   const [refreshing, setRefreshing] = useState(false);
   const [optimisticItems, applyOptimistic] = useOptimistic(
     result?.ok ? result.data.items : ([] as Notification[]),
@@ -48,33 +52,16 @@ export default function NotificationsPage() {
     },
   );
 
-  async function load() {
-    const next = await requestJson<NotificationsResponse>('/api/notifications?limit=50&offset=0&unreadOnly=false');
-    setResult(next);
-    return next;
-  }
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const next = await load();
-      if (!cancelled) setResult(next);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   async function markRead(id: string) {
     applyOptimistic({ kind: 'mark-one', id });
     setRefreshing(true);
     const next = await requestJson(`/api/notifications/${id}`, { method: 'PATCH' });
     if (next.ok) {
       toastSuccess('Notification marked as read');
-      await load();
+      await mutate();
     } else {
       toastClientError(next);
-      setResult(next);
+      await mutate(next, { revalidate: false });
     }
     setRefreshing(false);
   }
@@ -89,10 +76,10 @@ export default function NotificationsPage() {
     });
     if (next.ok) {
       toastSuccess('All notifications marked as read');
-      await load();
+      await mutate();
     } else {
       toastClientError(next);
-      setResult(next);
+      await mutate(next, { revalidate: false });
     }
     setRefreshing(false);
   }
@@ -109,14 +96,17 @@ export default function NotificationsPage() {
             {unreadCount} unread of {result?.ok ? result.data.total : items.length}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={markAllRead}
-          disabled={refreshing || unreadCount === 0}
-          className="btn-secondary rounded-full px-3 py-1.5 disabled:opacity-50"
-        >
-          Mark all read
-        </button>
+        <div className="flex items-center gap-2">
+          <PushOptIn />
+          <button
+            type="button"
+            onClick={markAllRead}
+            disabled={refreshing || unreadCount === 0}
+            className="btn-secondary rounded-full px-3 py-1.5 disabled:opacity-50"
+          >
+            Mark all read
+          </button>
+        </div>
       </header>
 
       {result && !result.ok && result.kind === 'endpoint_unavailable' ? (

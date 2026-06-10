@@ -1,6 +1,7 @@
 import { and, desc, eq, or } from "drizzle-orm";
 import { z } from "zod";
 
+import { can } from "@/lib/auth/capabilities";
 import { requireSiteAccess } from "@/lib/auth/guards";
 import { checkOwnership } from "@/lib/auth/ownership";
 import { db } from "@/lib/db/client";
@@ -53,7 +54,7 @@ export const GET = withApi(async ({ request, requestId }) => {
   const auth = await requireSiteAccess(request);
   if (!("session" in auth)) return errorResponse(auth.error, "Authentication required", auth.status, undefined, requestId);
 
-  const rows = auth.session.user.role === "Admin"
+  const rows = can(auth.session.user.role, "resource:manage_all")
     ? await db.select().from(resourceTransfers).orderBy(desc(resourceTransfers.createdAt))
     : await db.select().from(resourceTransfers).where(
       or(

@@ -57,6 +57,8 @@ export async function middleware(request: NextRequest) {
         ? claims.role
         : null
   );
+  // Injected by the custom_access_token hook. O(1) claim decode — no DB lookup.
+  const mustChangePassword = claims?.must_change_password === true;
 
   if (userId) {
     requestHeaders.set(AUTH_USER_ID_HEADER, userId);
@@ -80,6 +82,33 @@ export async function middleware(request: NextRequest) {
   cookiesToSet.forEach(({ name, value, options }) => {
     response.cookies.set(name, value, options);
   });
+
+  // Force a password change for provisioned accounts still carrying the
+  // must_change_password claim. Excludes the change-password page + its API so
+  // the page can load and submit (no redirect loop). After the API clears the
+  // flag the client refreshes its session, dropping the claim. Sign-out lives on
+  // the change-password page itself, so no separate sign-out exclusion is needed.
+  if (userId && mustChangePassword) {
+    const isChangePasswordPath =
+      pathname === "/auth/change-password" || pathname === "/api/auth/change-password";
+    if (!isChangePasswordPath) {
+      if (pathname.startsWith("/api")) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: "PASSWORD_CHANGE_REQUIRED",
+              message: "You must change your temporary password before continuing",
+            },
+            meta: { requestId: null, timestamp: new Date().toISOString() },
+          },
+          { status: 403 }
+        );
+      }
+      return NextResponse.redirect(new URL("/auth/change-password", request.url));
+    }
+    return response;
+  }
 
   // Redirect authenticated users trying to access public auth/landing routes.
   if (PUBLIC_ROUTES.includes(pathname)) {

@@ -4,8 +4,9 @@ import {
   AUTH_USER_ROLE_HEADER,
   parseSessionRole,
 } from "@/lib/auth/headers";
+import { ROLES, type Role } from "@/lib/auth/roles";
 
-export type SessionRole = "Admin" | "Supervisor";
+export type SessionRole = Role;
 
 export type SessionUser = {
   id: string;
@@ -28,7 +29,7 @@ export function getSessionUserFromHeaders(headers: Headers): SessionUser | null 
     return null;
   }
 
-  const role = parseSessionRole(headers.get(AUTH_USER_ROLE_HEADER)) ?? "Supervisor";
+  const role = parseSessionRole(headers.get(AUTH_USER_ROLE_HEADER)) ?? ROLES.SUPERVISOR;
   const email = headers.get(AUTH_USER_EMAIL_HEADER) ?? "";
 
   return {

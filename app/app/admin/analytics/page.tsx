@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
-import { requestJson, type ClientResult } from '@/lib/http/client';
+import { useApiResult } from '@/lib/http/useApiQuery';
 
 type AnalyticsResponse = {
   period: '7d' | '30d' | '90d';
@@ -20,22 +20,9 @@ type AnalyticsResponse = {
 
 export default function AdminAnalyticsPage() {
   const [period, setPeriod] = useState<'7d' | '30d' | '90d'>('30d');
-  const [result, setResult] = useState<ClientResult<AnalyticsResponse> | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      const next = await requestJson<AnalyticsResponse>(`/api/admin/analytics?period=${period}`);
-      if (!cancelled) setResult(next);
-    }
-
-    load();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [period]);
+  // Keyed by period: each window is cached and revalidated independently, and
+  // switching periods renders the last-seen value instantly then refreshes.
+  const { data: result } = useApiResult<AnalyticsResponse>(`/api/admin/analytics?period=${period}`);
 
   return (
     <div className="space-y-4">

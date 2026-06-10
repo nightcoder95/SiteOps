@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { requestJson } from "@/lib/http/client";
+import { useApiResult } from "@/lib/http/useApiQuery";
 
 // Entry form for custom ("dynamic") categories — those not in the static
 // entryFieldRegistry. The form is driven by the category's approved
@@ -34,34 +35,23 @@ type Props = {
   siteId?: string;
 };
 
-const labelClass = "text-[10px] font-extrabold uppercase tracking-widest text-slate-400";
+const labelClass = "text-[11px] font-extrabold uppercase tracking-widest text-slate-400";
 
 export function DynamicEntryForm({ categoryId, categoryName, siteId }: Props) {
   const router = useRouter();
-  const [fields, setFields] = useState<FieldDefinition[] | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [values, setValues] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const res = await requestJson<CategoryTree>(`/api/forms/categories/${categoryId}`);
-      if (cancelled) return;
-      if (!res.ok) {
-        setLoadError(res.message);
-        setFields([]);
-        return;
-      }
-      // Flatten field definitions across every subcategory of this category.
-      const flat = (res.data.subcategories ?? []).flatMap((s) => s.fields ?? []);
-      setFields(flat);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [categoryId]);
+  // Cached category tree (dedupes + instant on revisit). Field definitions are
+  // flattened across every subcategory; `fields === null` means still loading.
+  const { data: treeResult } = useApiResult<CategoryTree>(`/api/forms/categories/${categoryId}`);
+  const loadError = treeResult && !treeResult.ok ? treeResult.message : null;
+  const fields = useMemo<FieldDefinition[] | null>(() => {
+    if (!treeResult) return null;
+    if (!treeResult.ok) return [];
+    return (treeResult.data.subcategories ?? []).flatMap((s) => s.fields ?? []);
+  }, [treeResult]);
 
   function setValue(id: string, v: string) {
     setValues((s) => ({ ...s, [id]: v }));

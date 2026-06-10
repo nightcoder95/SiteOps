@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
-import { requestJson, type ClientResult } from '@/lib/http/client';
+import { requestJson } from '@/lib/http/client';
+import { useApiResult } from '@/lib/http/useApiQuery';
 import { toastClientError, toastSuccess } from '@/lib/ui/toast';
 
 type FieldRequest = {
@@ -33,25 +34,12 @@ function statusChip(status: FieldRequest['status']) {
 }
 
 export default function FieldRequestsPage() {
-  const [result, setResult] = useState<ClientResult<FieldRequest[]> | null>(null);
+  const { data: result, mutate } = useApiResult<FieldRequest[]>('/api/requests/field');
   const [pendingId, setPendingId] = useState<string | null>(null);
 
   async function load() {
-    const next = await requestJson<FieldRequest[]>('/api/requests/field');
-    setResult(next);
-    return next;
+    await mutate();
   }
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const next = await load();
-      if (!cancelled) setResult(next);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -79,7 +67,7 @@ export default function FieldRequestsPage() {
       return;
     }
     toastClientError(next);
-    setResult(next);
+    await mutate(next, { revalidate: false });
   }
 
   async function review(id: string, nextStatus: 'Approved' | 'Declined') {
@@ -94,7 +82,7 @@ export default function FieldRequestsPage() {
       await load();
     } else {
       toastClientError(next);
-      setResult(next);
+      await mutate(next, { revalidate: false });
     }
     setPendingId(null);
   }
@@ -107,7 +95,7 @@ export default function FieldRequestsPage() {
       await load();
     } else {
       toastClientError(next);
-      setResult(next);
+      await mutate(next, { revalidate: false });
     }
     setPendingId(null);
   }

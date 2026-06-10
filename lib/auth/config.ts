@@ -56,3 +56,17 @@ export function createSupabaseServiceClient() {
     },
   });
 }
+
+// Isolated anon-key client for credential verification (signInWithPassword).
+// Uses noop cookies so it never reads or persists the caller's session — it is
+// only used to prove a password is correct (re-auth on password change).
+export function createSupabaseAuthClient() {
+  return createServerClient(getSupabaseUrl(), getSupabaseAnonKey(), {
+    cookies: {
+      getAll() {
+        return [];
+      },
+      setAll() {},
+    },
+  });
+}

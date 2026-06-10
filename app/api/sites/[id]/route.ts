@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { requireAdmin, requireSiteAccess } from "@/lib/auth/guards";
+import { can } from "@/lib/auth/capabilities";
+import { requireCapability } from "@/lib/auth/guards";
 import { getOrSetJson } from "@/lib/cache/getOrSetJson";
 import { invalidateSiteCache } from "@/lib/cache/invalidate";
 import { siteCacheKey } from "@/lib/cache/keys";
@@ -12,6 +13,7 @@ import { handleDbError } from "@/lib/errors/db";
 import { errorResponse, successResponse } from "@/lib/errors/response";
 import { parseJsonBody, validateBody } from "@/lib/http/request";
 import { withApiRoute } from "@/lib/http/withApi";
+import { coerceDecimals } from "@/lib/services/decimals";
 
 type RouteCtx = { params: Promise<{ id: string }> };
 
@@ -32,28 +34,28 @@ type SiteRow = typeof sites.$inferSelect;
 export const GET = withApiRoute<RouteCtx>(async ({ request, requestId }, context) => {
   const { id } = await context.params;
 
-  const [auth, { value: record }] = await Promise.all([
-    requireSiteAccess(request),
-    getOrSetJson<SiteRow | null>(
-      requestId,
-      siteCacheKey(id),
-      300,
-      async () => {
-        const rows = await db.select().from(sites).where(eq(sites.siteId, id)).limit(1);
-        return rows[0] ?? null;
-      },
-    ),
-  ]);
-
+  // Confirm the session BEFORE touching the cache/DB (S5): an unauthenticated or
+  // forbidden caller must not trigger a DB read or populate the cache key.
+  const auth = await requireCapability(request, "site:read");
   if (!("session" in auth)) {
     return errorResponse(auth.error, "Authentication required", auth.status, undefined, requestId);
   }
+
+  const { value: record } = await getOrSetJson<SiteRow | null>(
+    requestId,
+    siteCacheKey(id),
+    300,
+    async () => {
+      const rows = await db.select().from(sites).where(eq(sites.siteId, id)).limit(1);
+      return rows[0] ?? null;
+    },
+  );
 
   if (!record || record.archivedAt) {
     return errorResponse(ERROR_CODES.NOT_FOUND, "Site not found", 404, undefined, requestId);
   }
 
-  if (auth.session.user.role !== "Admin" && record.supervisorId !== auth.session.user.id) {
+  if (!can(auth.session.user.role, "site:read_all") && record.supervisorId !== auth.session.user.id) {
     return errorResponse(
       ERROR_CODES.FORBIDDEN,
       "You can only access sites you supervise",
@@ -67,7 +69,7 @@ export const GET = withApiRoute<RouteCtx>(async ({ request, requestId }, context
 });
 
 export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, context) => {
-  const auth = await requireAdmin(request);
+  const auth = await requireCapability(request, "site:update");
   if (!("session" in auth)) {
     return errorResponse(auth.error, "Admin access required", auth.status, undefined, requestId);
   }
@@ -89,9 +91,7 @@ export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, conte
     ...validation.data,
     updatedAt: new Date(),
   };
-  if (typeof validation.data.budget === "number") {
-    updates.budget = String(validation.data.budget);
-  }
+  coerceDecimals(updates, ["budget"]);
 
   try {
     const updated = await db
@@ -110,7 +110,7 @@ export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, conte
 });
 
 export const DELETE = withApiRoute<RouteCtx>(async ({ request, requestId }, context) => {
-  const auth = await requireAdmin(request);
+  const auth = await requireCapability(request, "site:delete");
   if (!("session" in auth)) {
     return errorResponse(auth.error, "Admin access required", auth.status, undefined, requestId);
   }

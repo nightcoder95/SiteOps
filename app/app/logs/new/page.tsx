@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { can } from "@/lib/auth/capabilities";
 import { safeGetSessionFromHeaders } from "@/lib/auth/session";
 import { db } from "@/lib/db/client";
 import { categories } from "@/lib/db/schema";
@@ -24,7 +25,7 @@ export default async function LogsNewPage({
   const { siteId } = await searchParams;
   const list = await db.select().from(categories);
   const sites =
-    session.user.role === "Admin"
+    can(session.user.role, "site:read_all")
       ? await getAllSites()
       : await getSitesBySupervisor(session.user.id);
   const initialCategories = list.map((c) => ({

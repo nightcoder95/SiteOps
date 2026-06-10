@@ -2,6 +2,8 @@ import { and, desc, eq, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import { notifications, userProfiles } from "@/lib/db/schema";
+import { logError } from "@/lib/logging/log";
+import { sendPushToUser } from "@/lib/push/webPush";
 
 export async function createNotification(
   userId: string,
@@ -20,6 +22,12 @@ export async function createNotification(
       linkToView: linkToView ?? null,
     })
     .returning();
+
+  // PWA6 — mirror the in-app notification as a Web Push (best-effort, never
+  // blocks or fails the caller). No-ops when VAPID isn't configured.
+  void sendPushToUser(userId, { title, body: message, url: linkToView ?? undefined, tag: type }).catch(
+    (error) => logError("push", error, { event: "push.send", userId, type }),
+  );
 
   return result[0];
 }

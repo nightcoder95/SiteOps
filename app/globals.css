@@ -174,3 +174,17 @@
     -webkit-font-smoothing: antialiased;
   }
 }
+
+/* Reduced-motion fallback (WCAG 2.3.3): kill CSS transitions/animations for
+   users who request it. motion/react animations are handled separately via
+   <MotionConfig reducedMotion="user"> in app/providers.tsx. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

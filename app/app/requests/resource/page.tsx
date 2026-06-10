@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
-import { requestJson, type ClientResult } from '@/lib/http/client';
+import { requestJson } from '@/lib/http/client';
+import { useApiResult } from '@/lib/http/useApiQuery';
 import { toastClientError, toastSuccess } from '@/lib/ui/toast';
 
 type ResourceRequest = {
@@ -41,25 +42,12 @@ function statusChip(status: ResourceRequest['status']) {
 }
 
 export default function ResourceRequestsPage() {
-  const [result, setResult] = useState<ClientResult<ResourceRequest[]> | null>(null);
+  const { data: result, mutate } = useApiResult<ResourceRequest[]>('/api/requests/resource');
   const [pendingId, setPendingId] = useState<string | null>(null);
 
   async function load() {
-    const next = await requestJson<ResourceRequest[]>('/api/requests/resource');
-    setResult(next);
-    return next;
+    await mutate();
   }
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const next = await load();
-      if (!cancelled) setResult(next);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -83,7 +71,7 @@ export default function ResourceRequestsPage() {
       return;
     }
     toastClientError(next);
-    setResult(next);
+    await mutate(next, { revalidate: false });
   }
 
   async function review(id: string, nextStatus: 'Approved' | 'Declined') {
@@ -98,7 +86,7 @@ export default function ResourceRequestsPage() {
       await load();
     } else {
       toastClientError(next);
-      setResult(next);
+      await mutate(next, { revalidate: false });
     }
     setPendingId(null);
   }

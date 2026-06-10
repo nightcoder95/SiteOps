@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { notifyError } from '@/lib/ui/toast';
 import {
   AlertCircle,
   Clock,
@@ -17,6 +18,7 @@ import {
   Trash2,
 } from 'lucide-react';
 
+import { can } from '@/lib/auth/capabilities';
 import { requestJson, type ClientResult } from '@/lib/http/client';
 import { confirmDialog } from '@/lib/ui/confirm';
 
@@ -102,9 +104,10 @@ export default function SiteDetailPageClient({
 
   const site = siteResult?.ok ? siteResult.data : initialSite;
   const progress = site.currentProgress ?? 0;
+  const canDeleteSite = can(role, 'site:delete');
 
   async function handleDeleteSite() {
-    if (role !== 'Admin') return;
+    if (!canDeleteSite) return;
     const confirmed = await confirmDialog({
       title: 'Archive site?',
       message: `Archive "${site.name}". You can restore from admin tools.`,
@@ -117,7 +120,7 @@ export default function SiteDetailPageClient({
     const res = await requestJson<null>(`/api/sites/${siteId}`, { method: 'DELETE' });
     setDeletingSite(false);
     if (!res.ok) {
-      toast.error(res.message);
+      notifyError(res);
       return;
     }
     toast.success('Site archived');
@@ -149,8 +152,9 @@ export default function SiteDetailPageClient({
             </div>
             <button
               onClick={() => void handleDeleteSite()}
-              disabled={role !== 'Admin' || deletingSite}
-              title={role === 'Admin' ? 'Archive site' : 'Only admins can delete sites'}
+              disabled={!canDeleteSite || deletingSite}
+              title={canDeleteSite ? 'Archive site' : 'Only admins can delete sites'}
+              aria-label={canDeleteSite ? 'Archive site' : 'Only admins can delete sites'}
               className="md:self-start p-3 bg-white/5 border border-white/10 rounded-2xl hover:bg-red-500/10 hover:text-red-400 transition-all text-slate-500 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {deletingSite ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}

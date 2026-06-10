@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabaseBrowserClient } from '@/lib/auth/browserClient';
 import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
-import { requestJson, type ClientResult } from '@/lib/http/client';
+import { requestJson } from '@/lib/http/client';
+import { useApiResult } from '@/lib/http/useApiQuery';
 import { toastClientError, toastSuccess } from '@/lib/ui/toast';
 
 type ProfileResponse = {
@@ -35,7 +36,7 @@ function ReadOnlyRow({ label, value }: { label: string; value: string }) {
 }
 
 export default function ProfilePage() {
-  const [result, setResult] = useState<ClientResult<ProfileResponse> | null>(null);
+  const { data: result, mutate } = useApiResult<ProfileResponse>('/api/users/me');
   const [saving, setSaving] = useState(false);
   const router = useRouter();
 
@@ -46,17 +47,6 @@ export default function ProfilePage() {
     router.replace('/auth/sign-in');
     router.refresh();
   };
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const next = await requestJson<ProfileResponse>('/api/users/me');
-      if (!cancelled) setResult(next);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   async function update(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -78,11 +68,13 @@ export default function ProfilePage() {
     setSaving(false);
 
     if (next.ok) {
-      setResult(next);
+      // PATCH returns the authoritative updated profile — write it straight into
+      // the cache (no refetch needed).
+      await mutate(next, { revalidate: false });
       toastSuccess('Profile updated');
     } else {
       toastClientError(next);
-      setResult(next);
+      await mutate(next, { revalidate: false });
     }
   }
 
@@ -154,7 +146,7 @@ export default function ProfilePage() {
         <button
           type="button"
           onClick={handleSignOut}
-          className="flex h-11 w-full items-center justify-center gap-2 rounded border border-red-500/30 bg-red-500/10/10 text-xs font-semibold uppercase text-error hover:bg-red-500/10/20 transition-all active:scale-[0.98]"
+          className="flex h-11 w-full items-center justify-center gap-2 rounded border border-red-500/30 bg-red-500/10 text-xs font-semibold uppercase text-error hover:bg-red-500/20 transition-all active:scale-[0.98]"
         >
           <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>logout</span>
           Sign Out

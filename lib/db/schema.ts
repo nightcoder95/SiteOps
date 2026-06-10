@@ -67,12 +67,41 @@ export const userProfiles = pgTable("user_profiles", {
   profileId: uuid("profile_id").notNull().unique().defaultRandom(),
   userId: uuid("user_id").notNull().unique(),
   role: userRoleEnum("role").notNull().default("Supervisor"),
+  // Source of truth for temp-password hygiene. Set true on admin provisioning;
+  // mirrored into a JWT claim by custom_access_token_hook so middleware can
+  // force a password change without a per-request DB lookup.
+  mustChangePassword: boolean("must_change_password").notNull().default(false),
   phone: varchar("phone", { length: 20 }),
   assignedRegion: varchar("assigned_region", { length: 100 }),
   designation: varchar("designation", { length: 100 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+// Append-only audit trail for privileged actions and permission denials only —
+// never successful reads/writes (write amplification). actorUserId uses
+// onDelete:"set null" (valid because userProfiles.userId is unique) so audit
+// rows survive user deletion.
+export const auditLogs = pgTable(
+  "audit_logs",
+  {
+    id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+    actorUserId: uuid("actor_user_id").references(() => userProfiles.userId, {
+      onDelete: "set null",
+    }),
+    action: varchar("action", { length: 100 }).notNull(), // permission.denied | role.changed | user.created
+    resourceType: varchar("resource_type", { length: 100 }),
+    resourceId: varchar("resource_id", { length: 100 }),
+    allowed: boolean("allowed").notNull(),
+    role: varchar("role", { length: 50 }).notNull(),
+    metadata: jsonb("metadata"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("audit_logs_actor_created_idx").on(t.actorUserId, t.createdAt.desc().nullsLast()),
+    index("audit_logs_action_created_idx").on(t.action, t.createdAt.desc().nullsLast()),
+  ]
+);
 
 export const sites = pgTable("sites", {
   id: identityId(),
@@ -403,4 +432,20 @@ export const resourceTransfers = pgTable("resource_transfers", {
   index("resource_transfers_status_idx").on(t.status),
   index("resource_transfers_from_site_id_idx").on(t.fromSiteId),
   index("resource_transfers_to_site_id_idx").on(t.toSiteId),
+]);
+
+// PWA6 — Web Push subscriptions. One row per browser/device endpoint a user has
+// opted in from. `endpoint` is unique (the browser rotates it on resubscribe).
+// Keys (p256dh/auth) are required by the Web Push protocol to encrypt payloads.
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: identityId(),
+  subscriptionId: uuid("subscription_id").notNull().unique().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => userProfiles.userId, { onDelete: "cascade" }),
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  userAgent: varchar("user_agent", { length: 255 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("push_subscriptions_user_id_idx").on(t.userId),
 ]);
