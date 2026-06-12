@@ -13,14 +13,11 @@ export const dynamic = "force-dynamic";
 export default async function SitesNewPage() {
   const session = await safeGetSessionFromHeaders(await headers());
   if (!session) redirect("/auth/sign-in");
-  if (session.user.role !== "Supervisor" && session.user.role !== "Admin") {
+  if (!can(session.user.role, "site:create")) {
     redirect("/app/dashboard");
   }
 
-  let supervisors: SupervisorOption[] = [];
-  if (can(session.user.role, "resource:manage_all")) {
-    supervisors = await listSupervisors();
-  }
+  const supervisors: SupervisorOption[] = await listSupervisors();
 
   return (
     <PageStack>

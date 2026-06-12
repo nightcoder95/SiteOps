@@ -2,7 +2,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { can } from "@/lib/auth/capabilities";
-import { requireSiteAccess } from "@/lib/auth/guards";
+import { requireCapability, requireSiteAccess } from "@/lib/auth/guards";
 import { db } from "@/lib/db/client";
 import { sites } from "@/lib/db/schema";
 import { measureDbQuery } from "@/lib/db/timing";
@@ -63,7 +63,7 @@ export const GET = withApi(async ({ request, requestId }) => {
 });
 
 export const POST = withApi(async ({ request, requestId }) => {
-  const auth = await requireSiteAccess(request);
+  const auth = await requireCapability(request, "site:create");
   if (!("session" in auth)) {
     return errorResponse(
       auth.error,

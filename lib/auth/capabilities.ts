@@ -49,7 +49,6 @@ export type Capability =
 // Capabilities shared by every authenticated role. Supervisor === this set.
 const SUPERVISOR_CAPABILITIES: readonly Capability[] = [
   "site:read",
-  "site:create",
   "entry:create",
   "entry:read",
   "entry:update",
@@ -78,6 +77,7 @@ const SUPERVISOR_CAPABILITIES: readonly Capability[] = [
 const ADMIN_CAPABILITIES: readonly Capability[] = [
   ...SUPERVISOR_CAPABILITIES,
   "site:read_all",
+  "site:create",
   "site:update",
   "site:delete",
   "form_category:delete",

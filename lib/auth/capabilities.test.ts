@@ -17,6 +17,7 @@ describe("capabilities map", () => {
       "user:create",
       "user:list",
       "user:manage_roles",
+      "site:create",
       "site:update",
       "site:delete",
       "site:read_all",
@@ -37,7 +38,6 @@ describe("capabilities map", () => {
   it("grants Supervisor its own-scope + create capabilities", () => {
     const supervisorCaps: Capability[] = [
       "site:read",
-      "site:create",
       "entry:create",
       "entry:update",
       "entry:delete",
