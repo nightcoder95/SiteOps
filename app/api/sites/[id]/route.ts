@@ -51,7 +51,7 @@ export const GET = withApiRoute<RouteCtx>(async ({ request, requestId }, context
     },
   );
 
-  if (!record || record.archivedAt) {
+  if (!record || record.archivedAt || record.isDeleted) {
     return errorResponse(ERROR_CODES.NOT_FOUND, "Site not found", 404, undefined, requestId);
   }
 
@@ -83,7 +83,7 @@ export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, conte
 
   const existing = await db.select().from(sites).where(eq(sites.siteId, id)).limit(1);
   const record = existing[0] ?? null;
-  if (!record || record.archivedAt) {
+  if (!record || record.archivedAt || record.isDeleted) {
     return errorResponse(ERROR_CODES.NOT_FOUND, "Site not found", 404, undefined, requestId);
   }
 
@@ -120,8 +120,22 @@ export const DELETE = withApiRoute<RouteCtx>(async ({ request, requestId }, cont
   const existing = await db.select().from(sites).where(eq(sites.siteId, id)).limit(1);
   const record = existing[0] ?? null;
 
-  if (!record) {
+  if (!record || record.isDeleted) {
     return errorResponse(ERROR_CODES.NOT_FOUND, "Site not found", 404, undefined, requestId);
+  }
+
+  // `?permanent=true` soft-removes the site from every UI (is_deleted flag, row
+  // kept in DB). Works whether or not the site is already archived. Without it,
+  // DELETE performs the default soft-archive.
+  const permanent = new URL(request.url).searchParams.get("permanent") === "true";
+
+  if (permanent) {
+    await db
+      .update(sites)
+      .set({ isDeleted: true, updatedAt: new Date() })
+      .where(eq(sites.siteId, id));
+    await invalidateSiteCache(id, requestId);
+    return successResponse(null, 200, requestId);
   }
 
   if (record.archivedAt) {

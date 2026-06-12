@@ -7,6 +7,7 @@ import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
 import { requestJson } from '@/lib/http/client';
 import { useApiResult } from '@/lib/http/useApiQuery';
 import { toastClientError, toastSuccess } from '@/lib/ui/toast';
+import { DangerZone } from './DangerZone';
 
 type ProfileResponse = {
   // /api/users/me derives `user` from JWT claims — only id, email, role exist.
@@ -19,6 +20,7 @@ type ProfileResponse = {
     phone: string | null;
     assignedRegion: string | null;
     designation: string | null;
+    fullName: string | null;
   } | null;
 };
 
@@ -52,9 +54,11 @@ export default function ProfilePage() {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const payload: Record<string, string> = {};
+    const fullName = String(fd.get('fullName') ?? '').trim();
     const phone = String(fd.get('phone') ?? '').trim();
     const assignedRegion = String(fd.get('assignedRegion') ?? '').trim();
     const designation = String(fd.get('designation') ?? '').trim();
+    if (fullName) payload.fullName = fullName;
     if (phone) payload.phone = phone;
     if (assignedRegion) payload.assignedRegion = assignedRegion;
     if (designation) payload.designation = designation;
@@ -111,6 +115,7 @@ export default function ProfilePage() {
         <header className="border-b border-outline-variant px-4 py-3">
           <h3 className="text-xs font-semibold uppercase text-on-surface-variant">Account Details</h3>
         </header>
+        <ReadOnlyRow label="Name" value={profile?.fullName ?? '—'} />
         <ReadOnlyRow label="Phone" value={profile?.phone ?? '—'} />
         <ReadOnlyRow label="Region" value={profile?.assignedRegion ?? '—'} />
         <ReadOnlyRow label="Designation" value={profile?.designation ?? '—'} />
@@ -118,6 +123,10 @@ export default function ProfilePage() {
 
       <form onSubmit={update} className="card-standard flex flex-col gap-4 rounded-2xl p-4">
         <h3 className="text-lg font-extrabold tracking-tight text-on-surface">Update Profile</h3>
+        <div className="flex flex-col gap-2">
+          <label htmlFor="fullName" className={labelClass}>Full Name</label>
+          <input id="fullName" name="fullName" defaultValue={profile?.fullName ?? ''} maxLength={120} className={inputClass} />
+        </div>
         <div className="flex flex-col gap-2">
           <label htmlFor="phone" className={labelClass}>Phone</label>
           <input id="phone" name="phone" className={inputClass} />
@@ -152,6 +161,8 @@ export default function ProfilePage() {
           Sign Out
         </button>
       </section>
+
+      {user?.role === 'Admin' ? <DangerZone /> : null}
     </div>
   );
 }

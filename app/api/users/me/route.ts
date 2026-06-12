@@ -19,6 +19,7 @@ const updateProfileSchema = z
     phone: z.string().max(20).optional(),
     assignedRegion: z.string().max(100).optional(),
     designation: z.string().max(100).optional(),
+    fullName: z.string().max(120).optional(),
   })
   .strict();
 
@@ -78,6 +79,8 @@ export const PATCH = withApi(async ({ request, requestId }) => {
       validation.data.assignedRegion ?? current?.assignedRegion ?? null;
     const nextDesignation =
       validation.data.designation ?? current?.designation ?? null;
+    const nextFullName =
+      validation.data.fullName ?? current?.fullName ?? null;
 
     await measureDbQuery(requestId, "users.me.profile.upsert", () =>
       db
@@ -87,6 +90,7 @@ export const PATCH = withApi(async ({ request, requestId }) => {
           phone: nextPhone,
           assignedRegion: nextAssignedRegion,
           designation: nextDesignation,
+          fullName: nextFullName,
         })
         .onConflictDoUpdate({
           target: userProfiles.userId,
@@ -94,6 +98,7 @@ export const PATCH = withApi(async ({ request, requestId }) => {
             phone: nextPhone,
             assignedRegion: nextAssignedRegion,
             designation: nextDesignation,
+            fullName: nextFullName,
             updatedAt: new Date(),
           },
         })
@@ -106,7 +111,14 @@ export const PATCH = withApi(async ({ request, requestId }) => {
     );
 
     await invalidateUserProfileCache(auth.session.user.id, requestId);
-    return successResponse(profile ?? null, 200, requestId);
+    // Mirror GET's `{ user, profile }` shape so the client can write the response
+    // straight into the /api/users/me cache without losing `user` or the nested
+    // `profile` (revalidate:false).
+    return successResponse(
+      { user: auth.session.user, profile: profile ?? null },
+      200,
+      requestId,
+    );
   } catch (dbError) {
     const handled = handleDbError(dbError, requestId);
     if (handled) return handled;

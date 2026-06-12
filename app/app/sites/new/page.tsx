@@ -1,12 +1,10 @@
-import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { PageHero, PageStack } from "@/components/ui/page-primitives";
 import { can } from "@/lib/auth/capabilities";
 import { safeGetSessionFromHeaders } from "@/lib/auth/session";
-import { db } from "@/lib/db/client";
-import { userProfiles } from "@/lib/db/schema";
+import { listSupervisors, type SupervisorOption } from "@/lib/users/listSupervisors";
 
 import { SitesNewPageClient } from "./SitesNewPageClient";
 
@@ -19,13 +17,9 @@ export default async function SitesNewPage() {
     redirect("/app/dashboard");
   }
 
-  let supervisors: { userId: string; designation: string | null }[] = [];
+  let supervisors: SupervisorOption[] = [];
   if (can(session.user.role, "resource:manage_all")) {
-    const rows = await db
-      .select({ userId: userProfiles.userId, designation: userProfiles.designation })
-      .from(userProfiles)
-      .where(eq(userProfiles.role, "Supervisor"));
-    supervisors = rows;
+    supervisors = await listSupervisors();
   }
 
   return (

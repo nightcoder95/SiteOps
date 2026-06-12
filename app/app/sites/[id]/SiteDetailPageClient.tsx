@@ -8,6 +8,7 @@ import { notifyError } from '@/lib/ui/toast';
 import {
   AlertCircle,
   Clock,
+  Edit3,
   FileText,
   Layers,
   Loader2,
@@ -21,6 +22,7 @@ import {
 import { can } from '@/lib/auth/capabilities';
 import { requestJson, type ClientResult } from '@/lib/http/client';
 import { confirmDialog } from '@/lib/ui/confirm';
+import { EditSiteModal } from './EditSiteModal';
 
 type Site = {
   id: number;
@@ -41,12 +43,15 @@ type OperationSummary = Record<OperationType, {
   todaySpend: number | null;
 }>;
 
+type Supervisor = { userId: string; displayName: string };
+
 type SiteDetailPageClientProps = {
   siteId: string;
   initialSite: Site;
   initialSummary: OperationSummary;
   trackedSpend: string;
   role: 'Admin' | 'Supervisor';
+  supervisors: Supervisor[];
 };
 
 function getTypeColor(type: OperationType) {
@@ -97,20 +102,23 @@ export default function SiteDetailPageClient({
   initialSummary,
   trackedSpend,
   role,
+  supervisors,
 }: SiteDetailPageClientProps) {
   const router = useRouter();
   const [siteResult] = useState<ClientResult<Site> | null>({ ok: true, data: initialSite });
   const [deletingSite, setDeletingSite] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const site = siteResult?.ok ? siteResult.data : initialSite;
   const progress = site.currentProgress ?? 0;
   const canDeleteSite = can(role, 'site:delete');
+  const canEditSite = can(role, 'site:update');
 
   async function handleDeleteSite() {
     if (!canDeleteSite) return;
     const confirmed = await confirmDialog({
       title: 'Archive site?',
-      message: `Archive "${site.name}". You can restore from admin tools.`,
+      message: `Archive "${site.name}". It moves to Archived Sites on Home (restorable), and the name becomes available for reuse.`,
       confirmLabel: 'Archive',
       cancelLabel: 'Cancel',
       tone: 'danger',
@@ -150,15 +158,31 @@ export default function SiteDetailPageClient({
                 {site.location}
               </div>
             </div>
-            <button
-              onClick={() => void handleDeleteSite()}
-              disabled={!canDeleteSite || deletingSite}
-              title={canDeleteSite ? 'Archive site' : 'Only admins can delete sites'}
-              aria-label={canDeleteSite ? 'Archive site' : 'Only admins can delete sites'}
-              className="md:self-start p-3 bg-white/5 border border-white/10 rounded-2xl hover:bg-red-500/10 hover:text-red-400 transition-all text-slate-500 shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {deletingSite ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
-            </button>
+            {(canEditSite || canDeleteSite) ? (
+              <div className="flex items-center gap-2 md:self-start">
+                {canEditSite ? (
+                  <button
+                    onClick={() => setEditOpen(true)}
+                    aria-label="Edit site"
+                    className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs font-bold uppercase tracking-widest text-slate-300 transition-all hover:border-sky-500/40 hover:text-sky-400"
+                  >
+                    <Edit3 className="w-4 h-4" /> Edit
+                  </button>
+                ) : null}
+                {canDeleteSite ? (
+                  <button
+                    onClick={() => void handleDeleteSite()}
+                    disabled={deletingSite}
+                    title="Archive site"
+                    aria-label="Archive site"
+                    className="inline-flex items-center gap-2 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-xs font-bold uppercase tracking-widest text-red-400 transition-all hover:bg-red-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {deletingSite ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                    Archive
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-white/5">
@@ -255,6 +279,15 @@ export default function SiteDetailPageClient({
           );
         })}
       </section>
+
+      {canEditSite ? (
+        <EditSiteModal
+          open={editOpen}
+          onClose={() => setEditOpen(false)}
+          site={site}
+          supervisors={supervisors}
+        />
+      ) : null}
     </div>
   );
 }
