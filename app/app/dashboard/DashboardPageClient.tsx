@@ -2,12 +2,14 @@
 
 import { motion } from 'motion/react';
 import { MapPin } from 'lucide-react';
-import Link from 'next/link';
 
 import type { DashboardData } from '@/lib/services/dashboard';
 
+import { ArchivedSites } from './ArchivedSites';
+
 export function DashboardPageClient({ data }: { data: DashboardData }) {
   const sites = data.sites.map((s) => ({ id: s.siteId, name: s.name, location: s.location, status: s.status }));
+  const archivedSites = data.archivedSites.map((s) => ({ siteId: s.siteId, name: s.name, location: s.location }));
 
   return (
     <div className="space-y-6 pb-20">
@@ -31,12 +33,6 @@ export function DashboardPageClient({ data }: { data: DashboardData }) {
         <section className="flex-1 card-standard flex flex-col overflow-hidden">
           <div className="px-5 py-4 border-b border-white/5 flex justify-between items-center bg-white/5 backdrop-blur-md sticky top-0 z-10">
             <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Recent Site Activity</h2>
-            <Link
-              href="/app/sites"
-              className="text-[10px] text-sky-400 font-bold uppercase tracking-widest hover:bg-white/5 px-2 py-1 rounded transition-colors"
-            >
-              View All Sites
-            </Link>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
@@ -92,6 +88,8 @@ export function DashboardPageClient({ data }: { data: DashboardData }) {
           </div>
         </section>
       </div>
+
+      <ArchivedSites sites={archivedSites} />
     </div>
   );
 }

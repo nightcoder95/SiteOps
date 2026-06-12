@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-import { MAX_BACKDATE_DAYS } from "@/lib/validation/constants";
-
 export const uuidSchema = z.string().uuid();
 export const emailSchema = z.string().email().max(255);
 
@@ -70,14 +68,12 @@ export const materialWorkStages = [
 
 export const entryDateSchema = z.string().date().refine(
   (d) => {
-    // Compare date strings directly in UTC to avoid timezone-offset issues.
-    // new Date("2026-05-13") produces UTC midnight, but new Date() is local time,
-    // which could accept future dates or reject same-day entries depending on timezone.
+    // No-future guard only; backdating is unlimited. Compare date strings in UTC
+    // to avoid timezone-offset issues (new Date("2026-05-13") is UTC midnight).
     const todayUtc = new Date().toISOString().slice(0, 10);
-    const floorUtc = new Date(Date.now() - MAX_BACKDATE_DAYS * 86400000).toISOString().slice(0, 10);
-    return d >= floorUtc && d <= todayUtc;
+    return d <= todayUtc;
   },
-  { message: `Entry date must be within the last ${MAX_BACKDATE_DAYS} days` }
+  { message: "Entry date cannot be in the future" }
 );
 
 const labourLegacyShape = z.object({

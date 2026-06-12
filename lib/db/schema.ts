@@ -74,6 +74,7 @@ export const userProfiles = pgTable("user_profiles", {
   phone: varchar("phone", { length: 20 }),
   assignedRegion: varchar("assigned_region", { length: 100 }),
   designation: varchar("designation", { length: 100 }),
+  fullName: varchar("full_name", { length: 120 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -106,7 +107,7 @@ export const auditLogs = pgTable(
 export const sites = pgTable("sites", {
   id: identityId(),
   siteId: uuid("site_id").notNull().unique().defaultRandom(),
-  name: varchar("name", { length: 255 }).notNull().unique(),
+  name: varchar("name", { length: 255 }).notNull(),
   location: varchar("location", { length: 255 }).notNull(),
   status: siteStatusEnum("status").notNull().default("In Progress"),
   budget: decimal("budget", { precision: 15, scale: 2 }),
@@ -116,6 +117,7 @@ export const sites = pgTable("sites", {
   createdByUserId: uuid("created_by_user_id").notNull().references(() => userProfiles.userId),
   updatedByUserId: uuid("updated_by_user_id").notNull().references(() => userProfiles.userId),
   archivedAt: timestamp("archived_at"),
+  isDeleted: boolean("is_deleted").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
@@ -124,6 +126,9 @@ export const sites = pgTable("sites", {
   // Partial indexes for the dominant "active sites only" filter.
   index("sites_supervisor_active_idx").on(t.supervisorId).where(isNull(t.archivedAt)),
   index("sites_active_idx").on(t.siteId).where(isNull(t.archivedAt)),
+  // Name is unique only among live (non-archived, non-deleted) sites, so an
+  // archived/deleted name becomes reusable.
+  uniqueIndex("sites_name_active_uidx").on(t.name).where(sql`${t.archivedAt} IS NULL AND ${t.isDeleted} = false`),
 ]);
 
 export const customLabourTypes = pgTable("custom_labour_types", {

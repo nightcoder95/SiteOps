@@ -38,7 +38,10 @@ export const GET = withApi(async ({ request, requestId }) => {
 
   if (can(role, "site:read_all")) {
     const result = await measureDbQuery(requestId, "sites.list.admin", () =>
-      db.select().from(sites).where(isNull(sites.archivedAt))
+      db
+        .select()
+        .from(sites)
+        .where(and(isNull(sites.archivedAt), eq(sites.isDeleted, false)))
     );
     return successResponse(result, 200, requestId);
   }
@@ -48,7 +51,11 @@ export const GET = withApi(async ({ request, requestId }) => {
       .select()
       .from(sites)
       .where(
-        and(eq(sites.supervisorId, session.user.id), isNull(sites.archivedAt))
+        and(
+          eq(sites.supervisorId, session.user.id),
+          isNull(sites.archivedAt),
+          eq(sites.isDeleted, false)
+        )
       )
   );
 

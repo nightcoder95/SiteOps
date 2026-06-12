@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  entryDateSchema,
   incidentEntrySchema,
   labourEntrySchema,
   labourSplitWorkTypes,
@@ -334,5 +335,20 @@ describe("operation consolidation schema additions", () => {
 
       expect(result.success).toBe(true);
     }
+  });
+});
+
+describe("entryDateSchema", () => {
+  const today = new Date().toISOString().slice(0, 10);
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+
+  it("accepts today", () => {
+    expect(entryDateSchema.safeParse(today).success).toBe(true);
+  });
+  it("accepts dates far in the past", () => {
+    expect(entryDateSchema.safeParse("2020-01-01").success).toBe(true);
+  });
+  it("rejects future dates", () => {
+    expect(entryDateSchema.safeParse(tomorrow).success).toBe(false);
   });
 });

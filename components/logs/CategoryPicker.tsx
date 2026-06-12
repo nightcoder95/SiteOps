@@ -216,9 +216,14 @@ export function CategoryPicker({ initialCategories = [], onSelect, role, siteId 
                   )}
                 </button>
               )}
-              <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-600 group-hover:bg-sky-500 group-hover:text-slate-950 transition-all">
-                <ChevronRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
-              </div>
+              <button
+                type="button"
+                onClick={() => onSelect(c)}
+                aria-label={`Open ${c.name}`}
+                className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-slate-600 hover:bg-sky-500 hover:text-slate-950 transition-all"
+              >
+                <ChevronRight className="w-5 h-5 transition-transform hover:translate-x-0.5" />
+              </button>
             </div>
           </motion.div>
         ))}

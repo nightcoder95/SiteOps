@@ -1,8 +1,21 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 
 import type { SessionUser } from "@/lib/auth/session";
 import { db } from "@/lib/db/client";
 import { notifications, sites } from "@/lib/db/schema";
+
+type DashboardSite = {
+  id: number;
+  siteId: string;
+  name: string;
+  location: string;
+  status: "In Progress" | "Blocked" | "Completed";
+  budget: string | null;
+  currentProgress: number | null;
+  currentPhase: string | null;
+  supervisorId: string;
+  updatedAt: Date;
+};
 
 type DashboardNotification = {
   id: string;
@@ -14,18 +27,9 @@ type DashboardNotification = {
 
 export type DashboardData = {
   user: SessionUser;
-  sites: Array<{
-    id: number;
-    siteId: string;
-    name: string;
-    location: string;
-    status: "In Progress" | "Blocked" | "Completed";
-    budget: string | null;
-    currentProgress: number | null;
-    currentPhase: string | null;
-    supervisorId: string;
-    updatedAt: Date;
-  }>;
+  role: SessionUser["role"];
+  sites: DashboardSite[];
+  archivedSites: DashboardSite[];
   notifications: {
     items: DashboardNotification[];
     total: number;
@@ -35,11 +39,23 @@ export type DashboardData = {
 export async function getDashboardData(user: SessionUser): Promise<DashboardData> {
   const siteWhere =
     user.role === "Admin"
-      ? isNull(sites.archivedAt)
-      : and(eq(sites.supervisorId, user.id), isNull(sites.archivedAt));
+      ? and(isNull(sites.archivedAt), eq(sites.isDeleted, false))
+      : and(
+          eq(sites.supervisorId, user.id),
+          isNull(sites.archivedAt),
+          eq(sites.isDeleted, false)
+        );
 
-  const [siteRows, notificationRows] = await Promise.all([
+  const [siteRows, archivedRows, notificationRows] = await Promise.all([
     db.select().from(sites).where(siteWhere).orderBy(desc(sites.updatedAt)),
+    // Archived (but not permanently-deleted) sites — admin-only restore queue.
+    user.role === "Admin"
+      ? db
+          .select()
+          .from(sites)
+          .where(and(isNotNull(sites.archivedAt), eq(sites.isDeleted, false)))
+          .orderBy(desc(sites.updatedAt))
+      : Promise.resolve([] as DashboardSite[]),
     db
       .select({
         id: notifications.notificationId,
@@ -58,7 +74,9 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
 
   return {
     user,
+    role: user.role,
     sites: siteRows,
+    archivedSites: archivedRows,
     notifications: {
       items: unreadItems.slice(0, 4).map((item) => ({
         ...item,

@@ -99,6 +99,41 @@
       "when": 1780858169510,
       "tag": "0013_custom_access_token_hook_must_change_password",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1781206039679,
+      "tag": "0014_sites_lifecycle_fullname",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1781206039694,
+      "tag": "0015_rls_policies",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1781206039695,
+      "tag": "0016_push_subscriptions_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1781206039712,
+      "tag": "0017_seed_unit_master",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1781206039713,
+      "tag": "0018_topup_default_catalog",
+      "breakpoints": true
     }
   ]
 }

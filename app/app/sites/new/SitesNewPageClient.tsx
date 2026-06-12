@@ -8,7 +8,7 @@ import { notifyError } from "@/lib/ui/toast";
 import { can } from "@/lib/auth/capabilities";
 import { requestJson } from "@/lib/http/client";
 
-type Supervisor = { userId: string; designation: string | null };
+type Supervisor = { userId: string; displayName: string };
 
 type Props = {
   role: "Admin" | "Supervisor";
@@ -103,7 +103,7 @@ export function SitesNewPageClient({ role, supervisors }: Props) {
               <option value="">Assign to me</option>
               {supervisors.map((s) => (
                 <option key={s.userId} value={s.userId}>
-                  {s.designation ?? s.userId}
+                  {s.displayName}
                 </option>
               ))}
             </select>
