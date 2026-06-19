@@ -26,6 +26,13 @@ function requestFor(path: string, method = "GET") {
   return new NextRequest(new URL(`https://app.test${path}`), { method });
 }
 
+function bearerRequestFor(path: string, token: string, method = "GET") {
+  return new NextRequest(new URL(`https://app.test${path}`), {
+    method,
+    headers: { authorization: `Bearer ${token}` },
+  });
+}
+
 function setClaims(claims: Record<string, unknown> | null) {
   mockGetClaims.mockResolvedValue(
     claims ? { data: { claims }, error: null } : { data: null, error: new Error("no session") },
@@ -99,5 +106,47 @@ describe("middleware — auth fallbacks", () => {
     setClaims(normalUser);
     const res = await middleware(requestFor("/app/dashboard"));
     expect(res.headers.get("location")).toBeNull();
+  });
+});
+
+describe("middleware — Authorization: Bearer (native clients)", () => {
+  beforeEach(() => {
+    mockGetClaims.mockReset();
+  });
+
+  it("verifies the bearer token (passes it to getClaims) and lets a valid one through", async () => {
+    // getClaims succeeds only when handed the bearer token — proves the bearer path is taken.
+    mockGetClaims.mockImplementation((token?: string) =>
+      token === "valid.jwt"
+        ? { data: { claims: normalUser }, error: null }
+        : { data: null, error: new Error("no session") },
+    );
+    const res = await middleware(bearerRequestFor("/api/entries", "valid.jwt"));
+    expect(mockGetClaims).toHaveBeenCalledWith("valid.jwt");
+    expect(res.status).not.toBe(401);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("401s when the bearer token is expired/invalid", async () => {
+    mockGetClaims.mockResolvedValue({ data: null, error: new Error("expired") });
+    const res = await middleware(bearerRequestFor("/api/entries", "expired.jwt"));
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body.error.code).toBe("UNAUTHORIZED");
+  });
+
+  it("still enforces PASSWORD_CHANGE_REQUIRED for a bearer user carrying the claim", async () => {
+    mockGetClaims.mockResolvedValue({ data: { claims: forcedUser }, error: null });
+    const res = await middleware(bearerRequestFor("/api/entries", "forced.jwt"));
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error.code).toBe("PASSWORD_CHANGE_REQUIRED");
+  });
+
+  it("falls back to the cookie path when no bearer header is present", async () => {
+    setClaims(normalUser);
+    const res = await middleware(requestFor("/api/entries"));
+    expect(mockGetClaims).toHaveBeenCalledWith();
+    expect(res.status).not.toBe(401);
   });
 });

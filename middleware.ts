@@ -10,6 +10,16 @@ import {
 } from "@/lib/auth/headers";
 import { PUBLIC_ROUTES, PUBLIC_ROUTE_PREFIXES } from "@/lib/auth/constants";
 
+/** Pull a Bearer token out of the Authorization header, or null if absent/malformed. */
+function extractBearerToken(request: NextRequest): string | null {
+  const header = request.headers.get("authorization");
+  if (!header) return null;
+  const [scheme, token] = header.split(" ");
+  if (scheme?.toLowerCase() !== "bearer" || !token) return null;
+  const trimmed = token.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
@@ -44,9 +54,16 @@ export async function middleware(request: NextRequest) {
     },
   });
 
+  // Native clients (Android) send `Authorization: Bearer <jwt>` instead of cookies.
+  // Prefer it when present; getClaims(token) verifies that JWT against the same JWKS
+  // the cookie path uses, so all downstream header injection + guards are unchanged.
+  const bearerToken = extractBearerToken(request);
+
   // getClaims verifies the JWT locally against the JWKS (cached). With asymmetric
   // signing keys (ES256/RS256) this avoids the Auth-server round-trip getUser() makes.
-  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+  const { data: claimsData, error: claimsError } = bearerToken
+    ? await supabase.auth.getClaims(bearerToken)
+    : await supabase.auth.getClaims();
   const claims = claimsError ? null : claimsData?.claims ?? null;
   const userId = typeof claims?.sub === "string" ? claims.sub : null;
   const userEmail = typeof claims?.email === "string" ? claims.email : "";
