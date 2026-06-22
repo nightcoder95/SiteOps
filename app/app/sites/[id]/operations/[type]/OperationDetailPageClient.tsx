@@ -21,6 +21,7 @@ import {
 
 import { requestJson } from "@/lib/http/client";
 import { confirmDialog } from "@/lib/ui/confirm";
+import { formatDate as formatDateUtil } from "@/lib/utils/formatDate";
 import type { EntryType } from "@/lib/db/queries/entries";
 
 type Site = {
@@ -82,8 +83,7 @@ function formatCurrency(value: number) {
 
 function formatDate(value: string) {
   if (!value) return "Unknown";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("en-IN");
+  return formatDateUtil(value);
 }
 
 function formatDateFieldValue(value: string) {

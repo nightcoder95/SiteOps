@@ -5,7 +5,7 @@
     "app/**/*",
     "components/**/*",
     "lib/**/*",
-    "middleware.ts",
+    "proxy.ts",
     "drizzle.config.ts"
   ],
   "exclude": [

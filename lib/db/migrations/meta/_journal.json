@@ -141,6 +141,27 @@
       "when": 1781206039714,
       "tag": "0019_realtime_publication",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1781206039715,
+      "tag": "0020_catalog_ssot_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1781206039716,
+      "tag": "0021_enum_columns_to_varchar",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1781206039717,
+      "tag": "0022_catalog_data_cleanup",
+      "breakpoints": true
     }
   ]
 }

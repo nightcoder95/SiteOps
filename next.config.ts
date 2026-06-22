@@ -42,13 +42,9 @@ const nextConfig: NextConfig = {
         headers: securityHeaders,
       },
       {
-        // Hash-busted bundles — safe to cache forever.
-        source: "/_next/static/(.*)",
-        headers: [
-          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
-        ],
-      },
-      {
+        // `/_next/static` already gets `public, max-age=31536000, immutable`
+        // automatically in production builds; a custom Cache-Control here is
+        // redundant and breaks dev HMR, so it's intentionally omitted.
         source: "/icons/(.*)",
         headers: [
           {

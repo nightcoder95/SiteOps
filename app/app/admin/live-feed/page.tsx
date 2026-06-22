@@ -4,6 +4,7 @@ import { createBrowserClient } from '@supabase/ssr';
 import { useEffect, useMemo, useState } from 'react';
 
 import type { ActivityItem } from '@/lib/types/domain';
+import { formatDateTime } from '@/lib/utils/formatDate';
 
 type FeedState =
   | { kind: 'loading' }
@@ -127,7 +128,7 @@ export default function AdminLiveFeedPage() {
                     <span className="font-semibold uppercase">{activity.type}</span> entry logged at site {activity.siteId}.
                   </p>
                   <p className="text-[10px] font-semibold mt-0.5 text-on-surface-variant">
-                    {new Date(activity.createdAt).toLocaleString()}
+                    {formatDateTime(activity.createdAt)}
                   </p>
                 </div>
               </article>

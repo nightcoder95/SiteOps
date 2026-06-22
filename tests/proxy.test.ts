@@ -20,7 +20,7 @@ vi.mock("@/lib/auth/config", () => ({
   getSupabaseAnonKey: () => "anon-key",
 }));
 
-import { middleware } from "@/middleware";
+import { proxy as middleware } from "@/proxy";
 
 function requestFor(path: string, method = "GET") {
   return new NextRequest(new URL(`https://app.test${path}`), { method });

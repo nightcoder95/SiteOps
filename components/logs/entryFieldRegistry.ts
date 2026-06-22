@@ -14,6 +14,11 @@ export type EntryField = {
   required?: boolean;
   options?: ReadonlyArray<{ value: string; label: string }>;
   subcategoryHint?: string;
+  // For catalog-backed selects whose managed list lives in a *different*
+  // category than the form's operation (former pg-enum fields, design §3.3).
+  catalogCategoryName?: string;
+  // Contextual add-CTA / label noun ("Work Stage", "Severity", …).
+  noun?: string;
   placeholder?: string;
   min?: number;
   max?: number;
@@ -43,16 +48,10 @@ const REGISTRY: Record<string, EntryField[]> = {
     {
       name: "workStage",
       label: "Work Stage",
-      kind: "select",
+      kind: "subcategory",
       required: true,
-      options: [
-        { value: "Basement Level", label: "Basement Level" },
-        { value: "Brick Level", label: "Brick Level" },
-        { value: "Lintel Level", label: "Lintel Level" },
-        { value: "Roof Level", label: "Roof Level" },
-        { value: "Compound Wall", label: "Compound Wall" },
-        { value: "Other", label: "Other" },
-      ],
+      catalogCategoryName: "Material Work Stage",
+      noun: "Work Stage",
     },
     { name: "cost", label: "Total Cost", kind: "number", required: true, min: 0.01, step: 0.01 },
     { name: "remarks", label: "Remarks", kind: "textarea" },
@@ -70,14 +69,10 @@ const REGISTRY: Record<string, EntryField[]> = {
     {
       name: "category",
       label: "Category",
-      kind: "select",
+      kind: "subcategory",
       required: true,
-      options: [
-        { value: "Labour", label: "Labour" },
-        { value: "Materials", label: "Materials" },
-        { value: "Equipment", label: "Equipment" },
-        { value: "Misc", label: "Misc" },
-      ],
+      catalogCategoryName: "Expense Category",
+      noun: "Expense Category",
     },
     { name: "description", label: "Description", kind: "text", required: true },
     { name: "amount", label: "Amount", kind: "number", required: true, min: 0, step: 0.01 },
@@ -86,23 +81,17 @@ const REGISTRY: Record<string, EntryField[]> = {
     {
       name: "incidentType",
       label: "Incident Type",
-      kind: "select",
+      kind: "subcategory",
       required: true,
-      options: [
-        { value: "Safety", label: "Safety" },
-        { value: "Block", label: "Block" },
-      ],
+      catalogCategoryName: "Incident Type",
+      noun: "Incident Type",
     },
     {
       name: "severity",
       label: "Severity",
-      kind: "select",
-      options: [
-        { value: "Low", label: "Low" },
-        { value: "Medium", label: "Medium" },
-        { value: "High", label: "High" },
-        { value: "Critical", label: "Critical" },
-      ],
+      kind: "subcategory",
+      catalogCategoryName: "Incident Severity",
+      noun: "Severity",
     },
     { name: "description", label: "Description", kind: "textarea", required: true },
     { name: "durationEstimate", label: "Duration (minutes)", kind: "number", min: 1, step: 1 },

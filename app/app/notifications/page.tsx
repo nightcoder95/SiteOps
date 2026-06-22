@@ -2,12 +2,15 @@
 
 import Link from 'next/link';
 import { useOptimistic, useState } from 'react';
+import { mutate as globalMutate } from 'swr';
 
 import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
 import { PushOptIn } from '@/components/pwa/PushOptIn';
 import { requestJson } from '@/lib/http/client';
+import { UNREAD_BADGE_KEY } from '@/lib/http/notificationsKeys';
 import { useApiResult } from '@/lib/http/useApiQuery';
 import { toastClientError, toastSuccess } from '@/lib/ui/toast';
+import { formatDateTime } from '@/lib/utils/formatDate';
 
 type Notification = {
   id: string;
@@ -59,6 +62,8 @@ export default function NotificationsPage() {
     if (next.ok) {
       toastSuccess('Notification marked as read');
       await mutate();
+      // Refresh the header unread badge (separate SWR key) now that the count dropped.
+      void globalMutate(UNREAD_BADGE_KEY);
     } else {
       toastClientError(next);
       await mutate(next, { revalidate: false });
@@ -77,6 +82,8 @@ export default function NotificationsPage() {
     if (next.ok) {
       toastSuccess('All notifications marked as read');
       await mutate();
+      // All read → header badge goes to zero. Seed the cache directly to avoid a refetch.
+      void globalMutate(UNREAD_BADGE_KEY, { total: 0 }, { revalidate: false });
     } else {
       toastClientError(next);
       await mutate(next, { revalidate: false });
@@ -141,7 +148,7 @@ export default function NotificationsPage() {
                   </div>
                   <p className="mt-0.5 text-sm text-on-surface-variant">{notification.message}</p>
                   <div className="mt-2 flex items-center justify-between gap-3 text-xs text-on-surface-variant">
-                    <span>{new Date(notification.createdAt).toLocaleString()}</span>
+                    <span>{formatDateTime(notification.createdAt)}</span>
                     <div className="flex items-center gap-3">
                       {notification.linkToView ? (
                         <Link href={notification.linkToView} className="text-xs font-semibold uppercase text-primary">

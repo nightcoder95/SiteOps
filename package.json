@@ -18,7 +18,7 @@
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
-    "@posthog/next": "^0.1.0",
+    "@posthog/next": "^0.4.97",
     "@serwist/next": "^9.5.7",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.50.2",
@@ -27,11 +27,11 @@
     "@upstash/redis": "^1.35.3",
     "@vercel/speed-insights": "^2.0.0",
     "dotenv": "^17.2.3",
-    "drizzle-kit": "^0.31.10",
+    "drizzle-kit": "^0.18.1",
     "drizzle-orm": "^0.45.2",
     "lucide-react": "^0.546.0",
     "motion": "^12.38.0",
-    "next": "^15.2.4",
+    "next": "^16.2.9",
     "postgres": "^3.4.7",
     "posthog-js": "^1.205.0",
     "react": "^19.2.5",

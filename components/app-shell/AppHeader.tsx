@@ -2,36 +2,36 @@
 
 import { Bell, ChevronLeft, User } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect } from 'react';
 
 import type { Role } from '@/lib/auth/roles';
 import { useApiQuery } from '@/lib/http/useApiQuery';
+import { UNREAD_BADGE_KEY } from '@/lib/http/notificationsKeys';
 
 type Props = {
   // Use the canonical Role type rather than a duplicated literal union. The
   // branches below are label-only (display copy), not access gates — anything
   // access-relevant must go through can() (lib/auth/capabilities).
   role: Role;
+  // Server-seeded unread count so the badge renders instantly on first paint
+  // (no cold client fetch); SWR revalidates in the background.
+  initialUnread?: number;
 };
 
 type UnreadResponse = { total: number };
 
-export function AppHeader({ role }: Props) {
+export function AppHeader({ role, initialUnread = 0 }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const isDashboard = pathname === '/app/dashboard';
 
-  // Unread badge via the shared SWR cache (dedupes with any other consumer and
-  // renders the last value instantly). Revalidate on navigation so marking-as-
-  // read on the notifications page clears the badge on return.
-  const { data, mutate } = useApiQuery<UnreadResponse>(
-    '/api/notifications?limit=1&unreadOnly=true',
-  );
+  // Unread badge via the shared SWR cache. `fallbackData` renders the
+  // server-seeded count immediately; SWR revalidates on mount/focus and after a
+  // mark-as-read (the notifications page mutates UNREAD_BADGE_KEY directly), so
+  // no per-navigation forced revalidation is needed.
+  const { data } = useApiQuery<UnreadResponse>(UNREAD_BADGE_KEY, {
+    fallbackData: { total: initialUnread },
+  });
   const unread = data ? Number(data.total ?? 0) : 0;
-
-  useEffect(() => {
-    void mutate();
-  }, [pathname, mutate]);
 
   return (
     <header className="glass-header safe-area-top fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-background/80">

@@ -12,21 +12,9 @@ import { errorResponse, successResponse } from "@/lib/errors/response";
 import { parseJsonBody, validateBody } from "@/lib/http/request";
 import { withApi } from "@/lib/http/withApi";
 import { MAX_QUANTITY } from "@/lib/validation/constants";
-
-const labourDefaultTypes = [
-  "Steel work",
-  "Shuttering",
-  "Brick work",
-  "Concrete work",
-  "Plastering",
-  "Electric work",
-  "Plumbing",
-  "Tile work",
-  "Wood work",
-  "Paint work",
-] as const;
-
-const materialDefaultTypes = ["Cement", "M sand", "P sand", "Metal"] as const;
+// Shared canonical lists (match the pg enum columns) — single source instead of
+// a divergent local copy that previously omitted half the material types.
+import { labourDefaultTypes, materialDefaultTypes } from "@/lib/validation/schemas";
 
 const transferSchema = z
   .object({

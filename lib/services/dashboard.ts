@@ -1,8 +1,10 @@
-import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 
 import type { SessionUser } from "@/lib/auth/session";
-import { db } from "@/lib/db/client";
+import { withStatementTimeout } from "@/lib/db/guard";
 import { notifications, sites } from "@/lib/db/schema";
+import { measureDbQuery } from "@/lib/db/timing";
+import { generateRequestId } from "@/lib/utils/requestId";
 
 type DashboardSite = {
   id: number;
@@ -36,7 +38,10 @@ export type DashboardData = {
   };
 };
 
-export async function getDashboardData(user: SessionUser): Promise<DashboardData> {
+export async function getDashboardData(
+  user: SessionUser,
+  requestId: string = generateRequestId()
+): Promise<DashboardData> {
   const siteWhere =
     user.role === "Admin"
       ? and(isNull(sites.archivedAt), eq(sites.isDeleted, false))
@@ -46,29 +51,39 @@ export async function getDashboardData(user: SessionUser): Promise<DashboardData
           eq(sites.isDeleted, false)
         );
 
-  const [siteRows, archivedRows, notificationRows] = await Promise.all([
-    db.select().from(sites).where(siteWhere).orderBy(desc(sites.updatedAt)),
-    // Archived (but not permanently-deleted) sites — admin-only restore queue.
-    user.role === "Admin"
-      ? db
-          .select()
-          .from(sites)
-          .where(and(isNotNull(sites.archivedAt), eq(sites.isDeleted, false)))
-          .orderBy(desc(sites.updatedAt))
-      : Promise.resolve([] as DashboardSite[]),
-    db
-      .select({
-        id: notifications.notificationId,
-        title: notifications.title,
-        message: notifications.message,
-        type: notifications.type,
-        readAt: notifications.readAt,
-      })
-      .from(notifications)
-      .where(eq(notifications.userId, user.id))
-      .orderBy(desc(notifications.createdAt))
-      .limit(20),
-  ]);
+  // All reads run under a statement_timeout guard so an aborted dashboard request
+  // cannot orphan an in-flight query and pin a pool slot. For admins, active +
+  // archived sites come from ONE scan of `sites` (partitioned in JS) instead of two.
+  const { allSiteRows, notificationRows } = await withStatementTimeout(async (tx) => {
+    const sitesWhere =
+      user.role === "Admin" ? eq(sites.isDeleted, false) : siteWhere;
+    const [allSiteRows, notificationRows] = await Promise.all([
+      measureDbQuery(requestId, "dashboard.sites", () =>
+        tx.select().from(sites).where(sitesWhere).orderBy(desc(sites.updatedAt))
+      ),
+      measureDbQuery(requestId, "dashboard.notifications", () =>
+        tx
+          .select({
+            id: notifications.notificationId,
+            title: notifications.title,
+            message: notifications.message,
+            type: notifications.type,
+            readAt: notifications.readAt,
+          })
+          .from(notifications)
+          .where(eq(notifications.userId, user.id))
+          .orderBy(desc(notifications.createdAt))
+          .limit(20)
+      ),
+    ]);
+    return { allSiteRows, notificationRows };
+  });
+
+  // Non-admins' `siteWhere` already excludes archived, so all their rows are active.
+  const siteRows =
+    user.role === "Admin" ? allSiteRows.filter((s) => s.archivedAt === null) : allSiteRows;
+  const archivedRows =
+    user.role === "Admin" ? allSiteRows.filter((s) => s.archivedAt !== null) : [];
 
   const unreadItems = notificationRows.filter((item) => item.readAt === null);
 

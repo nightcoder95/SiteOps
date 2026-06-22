@@ -9,7 +9,8 @@ import {
   insertMaterialEntry,
   mergeMaterialEntry,
 } from "@/lib/db/queries/entries";
-import { displayUnitName, materialUnitRuleFor } from "@/lib/db/queries/materialUnits";
+import { materialUnitRuleFor } from "@/lib/db/queries/materialUnitRule";
+import { displayUnitName } from "@/lib/db/queries/materialUnits";
 import { unitMaster } from "@/lib/db/schema";
 import { ERROR_CODES } from "@/lib/errors/codes";
 import { handleDbError } from "@/lib/errors/db";
@@ -17,6 +18,7 @@ import { errorResponse, successResponse } from "@/lib/errors/response";
 import { parseJsonBody, validateBody } from "@/lib/http/request";
 import { withApi } from "@/lib/http/withApi";
 import { runNonCritical } from "@/lib/services/nonCritical";
+import { assertInCatalogList } from "@/lib/validation/catalogList";
 import { materialEntrySchema } from "@/lib/validation/schemas";
 
 export const POST = withApi(async ({ request, requestId }) => {
@@ -34,13 +36,20 @@ export const POST = withApi(async ({ request, requestId }) => {
   if (!validation.ok) return validation.response;
 
   const { siteId, date, quantity, workStage, cost, remarks } = validation.data;
+
+  const workStageCheck = await assertInCatalogList("Material Work Stage", workStage);
+  if (!workStageCheck.ok) {
+    return errorResponse(ERROR_CODES.VALIDATION_ERROR, workStageCheck.message, 400, undefined, requestId);
+  }
+  const canonicalWorkStage = workStageCheck.value;
+
   const materialType =
     "materialType" in validation.data
       ? (validation.data.materialType ?? "Custom")
       : "materialTypeEnum" in validation.data
         ? (validation.data.materialTypeEnum ?? "Custom")
         : "Custom";
-  const unitRule = materialUnitRuleFor(materialType);
+  const unitRule = await materialUnitRuleFor(materialType);
 
   const site = await db.query.sites.findFirst({
     where: (t, { eq }) => eq(t.siteId, siteId),
@@ -89,7 +98,7 @@ export const POST = withApi(async ({ request, requestId }) => {
       );
     }
 
-    const existing = await findMatchingMaterialEntry(siteId, date, materialType, workStage);
+    const existing = await findMatchingMaterialEntry(siteId, date, materialType, canonicalWorkStage);
     if (existing) {
       const merged = await mergeMaterialEntry(existing.materialEntryId, {
         quantity: String(quantity),
@@ -124,7 +133,7 @@ export const POST = withApi(async ({ request, requestId }) => {
       unitMasterId: resolvedUnit.unitId,
       unitCustomId: null,
       unit: resolvedUnitName,
-      workStage,
+      workStage: canonicalWorkStage,
       cost: String(cost),
       remarks: remarks || null,
       createdBy: auth.session.user.id,

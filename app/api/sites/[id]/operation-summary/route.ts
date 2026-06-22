@@ -1,6 +1,7 @@
 import { requireSiteAccess } from "@/lib/auth/guards";
 import { checkOwnership } from "@/lib/auth/ownership";
-import { getSiteOperationSummary } from "@/lib/db/queries/entries";
+import { siteOperationSummary } from "@/lib/db/queries/entries";
+import { withStatementTimeout } from "@/lib/db/guard";
 import { getSiteById } from "@/lib/db/queries/sites";
 import { ERROR_CODES } from "@/lib/errors/codes";
 import { errorResponse, successResponse } from "@/lib/errors/response";
@@ -36,6 +37,6 @@ export const GET = withApiRoute<RouteCtx>(async ({ request, requestId }, context
 
   const { searchParams } = new URL(request.url);
   const date = searchParams.get("date") ?? undefined;
-  const data = await getSiteOperationSummary(siteId, date ?? undefined);
+  const data = await withStatementTimeout((tx) => siteOperationSummary(tx, siteId, date));
   return successResponse(data, 200, requestId);
 });

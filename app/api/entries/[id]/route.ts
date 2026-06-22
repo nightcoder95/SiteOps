@@ -5,7 +5,8 @@ import { requireCapability } from "@/lib/auth/guards";
 import { checkOwnership } from "@/lib/auth/ownership";
 import { invalidateAdminAnalyticsCache } from "@/lib/cache/invalidate";
 import { db } from "@/lib/db/client";
-import { displayUnitName, materialUnitRuleFor } from "@/lib/db/queries/materialUnits";
+import { materialUnitRuleFor } from "@/lib/db/queries/materialUnitRule";
+import { displayUnitName } from "@/lib/db/queries/materialUnits";
 import {
   deleteEntryById,
   getEntryById,
@@ -22,6 +23,7 @@ import { withApiRoute } from "@/lib/http/withApi";
 import { coerceDecimals } from "@/lib/services/decimals";
 import { decimalFieldsFor, evaluateLabourSplit } from "@/lib/services/entries";
 import { runNonCritical } from "@/lib/services/nonCritical";
+import { assertInCatalogList } from "@/lib/validation/catalogList";
 import {
   updateExpenseEntrySchema,
   updateIncidentEntrySchema,
@@ -113,6 +115,21 @@ export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, conte
   // Drizzle `decimal` columns are strings; coerce numeric money/quantity fields.
   coerceDecimals(updateData, decimalFieldsFor(type));
 
+  // Former-enum fields are now managed catalog lists — validate membership when
+  // the field is being changed, and normalize to the canonical stored value.
+  const catalogFieldChecks: Array<[string, string]> = [];
+  if (type === "material" && typeof updateData.workStage === "string") catalogFieldChecks.push(["Material Work Stage", "workStage"]);
+  if (type === "expense" && typeof updateData.category === "string") catalogFieldChecks.push(["Expense Category", "category"]);
+  if (type === "incident" && typeof updateData.incidentType === "string") catalogFieldChecks.push(["Incident Type", "incidentType"]);
+  if (type === "incident" && typeof updateData.severity === "string") catalogFieldChecks.push(["Incident Severity", "severity"]);
+  for (const [listKey, field] of catalogFieldChecks) {
+    const check = await assertInCatalogList(listKey, updateData[field] as string);
+    if (!check.ok) {
+      return errorResponse(ERROR_CODES.VALIDATION_ERROR, check.message, 400, undefined, requestId);
+    }
+    updateData[field] = check.value;
+  }
+
   if (type === "labour") {
     const split = evaluateLabourSplit(existing as LabourEntryRow, updateData);
     if (!split.ok) {
@@ -140,7 +157,7 @@ export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, conte
           : typeof material.materialType === "string"
             ? material.materialType
             : "Custom";
-    const unitRule = materialUnitRuleFor(targetMaterialType);
+    const unitRule = await materialUnitRuleFor(targetMaterialType);
     const activeUnits = await db
       .select({ unitId: unitMaster.unitId, label: unitMaster.label })
       .from(unitMaster)

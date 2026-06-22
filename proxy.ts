@@ -20,7 +20,7 @@ function extractBearerToken(request: NextRequest): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   // Public route prefixes skip all auth work — no Supabase client, no JWT verify.

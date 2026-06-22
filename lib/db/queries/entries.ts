@@ -73,13 +73,8 @@ export async function insertMaterialEntry(data: {
   unitMasterId?: string | null;
   unitCustomId?: string | null;
   unit: string | null;
-  workStage:
-    | "Basement Level"
-    | "Brick Level"
-    | "Lintel Level"
-    | "Roof Level"
-    | "Compound Wall"
-    | "Other";
+  // Managed catalog list (was a pg enum); validated at the route via assertInCatalogList.
+  workStage: string | null;
   cost: string;
   remarks: string | null;
   createdBy: string;
@@ -109,7 +104,7 @@ export async function insertExpenseEntry(data: {
   date: string;
   description: string;
   amount: string;
-  category: "Labour" | "Materials" | "Equipment" | "Misc";
+  category: string;
   createdBy: string;
 }) {
   const result = await db.insert(expenseEntries).values(data).returning();
@@ -118,8 +113,8 @@ export async function insertExpenseEntry(data: {
 
 export async function insertIncidentReport(data: {
   siteId: string;
-  incidentType: "Safety" | "Block";
-  severity: "Low" | "Medium" | "High" | "Critical";
+  incidentType: string;
+  severity: string;
   description: string;
   durationEstimate: number | null;
   reportedBy: string;
@@ -176,7 +171,7 @@ export async function findMatchingMachineryEntry(siteId: string, date: string, e
 export async function findMatchingExpenseEntry(
   siteId: string,
   date: string,
-  category: "Labour" | "Materials" | "Equipment" | "Misc",
+  category: string,
 ) {
   const rows = await db
     .select()
@@ -303,13 +298,8 @@ export type EntryType =
   | "expense"
   | "incident";
 
-export type MaterialWorkStage =
-  | "Basement Level"
-  | "Brick Level"
-  | "Lintel Level"
-  | "Roof Level"
-  | "Compound Wall"
-  | "Other";
+// Now a managed catalog list (was a pg enum), so any active value is valid.
+export type MaterialWorkStage = string;
 
 export type SiteOperationSummary = Record<EntryType, {
   todayCount: number;
@@ -507,58 +497,53 @@ function sortSpendRows<T>(
   return rows;
 }
 
+// Accepts the shared db or a transaction handle (for tests / guarded callers).
+type SummaryExecutor = { execute: (query: ReturnType<typeof sql>) => Promise<unknown> };
+
+// Per-site daily counts and spend computed entirely in SQL. Previously this pulled
+// every one of the day's rows across five tables into JS just to count and sum
+// them. The labour spend CASE mirrors calculateLabourTotal (mason+helper split →
+// stored salary → people_count * wage_per_head); incident has no spend. Incidents
+// filter on created_at::date (no `date` column).
+export async function siteOperationSummary(
+  executor: SummaryExecutor,
+  siteId: string,
+  date: string = todayIsoDate(),
+): Promise<SiteOperationSummary> {
+  const rows = (await executor.execute(sql`
+    select
+      (select count(*)::int from labour_entries where site_id=${siteId}::uuid and date=${date}) as labour_count,
+      coalesce((select sum(case
+        when coalesce(mason_salary_amount,0)+coalesce(helper_salary_amount,0)>0
+          then coalesce(mason_salary_amount,0)+coalesce(helper_salary_amount,0)
+        when coalesce(salary_amount,0)>0 then salary_amount
+        else coalesce(people_count,0)*coalesce(wage_per_head,0)
+      end) from labour_entries where site_id=${siteId}::uuid and date=${date}),0) as labour_spend,
+      (select count(*)::int from material_entries where site_id=${siteId}::uuid and date=${date}) as material_count,
+      coalesce((select sum(coalesce(cost,0)) from material_entries where site_id=${siteId}::uuid and date=${date}),0) as material_spend,
+      (select count(*)::int from machinery_entries where site_id=${siteId}::uuid and date=${date}) as machinery_count,
+      coalesce((select sum(coalesce(total_cost,0)) from machinery_entries where site_id=${siteId}::uuid and date=${date}),0) as machinery_spend,
+      (select count(*)::int from expense_entries where site_id=${siteId}::uuid and date=${date}) as expense_count,
+      coalesce((select sum(coalesce(amount,0)) from expense_entries where site_id=${siteId}::uuid and date=${date}),0) as expense_spend,
+      (select count(*)::int from incident_reports where site_id=${siteId}::uuid and created_at::date=${date}) as incident_count
+  `)) as Array<Record<string, string | number>>;
+
+  const r = rows[0] ?? {};
+  const num = (v: string | number | undefined) => Number(v ?? 0);
+  return {
+    labour: { todayCount: num(r.labour_count), todaySpend: num(r.labour_spend) },
+    material: { todayCount: num(r.material_count), todaySpend: num(r.material_spend) },
+    machinery: { todayCount: num(r.machinery_count), todaySpend: num(r.machinery_spend) },
+    expense: { todayCount: num(r.expense_count), todaySpend: num(r.expense_spend) },
+    incident: { todayCount: num(r.incident_count), todaySpend: null },
+  };
+}
+
 export async function getSiteOperationSummary(
   siteId: string,
   date = todayIsoDate(),
 ): Promise<SiteOperationSummary> {
-  const [labour, material, machinery, expense, incident] = await Promise.all([
-    db
-      .select()
-      .from(labourEntries)
-      .where(and(eq(labourEntries.siteId, siteId), eq(labourEntries.date, date))),
-    db
-      .select()
-      .from(materialEntries)
-      .where(and(eq(materialEntries.siteId, siteId), eq(materialEntries.date, date))),
-    db
-      .select()
-      .from(machineryEntries)
-      .where(and(eq(machineryEntries.siteId, siteId), eq(machineryEntries.date, date))),
-    db
-      .select()
-      .from(expenseEntries)
-      .where(and(eq(expenseEntries.siteId, siteId), eq(expenseEntries.date, date))),
-    db
-      .select()
-      .from(incidentReports)
-      .where(and(eq(incidentReports.siteId, siteId), eq(sql`${incidentReports.createdAt}::date`, date))),
-  ]);
-
-  return {
-    labour: {
-      todayCount: labour.length,
-      todaySpend: labour.reduce(
-        (sum, row) => sum + calculateLabourTotal(row),
-        0,
-      ),
-    },
-    material: {
-      todayCount: material.length,
-      todaySpend: material.reduce((sum, row) => sum + Number(row.cost ?? 0), 0),
-    },
-    machinery: {
-      todayCount: machinery.length,
-      todaySpend: machinery.reduce((sum, row) => sum + calculateMachineryTotal(row), 0),
-    },
-    expense: {
-      todayCount: expense.length,
-      todaySpend: expense.reduce((sum, row) => sum + Number(row.amount ?? 0), 0),
-    },
-    incident: {
-      todayCount: incident.length,
-      todaySpend: null,
-    },
-  };
+  return siteOperationSummary(db, siteId, date);
 }
 
 export async function getEntriesBySite(

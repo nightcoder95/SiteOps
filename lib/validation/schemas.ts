@@ -21,7 +21,7 @@ const nonNegativeMoneySchema = z
     message: "Value must have at most 2 decimal places",
   });
 
-const labourDefaultTypes = [
+export const labourDefaultTypes = [
   "Steel work",
   "Shuttering",
   "Brick work",
@@ -47,7 +47,7 @@ function labourWorkTypeFromPayload(value: Record<string, unknown>) {
   return null;
 }
 
-const materialDefaultTypes = [
+export const materialDefaultTypes = [
   "Cement",
   "M sand",
   "P sand",
@@ -194,7 +194,9 @@ export const materialEntrySchema = z
     siteId: uuidSchema,
     date: entryDateSchema,
     quantity: z.number().positive().max(1000000),
-    workStage: z.enum(materialWorkStages),
+    // Shape only; membership checked at the route via assertInCatalogList
+    // ("Material Work Stage") against the active managed list.
+    workStage: z.string().min(1).max(100),
     cost: positiveDecimalSchema(100000000),
     remarks: z.string().max(500).optional(),
   })
@@ -203,7 +205,7 @@ export const materialEntrySchema = z
 export const updateMaterialEntrySchema = z.object({
   date: entryDateSchema.optional(),
   quantity: z.number().positive().max(1000000).optional(),
-  workStage: z.enum(materialWorkStages).optional(),
+  workStage: z.string().min(1).max(100).optional(),
   cost: positiveDecimalSchema(100000000).optional(),
   remarks: z.string().max(500).optional(),
   materialType: z.string().min(1).max(100).optional(),
@@ -261,15 +263,17 @@ export const expenseEntrySchema = z.object({
   date: entryDateSchema,
   description: z.string().min(1).max(500),
   amount: z.number().positive().max(1000000),
-  category: z.enum(["Labour", "Materials", "Equipment", "Misc"]),
+  // Shape only; membership checked at the route ("Expense Category").
+  category: z.string().min(1).max(100),
 });
 
 export const updateExpenseEntrySchema = expenseEntrySchema.partial().omit({ siteId: true });
 
 export const incidentEntrySchema = z.object({
   siteId: uuidSchema,
-  incidentType: z.enum(["Safety", "Block"]),
-  severity: z.enum(["Low", "Medium", "High", "Critical"]).optional(),
+  // Shape only; membership checked at the route ("Incident Type"/"Incident Severity").
+  incidentType: z.string().min(1).max(100),
+  severity: z.string().min(1).max(50).optional(),
   description: z.string().min(1).max(2000),
   durationEstimate: z.number().int().positive().max(10080).optional(),
 });

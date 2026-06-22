@@ -112,12 +112,19 @@ export const POST = withApi(async ({ request, requestId }) => {
     );
   }
 
+  // New items go to the end of the admin-ordered list; remark (if any) is kept
+  // on the row itself (design §5). Inactive deactivation is admin-only later.
+  const nextSortOrder = existing.reduce((max, item) => Math.max(max, item.sortOrder ?? 0), 0) + 1;
+  const remark = validation.data.remarks?.trim() || null;
+
   try {
     const inserted = await db
       .insert(subcategories)
       .values({
         categoryId: validation.data.categoryId,
         name: subcategoryName,
+        sortOrder: nextSortOrder,
+        remark,
       })
       .returning();
 

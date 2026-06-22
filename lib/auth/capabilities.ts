@@ -23,6 +23,7 @@ export type Capability =
   | "form_category:delete"
   | "form_subcategory:read"
   | "form_subcategory:create"
+  | "form_subcategory:update"
   | "form_subcategory:delete"
   | "field_request:create"
   | "field_request:read"
@@ -81,6 +82,7 @@ const ADMIN_CAPABILITIES: readonly Capability[] = [
   "site:update",
   "site:delete",
   "form_category:delete",
+  "form_subcategory:update",
   "form_subcategory:delete",
   "field_request:read",
   "field_request:approve",

@@ -17,6 +17,9 @@ import { isNull, sql } from "drizzle-orm";
 
 export const siteStatusEnum = pgEnum("site_status", ["In Progress", "Blocked", "Completed"]);
 export const requestStatusEnum = pgEnum("request_status", ["Pending", "Approved", "Declined"]);
+// @deprecated These four pg enums no longer type any column — their columns were
+// migrated to varchar (managed catalog lists). The pg enum *types* are left
+// defined but unused; deletion deferred to the vestigial-cleanup migration.
 export const expenseCategoryEnum = pgEnum("expense_category", ["Labour", "Materials", "Equipment", "Misc"]);
 export const resourceTypeEnum = pgEnum("resource_type", ["Labour", "Materials", "Money", "Machinery"]);
 export const incidentTypeEnum = pgEnum("incident_type", ["Safety", "Block"]);
@@ -171,6 +174,8 @@ export const unitMaster = pgTable("unit_master", {
   label: varchar("label", { length: 100 }).notNull(),
   category: varchar("category", { length: 50 }).notNull(),
   isActive: boolean("is_active").notNull().default(true),
+  // Admin-controlled ordering, mirroring subcategories.
+  sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -230,7 +235,8 @@ export const materialEntries = pgTable("material_entries", {
   unitMasterId: uuid("unit_master_id").references(() => unitMaster.unitId, { onDelete: "set null" }),
   unitCustomId: uuid("unit_custom_id").references(() => customUnits.unitId, { onDelete: "set null" }),
   unit: varchar("unit", { length: 50 }),
-  workStage: materialWorkStageEnum("work_stage"),
+  // Migrated pg enum -> varchar (managed catalog list "Material Work Stage").
+  workStage: varchar("work_stage", { length: 100 }),
   cost: decimal("cost", { precision: 12, scale: 2 }),
   remarks: text("remarks"),
   createdBy: uuid("created_by").notNull().references(() => userProfiles.userId),
@@ -275,7 +281,8 @@ export const expenseEntries = pgTable("expense_entries", {
   date: date("date").notNull(),
   description: varchar("description", { length: 500 }).notNull(),
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
-  category: expenseCategoryEnum("category").notNull(),
+  // Migrated pg enum -> varchar (managed catalog list "Expense Category").
+  category: varchar("category", { length: 100 }).notNull(),
   createdBy: uuid("created_by").notNull().references(() => userProfiles.userId),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -328,8 +335,9 @@ export const incidentReports = pgTable("incident_reports", {
   id: identityId(),
   incidentReportId: uuid("incident_report_id").notNull().unique().defaultRandom(),
   siteId: uuid("site_id").notNull().references(() => sites.siteId, { onDelete: "cascade" }),
-  incidentType: incidentTypeEnum("incident_type").notNull(),
-  severity: severityEnum("severity").notNull().default("Low"),
+  // Migrated pg enums -> varchar (managed lists "Incident Type"/"Incident Severity").
+  incidentType: varchar("incident_type", { length: 100 }).notNull(),
+  severity: varchar("severity", { length: 50 }).notNull().default("Low"),
   description: text("description").notNull(),
   durationEstimate: integer("duration_estimate"),
   reportedBy: uuid("reported_by").notNull().references(() => userProfiles.userId),
@@ -365,6 +373,12 @@ export const categories = pgTable("categories", {
   categoryId: uuid("category_id").notNull().unique().defaultRandom(),
   name: varchar("name", { length: 100 }).notNull().unique(),
   icon: varchar("icon", { length: 50 }),
+  // "operation" = a logging operation's primary type list (Labour, Materials…);
+  // "attribute" = a secondary managed list (Work Stage, Severity…). Lets the
+  // admin settings UI group/treat lists without code-locked option arrays.
+  purpose: varchar("purpose", { length: 20 }).notNull().default("operation"),
+  // Whether admins may add/rename/(de)activate items in this list.
+  editable: boolean("editable").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (t) => [
   // Case-insensitive lookup to match normalizeLabel duplicate detection.
@@ -376,9 +390,30 @@ export const subcategories = pgTable("subcategories", {
   subcategoryId: uuid("subcategory_id").notNull().unique().defaultRandom(),
   categoryId: uuid("category_id").notNull().references(() => categories.categoryId, { onDelete: "cascade" }),
   name: varchar("name", { length: 100 }).notNull(),
+  // Deactivate (not delete) to keep entry history visible but unselectable.
+  isActive: boolean("is_active").notNull().default(true),
+  // Admin-controlled ordering; dropdowns sort by sortOrder, then name.
+  sortOrder: integer("sort_order").notNull().default(0),
+  // Optional note captured on create.
+  remark: varchar("remark", { length: 500 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (t) => [
   index("subcategories_category_idx").on(t.categoryId),
+]);
+
+// Admin-managed per-material allowed units (replaces hardcoded KNOWN_RULES).
+// allowed unit names = mapped units; preferred = is_default. Seeded from the
+// existing rules so behavior is unchanged on day one.
+export const materialTypeUnits = pgTable("material_type_units", {
+  id: identityId(),
+  materialTypeUnitId: uuid("material_type_unit_id").notNull().unique().defaultRandom(),
+  subcategoryId: uuid("subcategory_id").notNull().references(() => subcategories.subcategoryId, { onDelete: "cascade" }),
+  unitId: uuid("unit_id").notNull().references(() => unitMaster.unitId, { onDelete: "cascade" }),
+  isDefault: boolean("is_default").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("material_type_units_subcategory_idx").on(t.subcategoryId),
+  uniqueIndex("material_type_units_sub_unit_uidx").on(t.subcategoryId, t.unitId),
 ]);
 
 export const fieldDefinitions = pgTable("field_definitions", {

@@ -56,6 +56,23 @@ describe("resolveEntryFields", () => {
   it("returns fallback for unknown category", () => {
     expect(resolveEntryFields("Custom thing")).toEqual(fallbackFields);
   });
+
+  it("loads former-enum fields from their managed catalog list (design §3.3)", () => {
+    const cases: Array<[string, string, string, string]> = [
+      ["Material", "workStage", "Material Work Stage", "Work Stage"],
+      ["Expense", "category", "Expense Category", "Expense Category"],
+      ["Incident", "incidentType", "Incident Type", "Incident Type"],
+      ["Incident", "severity", "Incident Severity", "Severity"],
+    ];
+    for (const [category, fieldName, catalogCategoryName, noun] of cases) {
+      const field = resolveEntryFields(category).find((f) => f.name === fieldName);
+      expect(field?.kind).toBe("subcategory");
+      expect(field?.catalogCategoryName).toBe(catalogCategoryName);
+      expect(field?.noun).toBe(noun);
+      // No more hardcoded option arrays for these.
+      expect(field?.options).toBeUndefined();
+    }
+  });
 });
 
 describe("resolveEntryKind", () => {

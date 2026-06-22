@@ -15,6 +15,7 @@ import { errorResponse, successResponse } from "@/lib/errors/response";
 import { parseJsonBody, validateBody } from "@/lib/http/request";
 import { withApi } from "@/lib/http/withApi";
 import { runNonCritical } from "@/lib/services/nonCritical";
+import { assertInCatalogList } from "@/lib/validation/catalogList";
 import { expenseEntrySchema } from "@/lib/validation/schemas";
 
 async function notifyBudgetThreshold(
@@ -49,7 +50,13 @@ export const POST = withApi(async ({ request, requestId }) => {
   const validation = validateBody(expenseEntrySchema, parsed.data, requestId);
   if (!validation.ok) return validation.response;
 
-  const { siteId, date, description, amount, category } = validation.data;
+  const { siteId, date, description, amount } = validation.data;
+
+  const categoryCheck = await assertInCatalogList("Expense Category", validation.data.category);
+  if (!categoryCheck.ok) {
+    return errorResponse(ERROR_CODES.VALIDATION_ERROR, categoryCheck.message, 400, undefined, requestId);
+  }
+  const category = categoryCheck.value;
 
   const site = await db.query.sites.findFirst({
     where: (t, { eq }) => eq(t.siteId, siteId),

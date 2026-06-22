@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 
 import { ApiUnavailableBanner } from '@/components/ui/ApiUnavailableBanner';
 import { useApiResult } from '@/lib/http/useApiQuery';
+import { formatDate } from '@/lib/utils/formatDate';
 
 type Site = {
   id: string;
@@ -95,7 +96,7 @@ export default function AdminExpensesPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-base font-black text-on-surface">{entry.description}</div>
-                      <div className="text-sm text-on-surface-variant">{entry.date}</div>
+                      <div className="text-sm text-on-surface-variant">{formatDate(entry.date)}</div>
                     </div>
                     <div className="text-right">
                       <div className="text-base font-black text-on-surface">₹{Number(entry.amount).toLocaleString('en-IN')}</div>

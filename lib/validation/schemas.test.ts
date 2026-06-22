@@ -182,13 +182,31 @@ describe("material schemas", () => {
     expect(result.success).toBe(true);
   });
 
-  it("rejects invalid workStage on create", () => {
+  it("accepts an arbitrary non-empty workStage at the schema level (membership is checked at the route via assertInCatalogList)", () => {
+    // workStage is now a managed catalog list, not a pg enum: the schema only
+    // enforces shape; valid-value membership moved to the route.
     const result = materialEntrySchema.safeParse({
       siteId: validSiteId,
       date: validEntryDate,
       quantity: 25,
       cost: 4200.75,
       workStage: "Ground Floor",
+      materialTypeMode: "default_enum",
+      materialTypeEnum: "Cement",
+      unitMode: "master",
+      unitMasterId: validUnitId,
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an empty workStage on create", () => {
+    const result = materialEntrySchema.safeParse({
+      siteId: validSiteId,
+      date: validEntryDate,
+      quantity: 25,
+      cost: 4200.75,
+      workStage: "",
       materialTypeMode: "default_enum",
       materialTypeEnum: "Cement",
       unitMode: "master",

@@ -6,10 +6,9 @@ import { toast } from "sonner";
 import { notifyError, notifyGenericError } from "@/lib/ui/toast";
 
 import { requestJson } from "@/lib/http/client";
-import {
-  allowedMaterialUnitNames,
-  materialUnitRuleFor,
-} from "@/lib/db/queries/materialUnits";
+import { useApiResult } from "@/lib/http/useApiQuery";
+import type { MaterialUnitRule } from "@/lib/db/queries/materialUnits";
+import { pickCategoryIdByName, type CategoryRowLike } from "@/lib/catalog/selectors";
 import { isSplitLabourWorkType } from "@/lib/validation/schemas";
 
 import {
@@ -115,6 +114,29 @@ export function EntryForm({
   const selectedMaterialType = selectedSubcategoryName(values.materialType);
   const splitLabour = kind === "labour" && isSplitLabourWorkType(selectedWorkType);
 
+  // Allowed units per material type come from the server (material_type_units
+  // with an all-active-units fallback). Skip the fetch until a type is picked.
+  const { data: ruleResult } = useApiResult<MaterialUnitRule>(
+    kind === "material" && selectedMaterialType
+      ? `/api/catalog/material-units/resolve?materialType=${encodeURIComponent(selectedMaterialType)}`
+      : null,
+  );
+  const materialUnitRule = ruleResult?.ok ? ruleResult.data : null;
+
+  // Former-enum fields (Work Stage, Expense Category, Incident Type, Severity)
+  // source their options from a managed list in a *different* category, so we
+  // resolve those category ids by name (design §3.3). Skip the fetch unless the
+  // form actually has a catalog-backed field.
+  const hasCatalogFields = fields.some((f) => f.catalogCategoryName);
+  const { data: categoriesRes } = useApiResult<CategoryRowLike[]>(
+    hasCatalogFields ? "/api/forms/categories" : null,
+  );
+  const categoryList = categoriesRes?.ok ? categoriesRes.data : [];
+  function catalogParentIdFor(field: EntryField): string {
+    if (!field.catalogCategoryName) return categoryId;
+    return pickCategoryIdByName(categoryList, field.catalogCategoryName) ?? "";
+  }
+
   function validate(): string | null {
     if (!siteId && !isEdit) return "Site is required";
     for (const f of fields) {
@@ -182,9 +204,10 @@ export function EntryForm({
       payload.salaryAmount = Number(payload.peopleCount) * Number(payload.wagePerHead);
     }
 
-    if (kind === "material" && selectedMaterialType) {
-      const rule = materialUnitRuleFor(selectedMaterialType);
-      payload.unit = rule.preferredName;
+    // When the material type allows exactly one unit, auto-assign it; otherwise
+    // keep whatever the user picked in the unit field.
+    if (kind === "material" && materialUnitRule && materialUnitRule.allowedNames.length === 1) {
+      payload.unit = materialUnitRule.preferredName;
     }
     return payload;
   }
@@ -258,10 +281,10 @@ export function EntryForm({
             field={f}
             value={values[f.name]}
             onChange={(v) => update(f.name, v)}
-            categoryId={categoryId}
+            categoryId={catalogParentIdFor(f)}
             role={role}
             siteId={siteId}
-            allowedUnitNames={kind === "material" ? allowedMaterialUnitNames(selectedMaterialType) : undefined}
+            allowedUnitNames={kind === "material" ? (materialUnitRule?.allowedNames ?? undefined) : undefined}
           />
         );
       })}
@@ -327,6 +350,7 @@ function FieldRow({
     return (
       <SubcategoryCombobox
         label={field.label}
+        noun={field.noun}
         parentCategoryId={categoryId}
         value={value as SubcategoryOption | null}
         onChange={onChange}

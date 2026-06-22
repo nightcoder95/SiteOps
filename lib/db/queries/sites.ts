@@ -1,14 +1,7 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
-import {
-  expenseEntries,
-  labourEntries,
-  machineryEntries,
-  materialEntries,
-  sites,
-} from "@/lib/db/schema";
-import { calculateSiteTrackedSpend } from "@/lib/db/queries/operationTotals";
+import { sites } from "@/lib/db/schema";
 
 /**
  * Fetch a site by its public UUID.
@@ -43,15 +36,36 @@ export async function getAllSites() {
   return db.select().from(sites).where(isNull(sites.archivedAt));
 }
 
-export async function getSiteTrackedSpend(siteId: string) {
-  const [labour, material, machinery, expense] = await Promise.all([
-    db.select().from(labourEntries).where(eq(labourEntries.siteId, siteId)),
-    db.select().from(materialEntries).where(eq(materialEntries.siteId, siteId)),
-    db.select().from(machineryEntries).where(eq(machineryEntries.siteId, siteId)),
-    db.select().from(expenseEntries).where(eq(expenseEntries.siteId, siteId)),
-  ]);
+// Accepts the shared db or a transaction handle (for tests).
+type Executor = { execute: (query: ReturnType<typeof sql>) => Promise<unknown> };
 
-  return String(calculateSiteTrackedSpend({ labour, material, machinery, expense }));
+// Per-site tracked spend computed entirely in SQL — previously this pulled every
+// entry row for the site into JS just to sum them (unbounded transfer). The labour
+// branch mirrors calculateLabourTotal: prefer the mason+helper split, else the
+// stored salary, else people_count * wage_per_head. NULL numerics coalesce to 0.
+export async function siteTrackedSpend(executor: Executor, siteId: string): Promise<string> {
+  const rows = (await executor.execute(sql`
+    select
+      coalesce((
+        select sum(
+          case
+            when coalesce(mason_salary_amount,0) + coalesce(helper_salary_amount,0) > 0
+              then coalesce(mason_salary_amount,0) + coalesce(helper_salary_amount,0)
+            when coalesce(salary_amount,0) > 0 then salary_amount
+            else coalesce(people_count,0) * coalesce(wage_per_head,0)
+          end
+        ) from labour_entries where site_id = ${siteId}::uuid
+      ), 0)
+      + coalesce((select sum(coalesce(cost,0)) from material_entries where site_id = ${siteId}::uuid), 0)
+      + coalesce((select sum(coalesce(total_cost,0)) from machinery_entries where site_id = ${siteId}::uuid), 0)
+      + coalesce((select sum(coalesce(amount,0)) from expense_entries where site_id = ${siteId}::uuid), 0)
+      as total
+  `)) as Array<{ total: string | number }>;
+  return String(Number(rows[0]?.total ?? 0));
+}
+
+export async function getSiteTrackedSpend(siteId: string) {
+  return siteTrackedSpend(db, siteId);
 }
 
 export const getSiteTotalExpenses = getSiteTrackedSpend;

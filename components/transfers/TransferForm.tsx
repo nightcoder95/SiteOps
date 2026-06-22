@@ -1,12 +1,15 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRightLeft, MapPin, Truck, Package, Users, ChevronDown, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { notifyError } from '@/lib/ui/toast';
 
 import { requestJson } from '@/lib/http/client';
+import { useCatalogNames } from '@/lib/catalog/useCatalogNames';
+import { filterToAllowedCanonical } from '@/lib/catalog/selectors';
+import { labourDefaultTypes, materialDefaultTypes } from '@/lib/validation/schemas';
 
 export type TransferSiteOption = {
   siteId: string;
@@ -22,33 +25,35 @@ type Props = {
 
 type ResourceType = 'Labour' | 'Materials';
 
-const LABOUR_WORK_TYPES = [
-  'Steel work',
-  'Shuttering',
-  'Brick work',
-  'Concrete work',
-  'Plastering',
-  'Electric work',
-  'Plumbing',
-  'Tile work',
-  'Wood work',
-  'Paint work',
-] as const;
-
-const MATERIAL_TYPES = ['Cement', 'M sand', 'P sand', 'Metal'] as const;
-
 export function TransferForm({ sites, defaultFromSiteId, onSuccess }: Props) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
+  // Live catalog instead of hardcoded option lists, so transfers stay in sync
+  // with the admin-managed Labour/Materials types. Transfers still write pg-enum
+  // columns, so filter to enum-accepted values until the enum→varchar migration.
+  const { names: labourCatalog, loading: labourLoading } = useCatalogNames('Labour');
+  const { names: materialCatalog, loading: materialLoading } = useCatalogNames('Materials');
+  const labourWorkTypes = filterToAllowedCanonical(labourCatalog, labourDefaultTypes);
+  const materialTypes = filterToAllowedCanonical(materialCatalog, materialDefaultTypes);
+
   const [fromSiteId, setFromSiteId] = useState(defaultFromSiteId || '');
   const [toSiteId, setToSiteId] = useState('');
   const [resourceType, setResourceType] = useState<ResourceType>('Materials');
-  const [workTypeEnum, setWorkTypeEnum] = useState<string>(LABOUR_WORK_TYPES[0]);
-  const [materialTypeEnum, setMaterialTypeEnum] = useState<string>(MATERIAL_TYPES[0]);
+  const [workTypeEnum, setWorkTypeEnum] = useState<string>('');
+  const [materialTypeEnum, setMaterialTypeEnum] = useState<string>('');
   const [unitCustomId, setUnitCustomId] = useState('');
   const [quantity, setQuantity] = useState('');
   const [remarks, setRemarks] = useState('');
+
+  // Default the selection to the first catalog option once it loads, without
+  // clobbering a choice the user already made.
+  useEffect(() => {
+    if (!workTypeEnum && labourWorkTypes.length) setWorkTypeEnum(labourWorkTypes[0]);
+  }, [labourWorkTypes, workTypeEnum]);
+  useEffect(() => {
+    if (!materialTypeEnum && materialTypes.length) setMaterialTypeEnum(materialTypes[0]);
+  }, [materialTypes, materialTypeEnum]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -65,6 +70,15 @@ export function TransferForm({ sites, defaultFromSiteId, onSuccess }: Props) {
     const qty = Number(quantity);
     if (!Number.isFinite(qty) || qty <= 0) {
       toast.error('Quantity must be positive');
+      return;
+    }
+
+    if (resourceType === 'Labour' && !workTypeEnum) {
+      toast.error('Select a work type');
+      return;
+    }
+    if (resourceType === 'Materials' && !materialTypeEnum) {
+      toast.error('Select a material type');
       return;
     }
 
@@ -181,16 +195,22 @@ export function TransferForm({ sites, defaultFromSiteId, onSuccess }: Props) {
           {resourceType === 'Labour' ? (
             <div className="space-y-2">
               <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500 ml-1">Work Type</label>
-              <select value={workTypeEnum} onChange={(e) => setWorkTypeEnum(e.target.value)} className="input-standard appearance-none bg-slate-900">
-                {LABOUR_WORK_TYPES.map((v) => <option key={v} value={v}>{v}</option>)}
+              <select value={workTypeEnum} onChange={(e) => setWorkTypeEnum(e.target.value)} disabled={labourLoading} className="input-standard appearance-none bg-slate-900">
+                <option value="" className="bg-slate-900">
+                  {labourLoading ? 'Loading…' : labourWorkTypes.length ? 'Select…' : 'No work types available'}
+                </option>
+                {labourWorkTypes.map((v) => <option key={v} value={v} className="bg-slate-900">{v}</option>)}
               </select>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500 ml-1">Material Type</label>
-                <select value={materialTypeEnum} onChange={(e) => setMaterialTypeEnum(e.target.value)} className="input-standard appearance-none bg-slate-900">
-                  {MATERIAL_TYPES.map((v) => <option key={v} value={v} className="bg-slate-900">{v}</option>)}
+                <select value={materialTypeEnum} onChange={(e) => setMaterialTypeEnum(e.target.value)} disabled={materialLoading} className="input-standard appearance-none bg-slate-900">
+                  <option value="" className="bg-slate-900">
+                    {materialLoading ? 'Loading…' : materialTypes.length ? 'Select…' : 'No material types available'}
+                  </option>
+                  {materialTypes.map((v) => <option key={v} value={v} className="bg-slate-900">{v}</option>)}
                 </select>
               </div>
               <div className="space-y-2">

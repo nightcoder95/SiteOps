@@ -13,6 +13,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    setupFiles: ['./vitest.setup.ts'],
     include: ['lib/**/*.test.ts', 'app/**/*.test.ts', 'tests/**/*.test.ts', 'components/**/*.test.ts'],
     exclude: ['e2e/**', 'node_modules/**'],
   },

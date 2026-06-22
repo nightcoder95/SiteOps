@@ -10,6 +10,7 @@ import { errorResponse, successResponse } from "@/lib/errors/response";
 import { parseJsonBody, validateBody } from "@/lib/http/request";
 import { withApi } from "@/lib/http/withApi";
 import { runNonCritical } from "@/lib/services/nonCritical";
+import { assertInCatalogList } from "@/lib/validation/catalogList";
 import { incidentEntrySchema } from "@/lib/validation/schemas";
 
 export const POST = withApi(async ({ request, requestId }) => {
@@ -28,6 +29,20 @@ export const POST = withApi(async ({ request, requestId }) => {
 
   const { siteId, incidentType, severity, description, durationEstimate } = validation.data;
 
+  const typeCheck = await assertInCatalogList("Incident Type", incidentType);
+  if (!typeCheck.ok) {
+    return errorResponse(ERROR_CODES.VALIDATION_ERROR, typeCheck.message, 400, undefined, requestId);
+  }
+  // Severity is optional; default to "Low" when omitted, else validate membership.
+  let canonicalSeverity = "Low";
+  if (severity) {
+    const severityCheck = await assertInCatalogList("Incident Severity", severity);
+    if (!severityCheck.ok) {
+      return errorResponse(ERROR_CODES.VALIDATION_ERROR, severityCheck.message, 400, undefined, requestId);
+    }
+    canonicalSeverity = severityCheck.value;
+  }
+
   const site = await db.query.sites.findFirst({
     where: (t, { eq }) => eq(t.siteId, siteId),
     columns: { supervisorId: true, name: true, archivedAt: true },
@@ -44,8 +59,8 @@ export const POST = withApi(async ({ request, requestId }) => {
   try {
     const incident = await insertIncidentReport({
       siteId,
-      incidentType,
-      severity: severity ?? "Low",
+      incidentType: typeCheck.value,
+      severity: canonicalSeverity,
       description,
       durationEstimate: durationEstimate ?? null,
       reportedBy: auth.session.user.id,

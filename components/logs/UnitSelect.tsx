@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { displayUnitName } from "@/lib/db/queries/materialUnits";
+import { dedupeUnitOptionsByName, displayUnitName } from "@/lib/db/queries/materialUnits";
 import { useApiResult } from "@/lib/http/useApiQuery";
 import { notifyError } from "@/lib/ui/toast";
 
@@ -50,7 +50,7 @@ export function UnitSelect({ label, value, onChange, required, allowedNames }: P
     if (customRes && !customRes.ok) notifyError(customRes);
   }, [customRes]);
 
-  const options: UnitOption[] = [
+  const options: UnitOption[] = dedupeUnitOptionsByName([
     ...masterUnits.map((unit) => ({
       unitId: unit.unitId,
       label: displayUnitName(unit.label),
@@ -63,7 +63,7 @@ export function UnitSelect({ label, value, onChange, required, allowedNames }: P
       mode: "custom" as const,
       name: displayUnitName(unit.name),
     }))),
-  ].filter((unit) => !allowedNames?.length || allowedNames.includes(unit.name));
+  ].filter((unit) => !allowedNames?.length || allowedNames.includes(unit.name)));
 
   useEffect(() => {
     if (!value || !allowedNames?.length) return;
