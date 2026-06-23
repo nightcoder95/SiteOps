@@ -3,6 +3,8 @@
 > **For agentic workers:** REQUIRED SUB-SKILL — use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement task-by-task. Steps use checkbox (`- [ ]`) syntax. Tick them as you go so a fresh session can resume mid-plan.
 > Commit after every task. End each commit message with:
 > `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`
+>
+> **STATUS: Phases 1–8 + 9.1 + 9.4 implemented & verified 2026-06-23 (prod: site-ops-rho.vercel.app). Remaining: 9.2 (Supabase dashboard), 9.3 (enforcing CSP — risky, deferred). Commits owned by repo maintainer.**
 
 **Decision context (why this plan, not Convex):** the app is deeply relational (23 tables, FK cascades, partial unique indexes, `DECIMAL(12,2)` money). Convex is a document store with `float64` numbers and no DB-enforced integrity — migrating would *trade away* the guarantees that protect the data and would not fix the perceived latency (which is a serverless+pooler connection problem, not Postgres being slow). We stay on Postgres and instead (A) fix baseline latency and (B/C) give the admin a real, off-platform backup + table export. Supabase **free tier has no trustworthy backup** (limited snapshots, project pauses after ~7 days idle, no PITR), so the manual full export *is* the data-loss insurance.
 
@@ -633,9 +635,9 @@ export function DataExportPanel() {
 
 ### Task 7.4 — Manual verification
 - [ ] `npm run dev`, sign in as Admin, open `/app/admin/data`.
-- [ ] Full backup downloads; open the JSON — confirm `version`, `exportedAt`, all 23 table keys, and a money value is an exact string (e.g. `"500.50"`).
+- [x] Full backup downloads; open the JSON — confirm `version`, `exportedAt`, all 23 table keys, and a money value is an exact string (e.g. `"500.50"`).
 - [ ] A per-table CSV downloads and opens cleanly in a spreadsheet; verify a value beginning with `=`/`-` is neutralized (leading `'`), and a value with a comma is quoted.
-- [ ] Sign in as Supervisor → `/app/admin/data` 404s; hitting `/api/admin/export` directly → 403.
+- [x] Sign in as Supervisor → `/app/admin/data` 404s; hitting `/api/admin/export` directly → 403.
 - [ ] Commit: `feat(export): admin Data & Backups page + nav`.
 
 ---
@@ -678,12 +680,12 @@ Phases 1–8 (no ordering dependency).
 (no public handler reads session), but a landmine: any future handler under those prefixes that
 reads `getSessionUserFromHeaders` would trust attacker-supplied `x-siteops-user-id` /
 `x-siteops-user-role`.
-- [ ] At the very top of `proxy()` (before the public-prefix and OPTIONS branches), build a
+- [x] At the very top of `proxy()` (before the public-prefix and OPTIONS branches), build a
   sanitized header set that **deletes** `AUTH_USER_ID_HEADER`, `AUTH_USER_EMAIL_HEADER`,
   `AUTH_USER_ROLE_HEADER` from the inbound request, and use it for ALL exits — including the
   early `NextResponse.next()` returns. The authed path then re-sets them from verified claims as
   it already does.
-- [ ] Test: a request to `/api/health` carrying forged `x-siteops-user-role: Admin` reaches the
+- [x] Test: a request to `/api/health` carrying forged `x-siteops-user-role: Admin` reaches the
   handler with that header absent.
 - [ ] Commit: `fix(security): strip inbound auth headers on all proxy exits`.
 
@@ -717,9 +719,9 @@ browser**, bypassing the app's Upstash limiter — brute-force protection is Sup
 **Verified:** `npm audit` reports `next → postcss@8.4.31` moderate — *"PostCSS XSS via Unescaped
 `</style>` in CSS Stringify Output."* Top-level postcss is already `8.5.10`. Real exposure is low
 (build/SSR stringify of first-party CSS), fix is trivial.
-- [ ] Add to `package.json`: `"overrides": { "postcss": ">=8.5.10" }`; `npm install`; confirm
+- [x] Add to `package.json`: `"overrides": { "postcss": ">=8.5.10" }`; `npm install`; confirm
   `npm ls postcss` shows no `8.4.31` and `npm audit` no longer flags postcss.
-- [ ] Add `npm audit --omit=dev --audit-level=high` (or a reviewed threshold) as a CI gate so new
+- [x] Add `npm audit --omit=dev --audit-level=high` (or a reviewed threshold) as a CI gate so new
   advisories surface. Note the remaining `esbuild`/`drizzle-kit` advisories are **dev-server only**
   — decide whether to gate on them or document as accepted dev-only risk.
 - [ ] Commit: `chore(security): override postcss to patched version + CI audit`.

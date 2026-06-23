@@ -3,9 +3,11 @@ import { scheduleAudit } from "@/lib/audit/log";
 import { requireCapability } from "@/lib/auth/guards";
 import { ERROR_CODES } from "@/lib/errors/codes";
 import { errorResponse } from "@/lib/errors/response";
+import { applyCsvView, hasUserColumns } from "@/lib/export/csvView";
 import { readTable } from "@/lib/export/snapshot";
 import { toCsv } from "@/lib/export/serialize";
 import { getTableEntry } from "@/lib/export/tableRegistry";
+import { buildUserDirectory } from "@/lib/export/userDirectory";
 import { withApiRoute } from "@/lib/http/withApi";
 
 export const maxDuration = 60;
@@ -26,8 +28,13 @@ export const GET = withApiRoute<Ctx>(async ({ request, requestId }, ctx) => {
 
   let csv: string;
   try {
-    const { rows, columns } = await readTable(table);
-    csv = toCsv(rows, columns);
+    const raw = await readTable(table);
+    // CSV is the human-friendly view: drop noise/empty columns and resolve
+    // user-id columns to "Name (Role)". The user directory (an auth.users read)
+    // is only built when the table actually has user-id columns.
+    const dir = hasUserColumns(raw.columns) ? await buildUserDirectory() : undefined;
+    const view = applyCsvView(raw.rows, raw.columns, dir);
+    csv = toCsv(view.rows, view.columns);
     scheduleAudit({
       actorUserId: auth.session.user.id,
       action: "data.export.table",
@@ -35,7 +42,7 @@ export const GET = withApiRoute<Ctx>(async ({ request, requestId }, ctx) => {
       resourceId: table,
       allowed: true,
       role: auth.session.user.role,
-      metadata: { rowCount: rows.length },
+      metadata: { rowCount: view.rows.length },
     });
   } catch {
     return errorResponse(ERROR_CODES.INTERNAL_ERROR, "Table export failed", 500, undefined, requestId);
