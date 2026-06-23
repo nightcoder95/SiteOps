@@ -6,19 +6,15 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { notifyError } from "@/lib/ui/toast";
 import {
-  AlertCircle,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
   Clock3,
   Edit3,
-  FileText,
-  Layers,
-  Repeat,
   Trash2,
-  TrendingUp,
 } from "lucide-react";
 
+import { EntryTypeIcon } from "@/components/constants/EntryTypeIcon";
 import { requestJson } from "@/lib/http/client";
 import { confirmDialog } from "@/lib/ui/confirm";
 import { formatDate as formatDateUtil } from "@/lib/utils/formatDate";
@@ -63,14 +59,6 @@ const typeLabel: Record<EntryType, string> = {
   machinery: "Machinery",
   expense: "Expense",
   incident: "Incident",
-};
-
-const typeIcon: Record<EntryType, typeof FileText> = {
-  labour: FileText,
-  material: Layers,
-  machinery: Repeat,
-  expense: TrendingUp,
-  incident: AlertCircle,
 };
 
 function formatCurrency(value: number) {
@@ -492,7 +480,6 @@ export default function OperationDetailPageClient({
   useEffect(() => {
     setEntries(initialEntries);
   }, [initialEntries]);
-  const Icon = typeIcon[type];
   const categoryOptions = Array.from(
     new Set(filters.category ? [filters.category, ...initialCategoryOptions] : initialCategoryOptions),
   );
@@ -612,7 +599,7 @@ export default function OperationDetailPageClient({
             </Link>
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-sky-400">
-                <Icon className="w-5 h-5" />
+                <EntryTypeIcon type={type} className="w-6 h-6" />
               </div>
               <div>
                 <h1 className="text-2xl font-extrabold uppercase tracking-tight text-white">

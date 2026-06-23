@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { AllowedUnitsEditor } from "@/components/catalog/AllowedUnitsEditor";
 import { CatalogAddModal, type CatalogCreateResult } from "@/components/catalog/CatalogAddModal";
+import { RowActionsMenu, type RowAction } from "@/components/catalog/RowActionsMenu";
 import type { CatalogOverviewList, CatalogOverviewOperation } from "@/lib/catalog/overview";
 import { requestJson } from "@/lib/http/client";
 import { useApiResult } from "@/lib/http/useApiQuery";
@@ -134,6 +135,48 @@ export function CatalogManager() {
     };
   }
 
+  // Single source of truth for a row's actions, shared by the desktop table
+  // and the mobile overflow menu so behaviour can't drift between the two.
+  function buildRowActions(
+    list: CatalogOverviewList,
+    item: CatalogOverviewList["items"][number],
+    index: number,
+    count: number,
+  ): RowAction[] {
+    const busy = busyId === item.subcategoryId;
+    const actions: RowAction[] = [
+      { label: "Move up", onSelect: () => void reorder(list, index, -1), disabled: index === 0 },
+      { label: "Move down", onSelect: () => void reorder(list, index, 1), disabled: index === count - 1 },
+      { label: "Rename", tone: "text-sky-400", onSelect: () => void rename(item), disabled: busy },
+      {
+        label: item.isActive ? "Deactivate" : "Activate",
+        tone: "text-amber-400",
+        onSelect: () => void toggleActive(item),
+        disabled: busy,
+      },
+    ];
+    if (list.key === "material_type") {
+      actions.push({
+        label: "Units",
+        tone: "text-teal-400",
+        onSelect: () => setUnitsFor({ id: item.subcategoryId, name: item.name }),
+      });
+    }
+    if (mergeSource && mergeSource.listKey === list.key && mergeSource.id !== item.subcategoryId) {
+      actions.push({ label: "→ Merge here", tone: "text-emerald-400", onSelect: () => void mergeInto(item), disabled: busy });
+    } else if (mergeSource && mergeSource.id === item.subcategoryId) {
+      actions.push({ label: "Cancel merge", tone: "text-emerald-400", onSelect: () => setMergeSource(null) });
+    } else {
+      actions.push({
+        label: "Merge",
+        tone: "text-violet-400",
+        onSelect: () => setMergeSource({ id: item.subcategoryId, name: item.name, listKey: list.key }),
+        disabled: busy,
+      });
+    }
+    return actions;
+  }
+
   if (isLoading) return <p className="text-sm text-on-surface-variant">Loading catalog…</p>;
   if (result && !result.ok) return <p className="text-sm text-error">Failed to load catalog.</p>;
 
@@ -180,7 +223,33 @@ export function CatalogManager() {
             {items.length === 0 ? (
               <p className="text-sm text-on-surface-variant">No items.</p>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+              {/* Mobile: stacked cards with an overflow menu so nothing overflows the viewport. */}
+              <ul className="space-y-2 md:hidden">
+                {items.map((item, index) => (
+                  <li
+                    key={item.subcategoryId}
+                    className={`flex items-start justify-between gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-low px-3 py-2.5 ${item.isActive ? "" : "opacity-50"}`}
+                  >
+                    <div className="min-w-0">
+                      <p className="font-semibold text-white">{item.name}</p>
+                      <p className="mt-0.5 flex items-center gap-1.5 text-xs text-on-surface-variant">
+                        <span
+                          aria-hidden
+                          className={`inline-block h-1.5 w-1.5 rounded-full ${item.isActive ? "bg-emerald-400" : "bg-slate-500"}`}
+                        />
+                        {item.isActive ? "Active" : "Inactive"}
+                        <span aria-hidden>·</span>
+                        Usage {item.usageCount}
+                      </p>
+                    </div>
+                    <RowActionsMenu actions={buildRowActions(list, item, index, items.length)} label={`Actions for ${item.name}`} />
+                  </li>
+                ))}
+              </ul>
+
+              {/* Desktop: full table. */}
+              <div className="hidden overflow-x-auto md:block">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-[11px] uppercase tracking-widest text-slate-400">
@@ -221,6 +290,7 @@ export function CatalogManager() {
                   </tbody>
                 </table>
               </div>
+              </>
             )}
           </section>
         );

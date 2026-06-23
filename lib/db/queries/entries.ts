@@ -304,6 +304,8 @@ export type MaterialWorkStage = string;
 export type SiteOperationSummary = Record<EntryType, {
   todayCount: number;
   todaySpend: number | null;
+  totalCount: number;
+  totalSpend: number | null;
 }>;
 
 export async function getEntryById(entryId: string, type: EntryType) {
@@ -510,32 +512,44 @@ export async function siteOperationSummary(
   siteId: string,
   date: string = todayIsoDate(),
 ): Promise<SiteOperationSummary> {
-  const rows = (await executor.execute(sql`
-    select
-      (select count(*)::int from labour_entries where site_id=${siteId}::uuid and date=${date}) as labour_count,
-      coalesce((select sum(case
+  // Single roundtrip: today (date-filtered) + all-time cumulative per operation.
+  // Kept as one query to respect the connection-pool guard (no N+1 fan-out).
+  const labourSpendExpr = sql`sum(case
         when coalesce(mason_salary_amount,0)+coalesce(helper_salary_amount,0)>0
           then coalesce(mason_salary_amount,0)+coalesce(helper_salary_amount,0)
         when coalesce(salary_amount,0)>0 then salary_amount
         else coalesce(people_count,0)*coalesce(wage_per_head,0)
-      end) from labour_entries where site_id=${siteId}::uuid and date=${date}),0) as labour_spend,
+      end)`;
+  const rows = (await executor.execute(sql`
+    select
+      (select count(*)::int from labour_entries where site_id=${siteId}::uuid and date=${date}) as labour_count,
+      coalesce((select ${labourSpendExpr} from labour_entries where site_id=${siteId}::uuid and date=${date}),0) as labour_spend,
+      (select count(*)::int from labour_entries where site_id=${siteId}::uuid) as labour_total_count,
+      coalesce((select ${labourSpendExpr} from labour_entries where site_id=${siteId}::uuid),0) as labour_total_spend,
       (select count(*)::int from material_entries where site_id=${siteId}::uuid and date=${date}) as material_count,
       coalesce((select sum(coalesce(cost,0)) from material_entries where site_id=${siteId}::uuid and date=${date}),0) as material_spend,
+      (select count(*)::int from material_entries where site_id=${siteId}::uuid) as material_total_count,
+      coalesce((select sum(coalesce(cost,0)) from material_entries where site_id=${siteId}::uuid),0) as material_total_spend,
       (select count(*)::int from machinery_entries where site_id=${siteId}::uuid and date=${date}) as machinery_count,
       coalesce((select sum(coalesce(total_cost,0)) from machinery_entries where site_id=${siteId}::uuid and date=${date}),0) as machinery_spend,
+      (select count(*)::int from machinery_entries where site_id=${siteId}::uuid) as machinery_total_count,
+      coalesce((select sum(coalesce(total_cost,0)) from machinery_entries where site_id=${siteId}::uuid),0) as machinery_total_spend,
       (select count(*)::int from expense_entries where site_id=${siteId}::uuid and date=${date}) as expense_count,
       coalesce((select sum(coalesce(amount,0)) from expense_entries where site_id=${siteId}::uuid and date=${date}),0) as expense_spend,
-      (select count(*)::int from incident_reports where site_id=${siteId}::uuid and created_at::date=${date}) as incident_count
+      (select count(*)::int from expense_entries where site_id=${siteId}::uuid) as expense_total_count,
+      coalesce((select sum(coalesce(amount,0)) from expense_entries where site_id=${siteId}::uuid),0) as expense_total_spend,
+      (select count(*)::int from incident_reports where site_id=${siteId}::uuid and created_at::date=${date}) as incident_count,
+      (select count(*)::int from incident_reports where site_id=${siteId}::uuid) as incident_total_count
   `)) as Array<Record<string, string | number>>;
 
   const r = rows[0] ?? {};
   const num = (v: string | number | undefined) => Number(v ?? 0);
   return {
-    labour: { todayCount: num(r.labour_count), todaySpend: num(r.labour_spend) },
-    material: { todayCount: num(r.material_count), todaySpend: num(r.material_spend) },
-    machinery: { todayCount: num(r.machinery_count), todaySpend: num(r.machinery_spend) },
-    expense: { todayCount: num(r.expense_count), todaySpend: num(r.expense_spend) },
-    incident: { todayCount: num(r.incident_count), todaySpend: null },
+    labour: { todayCount: num(r.labour_count), todaySpend: num(r.labour_spend), totalCount: num(r.labour_total_count), totalSpend: num(r.labour_total_spend) },
+    material: { todayCount: num(r.material_count), todaySpend: num(r.material_spend), totalCount: num(r.material_total_count), totalSpend: num(r.material_total_spend) },
+    machinery: { todayCount: num(r.machinery_count), todaySpend: num(r.machinery_spend), totalCount: num(r.machinery_total_count), totalSpend: num(r.machinery_total_spend) },
+    expense: { todayCount: num(r.expense_count), todaySpend: num(r.expense_spend), totalCount: num(r.expense_total_count), totalSpend: num(r.expense_total_spend) },
+    incident: { todayCount: num(r.incident_count), todaySpend: null, totalCount: num(r.incident_total_count), totalSpend: null },
   };
 }
 

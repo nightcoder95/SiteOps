@@ -18,9 +18,12 @@ describeDb("siteOperationSummary", () => {
     await withRollback(async (tx) => {
       const { userId, siteId } = await seedSite(tx);
 
+      const PRIOR_DAY = "2026-06-21";
       const labour = [
         { siteId, createdBy: userId, date: DAY, workType: "A", peopleCount: 2, wagePerHead: "500.00" },
         { siteId, createdBy: userId, date: DAY, workType: "A", peopleCount: 1, salaryAmount: "1200.00" },
+        // Prior-day entry: excluded from "today", included in all-time cumulative.
+        { siteId, createdBy: userId, date: PRIOR_DAY, workType: "A", peopleCount: 1, salaryAmount: "800.00" },
       ];
       const machinery = [
         { siteId, createdBy: userId, date: DAY, equipmentType: "E", count: 1, totalCost: "750.00" },
@@ -34,7 +37,9 @@ describeDb("siteOperationSummary", () => {
         { siteId, createdBy: userId, date: DAY, category: "Misc", description: "x", amount: "40.00" },
       ]);
       await tx.insert(incidentReports).values([
-        { siteId, reportedBy: userId, incidentType: "Slip", severity: "Low", description: "x" },
+        // Pin createdAt to DAY: incident is summarised by created_at::date, so a
+        // default now() would make the assertion fail on any day but DAY.
+        { siteId, reportedBy: userId, incidentType: "Slip", severity: "Low", description: "x", createdAt: new Date(`${DAY}T10:00:00Z`) },
       ]);
 
       const summary = await siteOperationSummary(tx, siteId, DAY);
@@ -47,9 +52,17 @@ describeDb("siteOperationSummary", () => {
       expect(summary.incident.todayCount).toBe(1);
       expect(summary.incident.todaySpend).toBeNull();
 
-      // Spend equals the old per-row reduction
+      // All-time cumulative: labour has an extra prior-day entry beyond today.
+      expect(summary.labour.totalCount).toBe(3);
+      expect(summary.labour.totalSpend).toBeCloseTo(1000 + 1200 + 800, 2);
+      expect(summary.material.totalCount).toBe(1);
+      expect(summary.material.totalSpend).toBeCloseTo(300.5, 2);
+      expect(summary.incident.totalCount).toBe(1);
+      expect(summary.incident.totalSpend).toBeNull();
+
+      // Spend equals the old per-row reduction (today's rows only)
       expect(summary.labour.todaySpend).toBeCloseTo(
-        labour.reduce((s, r) => s + calculateLabourTotal(r), 0),
+        labour.filter((r) => r.date === DAY).reduce((s, r) => s + calculateLabourTotal(r), 0),
         2,
       );
       expect(summary.labour.todaySpend).toBeCloseTo(1000 + 1200, 2);

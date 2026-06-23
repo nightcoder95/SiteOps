@@ -1,6 +1,8 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { eq } from "drizzle-orm";
+
 import { can } from "@/lib/auth/capabilities";
 import { safeGetSessionFromHeaders } from "@/lib/auth/session";
 import { db } from "@/lib/db/client";
@@ -23,7 +25,9 @@ export default async function LogsNewPage({
   }
 
   const { siteId } = await searchParams;
-  const list = await db.select().from(categories);
+  // Operation picker shows only logging operations; attribute lists (Work Stage,
+  // Severity…) are managed via the catalog, not pickable as an operation type.
+  const list = await db.select().from(categories).where(eq(categories.purpose, "operation"));
   const sites =
     can(session.user.role, "site:read_all")
       ? await getAllSites()

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import type { ActivityItem } from '@/lib/types/domain';
 import { formatDateTime } from '@/lib/utils/formatDate';
+import { EntryTypeIcon } from '@/components/constants/EntryTypeIcon';
 
 type FeedState =
   | { kind: 'loading' }
@@ -21,12 +22,12 @@ const FEED_SOURCES = [
   { table: 'incident_reports', type: 'incident' as const, idField: 'incident_report_id' },
 ];
 
-const TYPE_META: Record<ActivityItem['type'], { icon: string; bg: string; fg: string }> = {
-  labour: { icon: 'engineering', bg: 'bg-primary-container', fg: 'text-on-primary-container' },
-  material: { icon: 'inventory_2', bg: 'bg-amber-500/15', fg: 'text-amber-300' },
-  machinery: { icon: 'precision_manufacturing', bg: 'bg-slate-500/15', fg: 'text-slate-300' },
-  expense: { icon: 'account_balance_wallet', bg: 'bg-primary-container', fg: 'text-on-primary-container' },
-  incident: { icon: 'report', bg: 'bg-red-500/10', fg: 'text-red-300' },
+const TYPE_META: Record<ActivityItem['type'], { bg: string; fg: string }> = {
+  labour: { bg: 'bg-primary-container', fg: 'text-on-primary-container' },
+  material: { bg: 'bg-amber-500/15', fg: 'text-amber-300' },
+  machinery: { bg: 'bg-slate-500/15', fg: 'text-slate-300' },
+  expense: { bg: 'bg-primary-container', fg: 'text-on-primary-container' },
+  incident: { bg: 'bg-red-500/10', fg: 'text-red-300' },
 };
 
 function toActivityItem(payload: RealtimeInsertPayload, type: ActivityItem['type'], idField: string): ActivityItem | null {
@@ -119,9 +120,7 @@ export default function AdminLiveFeedPage() {
             return (
               <article key={`${activity.type}-${activity.id}`} className="flex items-start gap-3 p-3">
                 <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${meta.bg} ${meta.fg}`}>
-                  <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-                    {meta.icon}
-                  </span>
+                  <EntryTypeIcon type={activity.type} className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-white">

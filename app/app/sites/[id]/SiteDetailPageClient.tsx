@@ -23,6 +23,7 @@ import { can } from '@/lib/auth/capabilities';
 import { requestJson, type ClientResult } from '@/lib/http/client';
 import { confirmDialog } from '@/lib/ui/confirm';
 import { EditSiteModal } from './EditSiteModal';
+import { EntryTypeIcon } from '@/components/constants/EntryTypeIcon';
 
 type Site = {
   id: number;
@@ -41,6 +42,8 @@ type OperationType = 'labour' | 'material' | 'machinery' | 'expense' | 'incident
 type OperationSummary = Record<OperationType, {
   todayCount: number;
   todaySpend: number | null;
+  totalCount: number;
+  totalSpend: number | null;
 }>;
 
 type Supervisor = { userId: string; displayName: string };
@@ -78,6 +81,17 @@ function formatCurrency(value: number | null) {
   }).format(value);
 }
 
+// Compact Indian-format currency for the all-time row (e.g. ₹2.1L, ₹3.4Cr).
+function formatCompactCurrency(value: number | null) {
+  if (value == null) return null;
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
 function formatBudgetPair(current: string, agreed: string | null) {
   const currentFormatted = formatCurrency(Number(current)) ?? '₹0';
   const agreedFormatted = agreed ? formatCurrency(Number(agreed)) : null;
@@ -87,13 +101,12 @@ function formatBudgetPair(current: string, agreed: string | null) {
 const operationMeta: Array<{
   type: OperationType;
   label: string;
-  icon: typeof FileText;
 }> = [
-  { type: 'labour', label: 'Labour', icon: FileText },
-  { type: 'material', label: 'Material', icon: Layers },
-  { type: 'machinery', label: 'Machinery', icon: Repeat },
-  { type: 'expense', label: 'Expense', icon: TrendingUp },
-  { type: 'incident', label: 'Incident', icon: AlertCircle },
+  { type: 'labour', label: 'Labour' },
+  { type: 'material', label: 'Material' },
+  { type: 'machinery', label: 'Machinery' },
+  { type: 'expense', label: 'Expense' },
+  { type: 'incident', label: 'Incident' },
 ];
 
 export default function SiteDetailPageClient({
@@ -246,34 +259,48 @@ export default function SiteDetailPageClient({
 
       <section className="grid gap-4 md:grid-cols-2">
         {operationMeta.map((operation) => {
-          const Icon = operation.icon;
           const summary = initialSummary[operation.type];
-          const spend = formatCurrency(summary.todaySpend);
+          const todaySpend = formatCurrency(summary.todaySpend);
+          const totalSpend = formatCompactCurrency(summary.totalSpend);
+          const totalLabel = summary.totalCount === 1 ? 'entry' : 'entries';
           return (
             <Link
               key={operation.type}
               href={`/app/sites/${siteId}/operations/${operation.type}`}
               className={`card-standard group p-5 border-2 ${getTypeColor(operation.type).split(' ')[2]} hover:bg-white/5 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-500/70`}
             >
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-3 min-w-0">
-                  <span className={`inline-flex text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-lg border ${getTypeColor(operation.type)}`}>
-                    {operation.label}
-                  </span>
-                  <div>
-                    <p className="text-3xl font-extrabold text-white">{summary.todayCount}</p>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Entries Today</p>
-                  </div>
-                  {spend ? (
-                    <p className="text-sm font-bold text-slate-200">{spend}</p>
-                  ) : (
-                    <p className="text-sm font-bold text-slate-500">No spend tracked today</p>
-                  )}
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-sky-400">Click for details</p>
+              {/* Header: badge + icon */}
+              <div className="flex items-start justify-between gap-3">
+                <span className={`inline-flex text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-lg border ${getTypeColor(operation.type)}`}>
+                  {operation.label}
+                </span>
+                <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-500 group-hover:text-sky-400 transition-colors shrink-0">
+                  <EntryTypeIcon type={operation.type} className="w-6 h-6" />
                 </div>
-                <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-500 group-hover:text-sky-400 transition-colors shrink-0">
-                  <Icon className="w-6 h-6" />
+              </div>
+
+              {/* Today: primary stat */}
+              <div className="mt-4 flex items-baseline justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-3xl font-extrabold text-white leading-none">{summary.todayCount}</p>
+                  <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">Today</p>
                 </div>
+                {todaySpend ? (
+                  <p className="text-sm font-bold text-slate-200 shrink-0">{todaySpend}</p>
+                ) : null}
+              </div>
+
+              {/* Divider */}
+              <div className="my-3 border-t border-white/10" />
+
+              {/* All-time: secondary stat */}
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span className="font-semibold text-slate-400 truncate">
+                  {summary.totalCount.toLocaleString('en-IN')} {totalLabel} all-time
+                </span>
+                {totalSpend ? (
+                  <span className="font-bold text-slate-300 shrink-0">{totalSpend}</span>
+                ) : null}
               </div>
             </Link>
           );

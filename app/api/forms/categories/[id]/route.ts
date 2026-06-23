@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { requireCapability } from "@/lib/auth/guards";
 import { getOrSetJson } from "@/lib/cache/getOrSetJson";
@@ -38,7 +38,12 @@ async function loadCategoryTree(id: string): Promise<CategoryTree | null> {
       field: fieldDefinitions,
     })
     .from(categories)
-    .leftJoin(subcategories, eq(subcategories.categoryId, categories.categoryId))
+    // Only active subcategories reach the form dropdowns; deactivated rows stay
+    // selectable in history but are excluded here (admin catalog uses its own route).
+    .leftJoin(
+      subcategories,
+      and(eq(subcategories.categoryId, categories.categoryId), eq(subcategories.isActive, true)),
+    )
     .leftJoin(fieldDefinitions, eq(fieldDefinitions.subcategoryId, subcategories.subcategoryId))
     .where(eq(categories.categoryId, id));
 

@@ -7,6 +7,7 @@ import { motion } from "motion/react";
 import { ChevronRight, Plus, Trash2, Loader2, AlertCircle } from "lucide-react";
 
 import { ModalShell } from "@/components/ui/motion";
+import { EntryTypeIcon, entryTypeFromName } from "@/components/constants/EntryTypeIcon";
 import { requestJson } from "@/lib/http/client";
 
 export type CategoryOption = {
@@ -190,7 +191,14 @@ export function CategoryPicker({ initialCategories = [], onSelect, role, siteId 
               className="flex-1 flex items-center gap-5 p-5 text-left"
             >
               <div className="w-14 h-14 bg-white/5 border border-white/5 rounded-2xl flex items-center justify-center shadow-lg transition-colors group-hover:bg-white/10 text-sky-400 shrink-0">
-                <span className="material-symbols-outlined text-[24px]">{c.icon ?? "category"}</span>
+                {(() => {
+                  const mappedType = entryTypeFromName(c.name);
+                  return mappedType ? (
+                    <EntryTypeIcon type={mappedType} className="w-8 h-8" />
+                  ) : (
+                    <span className="material-symbols-outlined text-[24px]">{c.icon ?? "category"}</span>
+                  );
+                })()}
               </div>
               <div className="space-y-1 min-w-0">
                 <h4 className="font-bold text-slate-200 uppercase tracking-tight group-hover:text-sky-400 transition-colors">
