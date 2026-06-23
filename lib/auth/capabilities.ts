@@ -45,7 +45,8 @@ export type Capability =
   | "user:list"
   | "user:create"
   | "user:manage_roles"
-  | "resource:manage_all";
+  | "resource:manage_all"
+  | "data:export";
 
 // Capabilities shared by every authenticated role. Supervisor === this set.
 const SUPERVISOR_CAPABILITIES: readonly Capability[] = [
@@ -94,6 +95,7 @@ const ADMIN_CAPABILITIES: readonly Capability[] = [
   "user:create",
   "user:manage_roles",
   "resource:manage_all",
+  "data:export", // admin-only: full data egress (PII) — supervisors excluded
 ];
 
 export const ROLE_CAPABILITIES: Record<Role, ReadonlySet<Capability>> = {

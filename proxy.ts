@@ -23,17 +23,27 @@ function extractBearerToken(request: NextRequest): string | null {
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
+  // Defense-in-depth: the `x-siteops-*` identity headers are TRUSTED downstream as
+  // the authenticated user. They must only ever be set by this proxy from verified
+  // JWT claims — so strip any inbound copy a client tried to smuggle, BEFORE any
+  // exit (including the early public-prefix / OPTIONS returns). The authed path
+  // below re-sets them from verified claims. Without this, a future public handler
+  // that reads these headers would trust an attacker-supplied identity.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete(AUTH_USER_ID_HEADER);
+  requestHeaders.delete(AUTH_USER_EMAIL_HEADER);
+  requestHeaders.delete(AUTH_USER_ROLE_HEADER);
+  const sanitized = NextResponse.next({ request: { headers: requestHeaders } });
+
   // Public route prefixes skip all auth work — no Supabase client, no JWT verify.
   if (PUBLIC_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
-    return NextResponse.next();
+    return sanitized;
   }
 
   // CORS/health preflights never carry meaningful auth state.
   if (request.method === "OPTIONS") {
-    return NextResponse.next();
+    return sanitized;
   }
-
-  const requestHeaders = new Headers(request.headers);
   const cookiesToSet: Array<{
     name: string;
     value: string;

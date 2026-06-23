@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'motion/react';
-import { CheckCircle, Users, Receipt, BarChart3, Radio, ListTree } from 'lucide-react';
+import { CheckCircle, Users, Receipt, BarChart3, Radio, ListTree, Database } from 'lucide-react';
 
 const tabs = [
   { label: 'Approvals', href: '/app/admin/approvals', icon: CheckCircle },
@@ -12,6 +12,7 @@ const tabs = [
   { label: 'Expenses', href: '/app/admin/expenses', icon: Receipt },
   { label: 'Analytics', href: '/app/admin/analytics', icon: BarChart3 },
   { label: 'Live Feed', href: '/app/admin/live-feed', icon: Radio },
+  { label: 'Data', href: '/app/admin/data', icon: Database },
 ];
 
 export function AdminTabNav() {

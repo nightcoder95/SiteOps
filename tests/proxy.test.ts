@@ -33,6 +33,14 @@ function bearerRequestFor(path: string, token: string, method = "GET") {
   });
 }
 
+// NextResponse.next({ request: { headers } }) echoes the forwarded request headers
+// back as `x-middleware-request-<name>` (with the names listed in
+// `x-middleware-override-headers`). Reading them lets us assert what the handler
+// will actually receive.
+function forwardedHeader(res: { headers: Headers }, name: string): string | null {
+  return res.headers.get(`x-middleware-request-${name}`);
+}
+
 function setClaims(claims: Record<string, unknown> | null) {
   mockGetClaims.mockResolvedValue(
     claims ? { data: { claims }, error: null } : { data: null, error: new Error("no session") },
@@ -106,6 +114,46 @@ describe("middleware — auth fallbacks", () => {
     setClaims(normalUser);
     const res = await middleware(requestFor("/app/dashboard"));
     expect(res.headers.get("location")).toBeNull();
+  });
+});
+
+describe("middleware — inbound x-siteops-* header stripping (defense-in-depth)", () => {
+  beforeEach(() => {
+    mockGetClaims.mockReset();
+  });
+
+  function forgedRequest(path: string) {
+    return new NextRequest(new URL(`https://app.test${path}`), {
+      headers: {
+        "x-siteops-user-id": "attacker",
+        "x-siteops-user-email": "attacker@evil.com",
+        "x-siteops-user-role": "Admin",
+      },
+    });
+  }
+
+  it("strips a forged identity header on a public-prefix route (no auth work)", async () => {
+    const res = await middleware(forgedRequest("/api/health"));
+    expect(forwardedHeader(res, "x-siteops-user-role")).toBeNull();
+    expect(forwardedHeader(res, "x-siteops-user-id")).toBeNull();
+    expect(forwardedHeader(res, "x-siteops-user-email")).toBeNull();
+    expect(mockGetClaims).not.toHaveBeenCalled(); // proves the early public-prefix exit was taken
+  });
+
+  it("strips forged identity headers on an OPTIONS preflight", async () => {
+    const req = new NextRequest(new URL("https://app.test/api/entries"), {
+      method: "OPTIONS",
+      headers: { "x-siteops-user-role": "Admin" },
+    });
+    const res = await middleware(req);
+    expect(forwardedHeader(res, "x-siteops-user-role")).toBeNull();
+  });
+
+  it("does not let a forged role survive into an authenticated request", async () => {
+    setClaims(normalUser); // verified role is Supervisor
+    const res = await middleware(forgedRequest("/api/entries"));
+    // The proxy re-sets role from verified claims — Supervisor, never the forged Admin.
+    expect(forwardedHeader(res, "x-siteops-user-role")).toBe("Supervisor");
   });
 });
 

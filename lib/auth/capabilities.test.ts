@@ -9,6 +9,7 @@ describe("capabilities map", () => {
     expect(can(ROLES.ADMIN, "user:create")).toBe(true);
     expect(can(ROLES.ADMIN, "user:list")).toBe(true);
     expect(can(ROLES.ADMIN, "user:manage_roles")).toBe(true);
+    expect(can(ROLES.ADMIN, "data:export")).toBe(true);
   });
 
   it("denies Supervisor admin-only capabilities", () => {
@@ -29,6 +30,7 @@ describe("capabilities map", () => {
       "transfer:approve",
       "analytics:read",
       "live_feed:read",
+      "data:export",
     ];
     for (const cap of adminOnly) {
       expect(can(ROLES.SUPERVISOR, cap)).toBe(false);
