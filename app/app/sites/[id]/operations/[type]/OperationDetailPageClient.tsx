@@ -42,6 +42,7 @@ type Props = {
   initialEntries: Entry[];
   initialFilters: Filters;
   categoryOptions: string[];
+  highlightId?: string | null;
 };
 
 const materialStages = [
@@ -468,6 +469,7 @@ export default function OperationDetailPageClient({
   initialEntries,
   initialFilters,
   categoryOptions: initialCategoryOptions,
+  highlightId = null,
 }: Props) {
   const router = useRouter();
   const [filters, setFilters] = useState(initialFilters);
@@ -480,6 +482,36 @@ export default function OperationDetailPageClient({
   useEffect(() => {
     setEntries(initialEntries);
   }, [initialEntries]);
+
+  // Deep-link highlight: when arriving from global search with ?highlight=<entryId>
+  // (read server-side, passed as a prop), scroll the matching log card into view
+  // and pulse it for ~2s, then strip the param from the URL via history.replaceState
+  // (cosmetic only — no Next navigation, so a refresh won't re-pulse).
+  const [pulse, setPulse] = useState(false);
+  useEffect(() => {
+    if (!highlightId) return;
+    setPulse(true);
+    const scrollT = window.setTimeout(() => {
+      document
+        .querySelector("[data-highlight-target]")
+        ?.scrollIntoView({ block: "center", behavior: "smooth" });
+    }, 150);
+    const offT = window.setTimeout(() => setPulse(false), 2400);
+    const params = new URLSearchParams(window.location.search);
+    params.delete("highlight");
+    params.delete("date");
+    const qs = params.toString();
+    window.history.replaceState(
+      null,
+      "",
+      qs ? `${window.location.pathname}?${qs}` : window.location.pathname,
+    );
+    return () => {
+      window.clearTimeout(scrollT);
+      window.clearTimeout(offT);
+    };
+  }, [highlightId]);
+
   const categoryOptions = Array.from(
     new Set(filters.category ? [filters.category, ...initialCategoryOptions] : initialCategoryOptions),
   );
@@ -754,8 +786,20 @@ export default function OperationDetailPageClient({
               const entry = row.primary;
               const id = entryId(entry, type);
               const runningKey = `${date}|${entryCategoryKey(entry, type)}`;
+              const rowHighlighted = highlightId
+                ? row.entries.some((e) => String(entryId(e, type)) === highlightId)
+                : false;
               return (
-                <div key={`${runningKey}|${id ?? "group"}`} className="card-standard p-4 flex items-start justify-between gap-4">
+                <div
+                  key={`${runningKey}|${id ?? "group"}`}
+                  data-entry-id={id ?? undefined}
+                  data-highlight-target={rowHighlighted ? "" : undefined}
+                  className={`card-standard p-4 flex items-start justify-between gap-4 transition-shadow ${
+                    rowHighlighted && pulse
+                      ? "ring-2 ring-sky-400 ring-offset-2 ring-offset-[#020617]"
+                      : ""
+                  }`}
+                >
                   <div className="min-w-0 flex-1">
                     {renderEntrySummary(entry, type)}
                     {(type === "labour" || type === "material" || type === "machinery" || type === "expense") ? (

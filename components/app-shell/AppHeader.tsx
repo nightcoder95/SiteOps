@@ -1,11 +1,13 @@
 'use client';
 
-import { Bell, ChevronLeft, User } from 'lucide-react';
+import { Bell, ChevronLeft, Search, User } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 import type { Role } from '@/lib/auth/roles';
 import { useApiQuery } from '@/lib/http/useApiQuery';
 import { UNREAD_BADGE_KEY } from '@/lib/http/notificationsKeys';
+import { GlobalSearchOverlay } from '@/components/search/GlobalSearchOverlay';
 
 type Props = {
   // Use the canonical Role type rather than a duplicated literal union. The
@@ -32,6 +34,26 @@ export function AppHeader({ role, initialUnread = 0 }: Props) {
     fallbackData: { total: initialUnread },
   });
   const unread = data ? Number(data.total ?? 0) : 0;
+
+  // Global remarks search overlay.
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  // Cmd/Ctrl-K toggles the overlay (desktop convenience).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearchOpen((v) => !v);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // Close the overlay whenever the route changes (e.g. after a deep-link).
+  useEffect(() => {
+    setSearchOpen(false);
+  }, [pathname]);
 
   return (
     <header className="glass-header safe-area-top fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-background/80">
@@ -61,6 +83,14 @@ export function AppHeader({ role, initialUnread = 0 }: Props) {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="p-2 text-slate-500 hover:text-sky-400 transition-colors"
+            aria-label="Search remarks"
+          >
+            <Search className="w-5 h-5" />
+          </button>
+
           <button
             onClick={() => router.push('/app/notifications')}
             className="p-2 text-slate-500 hover:text-sky-400 transition-colors relative"
@@ -92,6 +122,8 @@ export function AppHeader({ role, initialUnread = 0 }: Props) {
           </button>
         </div>
       </div>
+
+      <GlobalSearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
     </header>
   );
 }

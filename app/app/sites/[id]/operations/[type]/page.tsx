@@ -98,6 +98,10 @@ export default async function OperationDetailPage({
     limit: 200,
   });
   const categoryOptions = await getOperationCategoryOptions(type as EntryType);
+  // Deep-link target from global search (?highlight=<entryId>). Read server-side
+  // and passed as a prop — the app reads query params via searchParams, not the
+  // client useSearchParams hook.
+  const highlight = getValue("highlight") ?? null;
 
   return (
     <OperationDetailPageClient
@@ -107,6 +111,7 @@ export default async function OperationDetailPage({
       initialEntries={serializeRow(entries) as any}
       initialFilters={initialFilters}
       categoryOptions={categoryOptions}
+      highlightId={highlight}
     />
   );
 }
