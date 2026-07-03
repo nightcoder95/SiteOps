@@ -8,9 +8,9 @@
 }
 
 @theme {
-  --color-brand-primary: #0ea5e9;
-  --color-brand-secondary: #0c4a6e;
-  --color-accent: #0ea5e9;
+  --color-brand-primary: #2563eb;
+  --color-brand-secondary: #1e3a8a;
+  --color-accent: #2563eb;
   --color-surface: #0f172a;
   --color-background: #020617;
   --color-border: rgba(255, 255, 255, 0.05);
@@ -19,10 +19,10 @@
   --color-warning: #f59e0b;
 
   /* compatibility aliases for existing UI code */
-  --color-primary: #0ea5e9;
-  --color-on-primary: #020617;
-  --color-primary-container: #082f49;
-  --color-on-primary-container: #e0f2fe;
+  --color-primary: #2563eb;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #1e3a8a;
+  --color-on-primary-container: #dbeafe;
   --color-on-surface: #e2e8f0;
   --color-on-surface-variant: #94a3b8;
   --color-surface-container-lowest: #0f172a;
@@ -107,7 +107,7 @@
   }
 
   .btn-primary {
-    @apply inline-flex items-center justify-center px-4 py-2 bg-sky-500 text-slate-950 font-bold uppercase tracking-widest text-[11px] rounded-xl hover:bg-sky-400 transition-all shadow-lg shadow-sky-500/10 disabled:opacity-50;
+    @apply inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white font-bold uppercase tracking-widest text-[11px] rounded-xl hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/10 disabled:opacity-50;
   }
 
   .btn-secondary {
@@ -123,11 +123,11 @@
   }
 
   .badge-sky {
-    @apply px-2.5 py-1 bg-sky-500/10 text-sky-400 text-[9px] font-bold rounded-lg uppercase tracking-widest border border-sky-500/20;
+    @apply px-2.5 py-1 bg-blue-500/10 text-blue-400 text-[9px] font-bold rounded-lg uppercase tracking-widest border border-blue-500/20;
   }
 
   .input-standard {
-    @apply w-full px-4 py-3 bg-white/5 border border-white/5 rounded-xl text-white text-sm outline-none transition-all placeholder-slate-600 focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50;
+    @apply w-full px-4 py-3 bg-white/5 border border-white/5 rounded-xl text-white text-sm outline-none transition-all placeholder-slate-600 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50;
   }
 }
 

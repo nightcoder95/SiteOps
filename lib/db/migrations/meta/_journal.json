@@ -169,6 +169,13 @@
       "when": 1782432000000,
       "tag": "0023_remarks_trgm_search",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1783020097372,
+      "tag": "0024_tools_inventory",
+      "breakpoints": true
     }
   ]
 }

@@ -65,4 +65,18 @@ describe("capabilities map", () => {
       expect(ROLE_CAPABILITIES[role]).toBeInstanceOf(Set);
     }
   });
+
+  it("grants all five tool caps to Admin only", () => {
+    const toolCaps: Capability[] = [
+      "tool:read",
+      "tool:manage",
+      "tool:assign",
+      "tool:delete",
+      "tool_category:manage",
+    ];
+    for (const cap of toolCaps) {
+      expect(can(ROLES.ADMIN, cap)).toBe(true);
+      expect(can(ROLES.SUPERVISOR, cap)).toBe(false);
+    }
+  });
 });

@@ -27,7 +27,7 @@ export function AdminTabNav() {
             key={tab.href}
             href={tab.href}
             className={[
-              'relative flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-xs font-bold uppercase tracking-widest transition-all duration-300 select-none cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-sky-500/50',
+              'relative flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-3.5 text-[15px] font-bold tracking-tight transition-all duration-300 select-none cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-blue-500/50',
               active
                 ? ''
                 : 'hover:bg-white/[0.04] active:bg-white/[0.08]',
@@ -36,20 +36,20 @@ export function AdminTabNav() {
             {active && (
               <motion.div
                 layoutId="active-admin-tab"
-                className="absolute inset-0 rounded-xl bg-gradient-to-r from-sky-500/10 to-indigo-500/10 border border-sky-500/20 shadow-[0_0_12px_rgba(14,165,233,0.15)]"
+                className="absolute inset-0 rounded-xl bg-blue-500/15 border border-blue-500/40 shadow-[0_0_16px_rgba(37,99,235,0.25)]"
                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
               />
             )}
             <span
               className={[
                 'relative z-10 flex items-center gap-2 transition-colors duration-300',
-                active ? 'text-sky-400 font-bold' : 'text-slate-400 hover:text-slate-200',
+                active ? 'text-white font-bold' : 'text-slate-400 hover:text-slate-200',
               ].join(' ')}
             >
               <tab.icon
                 className={[
-                  'h-4 w-4 transition-transform duration-300',
-                  active ? 'scale-110 drop-shadow-[0_0_6px_rgba(56,189,248,0.6)]' : '',
+                  'h-[18px] w-[18px] transition-transform duration-300',
+                  active ? 'scale-110 drop-shadow-[0_0_6px_rgba(59,130,246,0.6)]' : '',
                 ].join(' ')}
               />
               {tab.label}

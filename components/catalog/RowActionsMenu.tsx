@@ -1,21 +1,24 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
+import { MoreHorizontal } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-
-import { fadeScale } from "@/components/ui/motion";
 
 export type RowAction = {
   label: string;
   onSelect: () => void;
+  /** Optional leading icon. */
+  icon?: LucideIcon;
   /** Tailwind text color class for the label, e.g. "text-sky-400". */
   tone?: string;
   disabled?: boolean;
 };
 
 /**
- * Compact "⋯" overflow menu used on mobile catalog cards where the row's
- * actions don't fit inline. Closes on outside click and Escape.
+ * "⋯" overflow menu for catalog rows. Opens an icon-led popover, closes on
+ * outside click and Escape. Shared by every catalog manager so the row actions
+ * (and their look) can't drift between lists.
  */
 export function RowActionsMenu({ actions, label = "Row actions" }: { actions: RowAction[]; label?: string }) {
   const [open, setOpen] = useState(false);
@@ -45,33 +48,44 @@ export function RowActionsMenu({ actions, label = "Row actions" }: { actions: Ro
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="rounded-lg px-2 py-1 text-lg leading-none text-on-surface-variant hover:bg-surface-container-low"
+        className={`grid h-10 w-10 cursor-pointer place-items-center rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/50 ${
+          open
+            ? "border-sky-500/50 bg-sky-500/10 text-sky-400"
+            : "border-white/10 bg-white/5 text-slate-400 hover:text-slate-200"
+        }`}
       >
-        ⋯
+        <MoreHorizontal className="h-4 w-4" />
       </button>
 
       <AnimatePresence>
         {open ? (
           <motion.div
-            {...fadeScale}
+            initial={{ opacity: 0, y: -4, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.97 }}
+            transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
             role="menu"
-            className="absolute right-0 top-full z-20 mt-1 min-w-44 origin-top-right overflow-hidden rounded-xl border border-outline-variant bg-surface-container shadow-lg"
+            className="absolute right-0 top-full z-30 mt-2 min-w-52 origin-top-right overflow-hidden rounded-2xl border border-white/10 bg-[#0d1526]/95 p-1.5 shadow-2xl shadow-black/50 backdrop-blur-xl"
           >
-            {actions.map((action) => (
-              <button
-                key={action.label}
-                type="button"
-                role="menuitem"
-                disabled={action.disabled}
-                onClick={() => {
-                  setOpen(false);
-                  action.onSelect();
-                }}
-                className={`block w-full px-4 py-2.5 text-left text-sm hover:bg-surface-container-low disabled:opacity-30 ${action.tone ?? "text-on-surface"}`}
-              >
-                {action.label}
-              </button>
-            ))}
+            {actions.map((action) => {
+              const Icon = action.icon;
+              return (
+                <button
+                  key={action.label}
+                  type="button"
+                  role="menuitem"
+                  disabled={action.disabled}
+                  onClick={() => {
+                    setOpen(false);
+                    action.onSelect();
+                  }}
+                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:text-slate-600 disabled:hover:bg-transparent ${action.tone ?? "text-slate-200"}`}
+                >
+                  {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
+                  {action.label}
+                </button>
+              );
+            })}
           </motion.div>
         ) : null}
       </AnimatePresence>

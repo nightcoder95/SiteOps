@@ -1,5 +1,6 @@
 import {
   boolean,
+  check,
   date,
   decimal,
   index,
@@ -489,3 +490,103 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
 }, (t) => [
   index("push_subscriptions_user_id_idx").on(t.userId),
 ]);
+
+// ── Tools Inventory (company-global fungible tool tracking) ──────────────────
+// Warehouse/free pool is COMPUTED (total − Σ assignments), never stored.
+export const toolCategories = pgTable(
+  "tool_categories",
+  {
+    id: identityId(),
+    categoryId: uuid("category_id").notNull().unique().defaultRandom(),
+    name: varchar("name", { length: 100 }).notNull(),
+    codePrefix: varchar("code_prefix", { length: 8 }).notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("tool_categories_name_active_uidx")
+      .on(sql`lower(${t.name})`)
+      .where(sql`${t.isActive} = true`),
+    uniqueIndex("tool_categories_code_prefix_uidx").on(t.codePrefix),
+  ]
+);
+
+export const tools = pgTable(
+  "tools",
+  {
+    id: identityId(),
+    toolId: uuid("tool_id").notNull().unique().defaultRandom(),
+    name: varchar("name", { length: 120 }).notNull(),
+    code: varchar("code", { length: 20 }).notNull().unique(),
+    categoryId: uuid("category_id")
+      .notNull()
+      .references(() => toolCategories.categoryId, { onDelete: "restrict" }),
+    totalQuantity: integer("total_quantity").notNull().default(0),
+    icon: varchar("icon", { length: 50 }),
+    version: integer("version").notNull().default(0),
+    isDeleted: boolean("is_deleted").notNull().default(false),
+    createdByUserId: uuid("created_by_user_id").notNull().references(() => userProfiles.userId),
+    updatedByUserId: uuid("updated_by_user_id").notNull().references(() => userProfiles.userId),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("tools_name_active_uidx")
+      .on(sql`lower(${t.name})`)
+      .where(sql`${t.isDeleted} = false`),
+    index("tools_category_id_idx").on(t.categoryId),
+    check("tools_total_quantity_nonneg", sql`${t.totalQuantity} >= 0`),
+  ]
+);
+
+export const toolAssignments = pgTable(
+  "tool_assignments",
+  {
+    id: identityId(),
+    toolId: uuid("tool_id")
+      .notNull()
+      .references(() => tools.toolId, { onDelete: "cascade" }),
+    siteId: uuid("site_id")
+      .notNull()
+      .references(() => sites.siteId, { onDelete: "cascade" }),
+    quantity: integer("quantity").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("tool_assignments_tool_site_uidx").on(t.toolId, t.siteId),
+    index("tool_assignments_tool_id_idx").on(t.toolId),
+    index("tool_assignments_site_id_idx").on(t.siteId),
+    check("tool_assignments_quantity_pos", sql`${t.quantity} >= 1`),
+  ]
+);
+
+export const toolMovements = pgTable(
+  "tool_movements",
+  {
+    id: identityId(),
+    movementId: uuid("movement_id").notNull().unique().defaultRandom(),
+    toolId: uuid("tool_id")
+      .notNull()
+      .references(() => tools.toolId, { onDelete: "cascade" }),
+    // Polymorphic location string: 'WAREHOUSE' | 'EXTERNAL' | a site uuid.
+    // Intentionally NOT FK'd — ledger is append-only history that must survive a
+    // site being archived/deleted. Validated at write time (§3.4, §6).
+    fromLocation: varchar("from_location", { length: 64 }).notNull(),
+    toLocation: varchar("to_location", { length: 64 }).notNull(),
+    quantity: integer("quantity").notNull(),
+    kind: varchar("kind", { length: 20 }).notNull(),
+    note: varchar("note", { length: 500 }),
+    actorUserId: uuid("actor_user_id").references(() => userProfiles.userId, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("tool_movements_tool_created_idx").on(t.toolId, t.createdAt.desc().nullsLast()),
+    index("tool_movements_created_idx").on(t.createdAt.desc().nullsLast()),
+    check("tool_movements_quantity_pos", sql`${t.quantity} >= 1`),
+  ]
+);

@@ -1,0 +1,33 @@
+# .github/workflows/backup.yml
+name: Backup
+on:
+  schedule:
+    - cron: "0 2 */2 * *" # ~02:00 UTC every 2 days (see plan §13 for timing knob)
+  workflow_dispatch: {} # allow manual "Run workflow"
+concurrency:
+  group: siteops-backup
+  cancel-in-progress: false
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: SiteOps-Web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: SiteOps-Web/package-lock.json
+      - run: npm ci
+      - run: npm run backup
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+# NOTE: working-directory / cache-dependency-path assume the repo root contains a
+# SiteOps-Web/ folder. If SiteOps-Web IS the repo root, drop the SiteOps-Web path
+# segments above and the `.github/` dir must live at that root.

@@ -1,9 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "motion/react";
+import { ArrowDown, ArrowUp, Pause, Pencil, Play, Ruler } from "lucide-react";
 import { toast } from "sonner";
 
 import { CatalogAddModal, type CatalogCreateResult } from "@/components/catalog/CatalogAddModal";
+import { RenameModal } from "@/components/catalog/RenameModal";
+import { RowActionsMenu, type RowAction } from "@/components/catalog/RowActionsMenu";
+import { Toggle } from "@/components/ui/Toggle";
 import type { UnitGroup, UnitRow } from "@/lib/catalog/units";
 import { requestJson } from "@/lib/http/client";
 import { useApiResult } from "@/lib/http/useApiQuery";
@@ -11,11 +16,19 @@ import { notifyError } from "@/lib/ui/toast";
 
 type UnitsResponse = { groups: UnitGroup[] };
 
+const TILE_COLORS = ["bg-sky-500", "bg-violet-500", "bg-amber-500", "bg-emerald-500", "bg-rose-500", "bg-cyan-500"] as const;
+function tileColor(id: string) {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  return TILE_COLORS[Math.abs(hash) % TILE_COLORS.length];
+}
+
 export function UnitsManager() {
   const { data: result, mutate, isLoading } = useApiResult<UnitsResponse>("/api/catalog/units");
   const [showInactive, setShowInactive] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [newCategory, setNewCategory] = useState("");
+  const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null);
 
   const groups = result?.ok ? result.data.groups : [];
 
@@ -41,12 +54,11 @@ export function UnitsManager() {
     }
   }
 
-  async function rename(unit: UnitRow) {
-    const next = window.prompt(`Rename "${unit.label}" to:`, unit.label)?.trim();
-    if (!next || next === unit.label) return;
-    if (await patch(unit.unitId, { label: next })) {
-      toast.success(`Renamed to "${next}"`);
-    }
+  async function submitRename(next: string) {
+    if (!renameTarget) return false;
+    const ok = await patch(renameTarget.id, { label: next });
+    if (ok) toast.success(`Renamed to "${next}"`);
+    return ok;
   }
 
   async function reorder(units: UnitRow[], index: number, direction: -1 | 1) {
@@ -93,23 +105,37 @@ export function UnitsManager() {
     };
   }
 
-  if (isLoading) return <p className="text-sm text-on-surface-variant">Loading units…</p>;
-  if (result && !result.ok) return <p className="text-sm text-error">Failed to load units.</p>;
+  function buildRowActions(units: UnitRow[], unit: UnitRow, index: number): RowAction[] {
+    const busy = busyId === unit.unitId;
+    return [
+      { label: "Move up", icon: ArrowUp, onSelect: () => void reorder(units, index, -1), disabled: index === 0 },
+      { label: "Move down", icon: ArrowDown, onSelect: () => void reorder(units, index, 1), disabled: index === units.length - 1 },
+      { label: "Rename", icon: Pencil, tone: "text-sky-400", onSelect: () => setRenameTarget({ id: unit.unitId, name: unit.label }), disabled: busy },
+      {
+        label: unit.isActive ? "Deactivate" : "Activate",
+        icon: unit.isActive ? Pause : Play,
+        tone: "text-amber-400",
+        onSelect: () => void toggleActive(unit),
+        disabled: busy,
+      },
+    ];
+  }
+
+  if (isLoading) return <p className="text-sm text-slate-400">Loading units…</p>;
+  if (result && !result.ok) return <p className="text-sm text-red-400">Failed to load units.</p>;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      {/* Toolbar: show-inactive toggle + new quantity-type category */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <label className="flex items-center gap-2 text-xs font-semibold uppercase text-on-surface-variant">
-          <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
-          Show inactive
-        </label>
+        <Toggle checked={showInactive} onChange={setShowInactive} label="Show inactive items" />
         <div className="flex items-center gap-2">
           <input
             type="text"
             value={newCategory}
             onChange={(e) => setNewCategory(e.target.value)}
             placeholder="Quantity type (e.g. Weight)"
-            className="h-9 w-48 rounded-xl border border-outline px-3 text-sm"
+            className="h-10 w-48 rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white outline-none placeholder-slate-600 focus:ring-2 focus:ring-sky-500/50"
           />
           <CatalogAddModal
             noun="Unit"
@@ -121,56 +147,58 @@ export function UnitsManager() {
       </div>
 
       {groups.length === 0 ? (
-        <p className="text-sm text-on-surface-variant">No units yet.</p>
+        <p className="rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-8 text-center text-sm text-slate-500">
+          No units yet.
+        </p>
       ) : (
         groups.map((group) => {
           const units = showInactive ? group.units : group.units.filter((u) => u.isActive);
           if (units.length === 0) return null;
           return (
-            <section key={group.category} className="rounded-2xl border border-outline-variant bg-surface-container-lowest p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-lg font-extrabold text-white">{group.category}</h2>
-                <CatalogAddModal
-                  noun="Unit"
-                  onCheckSimilarity={checkSimilarity}
-                  onCreate={makeCreate(group.category)}
-                />
+            <motion.section
+              key={group.category}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="card-standard p-5 sm:p-6"
+            >
+              <div className="mb-5 flex items-center justify-between gap-3">
+                <h2 className="text-2xl font-extrabold text-white">{group.category}</h2>
+                <CatalogAddModal noun="Unit" onCheckSimilarity={checkSimilarity} onCreate={makeCreate(group.category)} />
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-[11px] uppercase tracking-widest text-slate-400">
-                      <th className="py-1 pr-4">Name</th>
-                      <th className="py-1 px-4">Status</th>
-                      <th className="py-1 px-4">Usage</th>
-                      <th className="py-1 pl-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {units.map((unit, index) => (
-                      <tr key={unit.unitId} className={`border-t border-outline-variant/40 ${unit.isActive ? "" : "opacity-50"}`}>
-                        <td className="py-2 pr-4 text-white font-medium whitespace-nowrap">{unit.label}</td>
-                        <td className="py-2 px-4 whitespace-nowrap">{unit.isActive ? "Active" : "Inactive"}</td>
-                        <td className="py-2 px-4">{unit.usageCount}</td>
-                        <td className="py-2 pl-4 whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1">
-                            <button type="button" disabled={index === 0} onClick={() => void reorder(units, index, -1)} aria-label="Move up" className="rounded px-2 py-1 text-on-surface-variant hover:bg-surface-container-low disabled:opacity-30">↑</button>
-                            <button type="button" disabled={index === units.length - 1} onClick={() => void reorder(units, index, 1)} aria-label="Move down" className="rounded px-2 py-1 text-on-surface-variant hover:bg-surface-container-low disabled:opacity-30">↓</button>
-                            <button type="button" disabled={busyId === unit.unitId} onClick={() => void rename(unit)} className="rounded px-2 py-1 text-sky-400 hover:bg-sky-500/10">Rename</button>
-                            <button type="button" disabled={busyId === unit.unitId} onClick={() => void toggleActive(unit)} className="rounded px-2 py-1 text-amber-400 hover:bg-amber-500/10">
-                              {unit.isActive ? "Deactivate" : "Activate"}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+              <ul className="space-y-3">
+                {units.map((unit, index) => (
+                  <li
+                    key={unit.unitId}
+                    className={`flex items-center gap-4 rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-4 ${unit.isActive ? "" : "opacity-50"}`}
+                  >
+                    <span className={`grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-white ${tileColor(unit.unitId)}`}>
+                      <Ruler className="h-6 w-6" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-base font-bold text-white">{unit.label}</p>
+                      <p className="mt-1 flex items-center gap-1.5 text-[13px] text-slate-500">
+                        <span aria-hidden className={`inline-block h-1.5 w-1.5 rounded-full ${unit.isActive ? "bg-emerald-400" : "bg-slate-500"}`} />
+                        <span className={unit.isActive ? "text-emerald-400" : "text-slate-500"}>{unit.isActive ? "Active" : "Inactive"}</span>
+                        <span aria-hidden className="text-slate-700">•</span>
+                        Usage {unit.usageCount}
+                      </p>
+                    </div>
+                    <RowActionsMenu actions={buildRowActions(units, unit, index)} label={`Actions for ${unit.label}`} />
+                  </li>
+                ))}
+              </ul>
+            </motion.section>
           );
         })
       )}
+
+      <RenameModal
+        open={Boolean(renameTarget)}
+        noun="Unit"
+        currentName={renameTarget?.name ?? ""}
+        onClose={() => setRenameTarget(null)}
+        onSubmit={submitRename}
+      />
     </div>
   );
 }

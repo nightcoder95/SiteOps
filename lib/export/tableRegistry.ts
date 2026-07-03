@@ -14,15 +14,19 @@ export const TABLE_REGISTRY: readonly TableEntry[] = [
   { key: "user_profiles", table: schema.userProfiles },
   { key: "unit_master", table: schema.unitMaster },
   { key: "categories", table: schema.categories },
-  // level 1 — depend on user_profiles / categories
+  { key: "tool_categories", table: schema.toolCategories },
+  // level 1 — depend on user_profiles / categories / tool_categories
   { key: "audit_logs", table: schema.auditLogs },
   { key: "sites", table: schema.sites },
   { key: "custom_labour_types", table: schema.customLabourTypes },
   { key: "custom_material_types", table: schema.customMaterialTypes },
   { key: "custom_machinery_types", table: schema.customMachineryTypes },
   { key: "subcategories", table: schema.subcategories },
-  // level 2 — depend on sites / subcategories / custom types / unit_master
+  { key: "tools", table: schema.tools },
+  // level 2 — depend on sites / subcategories / custom types / unit_master / tools
   { key: "custom_units", table: schema.customUnits },
+  { key: "tool_assignments", table: schema.toolAssignments },
+  { key: "tool_movements", table: schema.toolMovements },
   { key: "material_type_units", table: schema.materialTypeUnits },
   { key: "field_definitions", table: schema.fieldDefinitions },
   { key: "labour_entries", table: schema.labourEntries },

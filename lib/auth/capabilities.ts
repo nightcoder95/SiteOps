@@ -46,7 +46,12 @@ export type Capability =
   | "user:create"
   | "user:manage_roles"
   | "resource:manage_all"
-  | "data:export";
+  | "data:export"
+  | "tool:read"
+  | "tool:manage"
+  | "tool:assign"
+  | "tool:delete"
+  | "tool_category:manage";
 
 // Capabilities shared by every authenticated role. Supervisor === this set.
 const SUPERVISOR_CAPABILITIES: readonly Capability[] = [
@@ -96,6 +101,13 @@ const ADMIN_CAPABILITIES: readonly Capability[] = [
   "user:manage_roles",
   "resource:manage_all",
   "data:export", // admin-only: full data egress (PII) — supervisors excluded
+  // Tools inventory (v1: Admin-only). To enable site-scoped supervisor read
+  // later, add "tool:read" to SUPERVISOR_CAPABILITIES — one edit, per §9.
+  "tool:read",
+  "tool:manage",
+  "tool:assign",
+  "tool:delete",
+  "tool_category:manage",
 ];
 
 export const ROLE_CAPABILITIES: Record<Role, ReadonlySet<Capability>> = {

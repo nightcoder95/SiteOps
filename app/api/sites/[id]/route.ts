@@ -14,6 +14,7 @@ import { errorResponse, successResponse } from "@/lib/errors/response";
 import { parseJsonBody, validateBody } from "@/lib/http/request";
 import { withApiRoute } from "@/lib/http/withApi";
 import { coerceDecimals } from "@/lib/services/decimals";
+import { returnSiteToolsOnLifecycle } from "@/lib/tools/siteLifecycle";
 
 type RouteCtx = { params: Promise<{ id: string }> };
 
@@ -130,10 +131,15 @@ export const DELETE = withApiRoute<RouteCtx>(async ({ request, requestId }, cont
   const permanent = new URL(request.url).searchParams.get("permanent") === "true";
 
   if (permanent) {
-    await db
-      .update(sites)
-      .set({ isDeleted: true, updatedAt: new Date() })
-      .where(eq(sites.siteId, id));
+    // Same tx: flip is_deleted AND auto-return any tools this site holds to the
+    // warehouse (ledgered) so no assignment is orphaned (case 8).
+    await db.transaction(async (tx) => {
+      await tx
+        .update(sites)
+        .set({ isDeleted: true, updatedAt: new Date() })
+        .where(eq(sites.siteId, id));
+      await returnSiteToolsOnLifecycle(tx, id, auth.session.user.id, "site_deleted");
+    });
     await invalidateSiteCache(id, requestId);
     return successResponse(null, 200, requestId);
   }
@@ -142,10 +148,14 @@ export const DELETE = withApiRoute<RouteCtx>(async ({ request, requestId }, cont
     return errorResponse(ERROR_CODES.CONFLICT, "Site already archived", 409, undefined, requestId);
   }
 
-  await db
-    .update(sites)
-    .set({ archivedAt: new Date(), updatedAt: new Date() })
-    .where(eq(sites.siteId, id));
+  // Same tx: set archived_at AND auto-return this site's tools (ledgered).
+  await db.transaction(async (tx) => {
+    await tx
+      .update(sites)
+      .set({ archivedAt: new Date(), updatedAt: new Date() })
+      .where(eq(sites.siteId, id));
+    await returnSiteToolsOnLifecycle(tx, id, auth.session.user.id, "site_archived");
+  });
 
   await invalidateSiteCache(id, requestId);
   return successResponse(null, 200, requestId);

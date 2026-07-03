@@ -57,7 +57,7 @@ export function AppHeader({ role, initialUnread = 0 }: Props) {
 
   return (
     <header className="glass-header safe-area-top fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-background/80">
-      <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
         <div className="flex items-center gap-3">
           {!isDashboard ? (
             <button
@@ -73,10 +73,10 @@ export function AppHeader({ role, initialUnread = 0 }: Props) {
             </div>
           )}
           <div className="flex flex-col">
-            <span className="text-lg font-extrabold tracking-tight text-white uppercase leading-none">
+            <span className="text-xl font-extrabold tracking-tight text-white uppercase leading-none">
               SiteOps
             </span>
-            <span className="text-[9px] text-sky-500 font-bold uppercase tracking-widest leading-none mt-1">
+            <span className="mt-1.5 text-xs font-medium tracking-wide text-slate-400 leading-none">
               {role === 'Admin' ? 'Admin Command Interface' : 'Supervisor Command Interface'}
             </span>
           </div>
@@ -99,7 +99,7 @@ export function AppHeader({ role, initialUnread = 0 }: Props) {
             <Bell className="w-5 h-5" />
             {unread > 0 ? (
               <span
-                className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-slate-950"
+                className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-600 rounded-full border-2 border-slate-950"
                 aria-label={`${unread} unread notification${unread === 1 ? '' : 's'}`}
               />
             ) : null}

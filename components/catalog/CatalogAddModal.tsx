@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Plus } from "lucide-react";
 
 import { ModalShell } from "@/components/ui/motion";
 import { addCtaLabel } from "@/lib/catalog/addCta";
@@ -26,6 +27,8 @@ type Props = {
   noun: string;
   disabled?: boolean;
   withRemark?: boolean;
+  // Solid filled blue trigger (catalog list header) vs translucent outline (default).
+  solid?: boolean;
   // Debounced live similarity check as the admin types (optional).
   onCheckSimilarity?: (name: string) => Promise<{ requiresReview: boolean } | null>;
   onCreate: (input: {
@@ -35,7 +38,7 @@ type Props = {
   }) => Promise<CatalogCreateResult>;
 };
 
-export function CatalogAddModal({ noun, disabled, withRemark, onCheckSimilarity, onCreate }: Props) {
+export function CatalogAddModal({ noun, disabled, withRemark, solid, onCheckSimilarity, onCreate }: Props) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [remark, setRemark] = useState("");
@@ -95,9 +98,14 @@ export function CatalogAddModal({ noun, disabled, withRemark, onCheckSimilarity,
         type="button"
         disabled={disabled}
         onClick={() => setOpen(true)}
-        className="rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-sky-400 hover:bg-sky-500/20 transition-all disabled:opacity-40"
+        className={
+          solid
+            ? "inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-blue-500/30 bg-blue-500/15 px-4 py-2.5 text-sm font-bold text-blue-400 transition-all hover:bg-blue-500/25 disabled:opacity-40"
+            : "inline-flex items-center gap-1.5 rounded-full border border-sky-500/40 bg-sky-500/10 px-4 py-2.5 text-sm font-bold text-sky-400 transition-all hover:bg-sky-500/20 disabled:opacity-40"
+        }
       >
-        + {addCtaLabel(noun)}
+        <Plus className="h-4 w-4" strokeWidth={2.5} />
+        {addCtaLabel(noun)}
       </button>
 
       <ModalShell
