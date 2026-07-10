@@ -7,10 +7,12 @@ import { toast } from 'sonner';
 import { notifyError } from '@/lib/ui/toast';
 import {
   AlertCircle,
+  ChevronRight,
   Clock,
   Edit3,
   FileText,
   Layers,
+  LayoutGrid,
   Loader2,
   MapPin,
   Plus,
@@ -24,6 +26,9 @@ import { requestJson, type ClientResult } from '@/lib/http/client';
 import { confirmDialog } from '@/lib/ui/confirm';
 import { EditSiteModal } from './EditSiteModal';
 import { EntryTypeIcon } from '@/components/constants/EntryTypeIcon';
+import { getTypeColor } from '@/components/operations/typeStyles';
+import { sumSpendTypeSummary } from '@/components/operations/allOperationsView';
+import type { EntryType } from '@/lib/db/queries/entries';
 
 type Site = {
   id: number;
@@ -37,7 +42,7 @@ type Site = {
   supervisorId: string;
 };
 
-type OperationType = 'labour' | 'material' | 'machinery' | 'expense' | 'incident';
+type OperationType = EntryType;
 
 type OperationSummary = Record<OperationType, {
   todayCount: number;
@@ -56,21 +61,6 @@ type SiteDetailPageClientProps = {
   role: 'Admin' | 'Supervisor';
   supervisors: Supervisor[];
 };
-
-function getTypeColor(type: OperationType) {
-  switch (type) {
-    case 'labour':
-      return 'text-sky-400 bg-sky-500/10 border-sky-500/20';
-    case 'material':
-      return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
-    case 'machinery':
-      return 'text-slate-400 bg-slate-500/10 border-slate-500/20';
-    case 'expense':
-      return 'text-amber-400 bg-amber-500/10 border-amber-500/20';
-    case 'incident':
-      return 'text-red-400 bg-red-500/10 border-red-500/20';
-  }
-}
 
 function formatCurrency(value: number | null) {
   if (value == null) return null;
@@ -126,6 +116,7 @@ export default function SiteDetailPageClient({
   const progress = site.currentProgress ?? 0;
   const canDeleteSite = can(role, 'site:delete');
   const canEditSite = can(role, 'site:update');
+  const allOperationsSummary = sumSpendTypeSummary(initialSummary);
 
   async function handleDeleteSite() {
     if (!canDeleteSite) return;
@@ -256,6 +247,32 @@ export default function SiteDetailPageClient({
           Operations Queue <FileText className="w-4 h-4 text-sky-500" />
         </h3>
       </div>
+
+      <Link
+        href={`/app/sites/${siteId}/operations/all`}
+        className="card-standard group flex items-center justify-between gap-4 p-5 border-2 border-sky-500/25 bg-sky-500/5 hover:bg-sky-500/10 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-sky-500/70"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-11 h-11 shrink-0 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400">
+            <LayoutGrid className="w-6 h-6" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-extrabold uppercase tracking-widest text-white">All Operations</p>
+            <p className="text-xs text-slate-500 font-semibold truncate">Every expense, one date range</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="text-right">
+            <p className="text-lg font-extrabold text-sky-400">
+              {formatCompactCurrency(allOperationsSummary.totalSpend) ?? '₹0'}
+            </p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+              {allOperationsSummary.totalCount.toLocaleString('en-IN')} entries
+            </p>
+          </div>
+          <ChevronRight className="w-5 h-5 text-slate-500 group-hover:text-sky-400 transition-colors" />
+        </div>
+      </Link>
 
       <section className="grid gap-4 md:grid-cols-2">
         {operationMeta.map((operation) => {

@@ -8,6 +8,9 @@ const {
   calculateMachineryTotal,
   calculateSiteTrackedSpend,
   consolidationKeyForEntry,
+  computeEntriesLimit,
+  ALL_TYPE_PREVIEW_LIMIT,
+  DEFAULT_ENTRIES_LIMIT,
 } = await import("./operationTotals");
 
 describe("entry cost helpers", () => {
@@ -56,5 +59,32 @@ describe("entry cost helpers", () => {
       machinery: [{ totalCost: "3000.00" }],
       expense: [{ amount: "4000.00" }],
     })).toBe(10000);
+  });
+});
+
+describe("computeEntriesLimit", () => {
+  it("caps a single-type request at the standard clampLimit ceiling (200)", () => {
+    expect(computeEntriesLimit("labour", 500, undefined)).toBe(200);
+  });
+
+  it("defaults a single-type request with no limit to DEFAULT_ENTRIES_LIMIT", () => {
+    expect(computeEntriesLimit("labour", undefined, undefined)).toBe(DEFAULT_ENTRIES_LIMIT);
+  });
+
+  it("caps type=all at ALL_TYPE_PREVIEW_LIMIT when fullAll is not set (preview default, regression guard)", () => {
+    expect(computeEntriesLimit("all", 200, undefined)).toBe(ALL_TYPE_PREVIEW_LIMIT);
+    expect(computeEntriesLimit("all", 200, false)).toBe(ALL_TYPE_PREVIEW_LIMIT);
+  });
+
+  it("lifts type=all to the full clampLimit ceiling when fullAll is true", () => {
+    expect(computeEntriesLimit("all", 200, true)).toBe(200);
+  });
+
+  it("still applies the 200 ceiling to type=all + fullAll for an over-large requested limit", () => {
+    expect(computeEntriesLimit("all", 9999, true)).toBe(200);
+  });
+
+  it("ignores fullAll for single types (no behavior change)", () => {
+    expect(computeEntriesLimit("material", 10, true)).toBe(10);
   });
 });

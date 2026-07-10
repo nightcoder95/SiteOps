@@ -1,5 +1,33 @@
 import type { EntryType } from "./entries";
 
+// Default page size when caller does not specify. Keeps initial site-detail
+// payload small enough to avoid 1MB+ RSC responses while still showing a
+// useful first screen of activity.
+export const DEFAULT_ENTRIES_LIMIT = 50;
+
+// The grouped "all" view only renders a few rows per type by default, so
+// fetching the full page for each of the 5 tables is wasted work and payload.
+// The combined "All Operations" SSR page opts out via `fullAll: true`.
+export const ALL_TYPE_PREVIEW_LIMIT = 5;
+
+export function clampLimit(value: number | undefined) {
+  if (!value || Number.isNaN(value)) return DEFAULT_ENTRIES_LIMIT;
+  return Math.min(Math.max(1, Math.floor(value)), 200);
+}
+
+// type="all" defaults to a 5-per-type preview cap (dashboard/preview callers).
+// Passing fullAll:true lifts it to the standard clampLimit ceiling (<=200 per
+// type) for the combined date-range view. Single types always use clampLimit
+// and ignore fullAll.
+export function computeEntriesLimit(
+  type: EntryType | "all",
+  limit: number | undefined,
+  fullAll: boolean | undefined,
+) {
+  if (type !== "all") return clampLimit(limit);
+  return fullAll ? clampLimit(limit) : Math.min(clampLimit(limit), ALL_TYPE_PREVIEW_LIMIT);
+}
+
 type LabourTotalInput = {
   peopleCount?: number | null;
   wagePerHead?: string | number | null;

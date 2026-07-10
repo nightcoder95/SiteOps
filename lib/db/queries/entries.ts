@@ -12,12 +12,17 @@ import {
   calculateLabourTotal,
   calculateMachineryTotal,
   calculateMaterialUnitRate,
+  computeEntriesLimit,
+  ALL_TYPE_PREVIEW_LIMIT,
+  DEFAULT_ENTRIES_LIMIT,
 } from "@/lib/db/queries/operationTotals";
 
 export {
   calculateLabourTotal,
   calculateMachineryTotal,
   calculateMaterialUnitRate,
+  ALL_TYPE_PREVIEW_LIMIT,
+  DEFAULT_ENTRIES_LIMIT,
 };
 
 export async function insertLabourEntry(data: {
@@ -465,24 +470,16 @@ export type EntriesFilters = {
   category?: string;
   workStage?: MaterialWorkStage;
   sort?: "newest" | "oldest" | "highest_spend" | "lowest_spend";
+  /**
+   * For type="all" only. When false/omitted, each per-type list is capped to
+   * ALL_TYPE_PREVIEW_LIMIT (dashboard/preview use). When true, the full
+   * clampLimit() cap (<=200 per type) applies. Ignored for single types.
+   */
+  fullAll?: boolean;
 };
-
-// Default page size when caller does not specify. Keeps initial site-detail
-// payload small enough to avoid 1MB+ RSC responses while still showing a
-// useful first screen of activity.
-export const DEFAULT_ENTRIES_LIMIT = 50;
-
-// The grouped "all" view only renders a few rows per type, so fetching the
-// full page for each of the 5 tables is wasted work and payload.
-export const ALL_TYPE_PREVIEW_LIMIT = 5;
 
 function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
-}
-
-function clampLimit(value: number | undefined) {
-  if (!value || Number.isNaN(value)) return DEFAULT_ENTRIES_LIMIT;
-  return Math.min(Math.max(1, Math.floor(value)), 200);
 }
 
 function sortSpendRows<T>(
@@ -570,10 +567,7 @@ export async function getEntriesBySite(
   const category = filters?.category?.trim();
   const workStage = filters?.workStage;
   const sort = filters?.sort ?? "newest";
-  const limit =
-    type === "all"
-      ? Math.min(clampLimit(filters?.limit), ALL_TYPE_PREVIEW_LIMIT)
-      : clampLimit(filters?.limit);
+  const limit = computeEntriesLimit(type, filters?.limit, filters?.fullAll);
 
   const dateWhere = (tableDateCol: any) => {
     if (from && to) return and(gte(tableDateCol, from), lte(tableDateCol, to));

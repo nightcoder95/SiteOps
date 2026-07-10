@@ -9,10 +9,18 @@ import { getEntriesBySite, type EntryType, type MaterialWorkStage } from "@/lib/
 import { subcategories } from "@/lib/db/schema";
 import { getSiteById } from "@/lib/db/queries/sites";
 import { serializeRow } from "@/lib/utils/serialize";
+import {
+  buildCombinedRows,
+  computeCappedTypes,
+  swapDateRangeIfInverted,
+  SPEND_TYPES,
+  type SpendType,
+} from "@/components/operations/entryFormat";
 
 import OperationDetailPageClient from "./OperationDetailPageClient";
+import AllOperationsPageClient from "./AllOperationsPageClient";
 
-const allowedTypes = ["labour", "material", "machinery", "expense", "incident"] as const;
+const allowedTypes = ["labour", "material", "machinery", "expense", "incident", "all"] as const;
 const CATEGORY_NAME_BY_ENTRY_TYPE: Record<EntryType, string> = {
   labour: "Labour",
   material: "Materials",
@@ -81,6 +89,58 @@ export default async function OperationDetailPage({
     return Array.isArray(value) ? value[0] : value;
   };
 
+  // Deep-link target from global search (?highlight=<entryId>). Read server-side
+  // and passed as a prop — the app reads query params via searchParams, not the
+  // client useSearchParams hook.
+  const highlight = getValue("highlight") ?? null;
+
+  if (type === "all") {
+    const rawFrom = getValue("from") ?? "";
+    const rawTo = getValue("to") ?? "";
+    const sort = (getValue("sort") ?? "newest") as "newest" | "oldest" | "highest_spend" | "lowest_spend";
+    const rawTypes = (getValue("types") ?? "")
+      .split(",")
+      .map((t) => t.trim())
+      .filter((t): t is SpendType => (SPEND_TYPES as readonly string[]).includes(t));
+
+    const { from, to, swapped } = swapDateRangeIfInverted(rawFrom, rawTo);
+
+    const result = (await getEntriesBySite(siteId, "all", {
+      from: from || undefined,
+      to: to || undefined,
+      sort,
+      fullAll: true,
+      limit: 200,
+    })) as {
+      labour: Record<string, unknown>[];
+      material: Record<string, unknown>[];
+      machinery: Record<string, unknown>[];
+      expense: Record<string, unknown>[];
+      incident: Record<string, unknown>[];
+    };
+    // getEntriesBySite("all", ...) returns { labour, material, machinery, expense, incident }.
+    // Incident carries no spend and is excluded from this expense-focused view.
+    const grouped = {
+      labour: result.labour,
+      material: result.material,
+      machinery: result.machinery,
+      expense: result.expense,
+    };
+    const combinedRows = buildCombinedRows(serializeRow(grouped) as any);
+    const capped = computeCappedTypes(grouped, 200);
+
+    return (
+      <AllOperationsPageClient
+        site={{ name: site.name, location: site.location }}
+        siteId={siteId}
+        initialRows={combinedRows}
+        initialFilters={{ from, to, sort, types: rawTypes, adjustedRange: swapped }}
+        capped={capped}
+        highlightId={highlight}
+      />
+    );
+  }
+
   const initialFilters = {
     from: getValue("from") ?? "",
     to: getValue("to") ?? "",
@@ -98,10 +158,6 @@ export default async function OperationDetailPage({
     limit: 200,
   });
   const categoryOptions = await getOperationCategoryOptions(type as EntryType);
-  // Deep-link target from global search (?highlight=<entryId>). Read server-side
-  // and passed as a prop — the app reads query params via searchParams, not the
-  // client useSearchParams hook.
-  const highlight = getValue("highlight") ?? null;
 
   return (
     <OperationDetailPageClient
