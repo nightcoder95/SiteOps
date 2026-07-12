@@ -119,23 +119,52 @@ export default function OperationDetailPageClient({
         .filter((entry) => entry.workStage === stage)
         .reduce((sum, entry) => sum + Number(entry.cost ?? 0), 0),
     }));
-    const groupedEntries = new Map<string, Map<string, Entry[]>>();
-    for (const entry of entries) {
-      const dateKey = entryDate(entry, type) || "Unknown";
-      const categoryKey = entryCategoryKey(entry, type);
-      const dateGroup = groupedEntries.get(dateKey) ?? new Map<string, Entry[]>();
-      dateGroup.set(categoryKey, [...(dateGroup.get(categoryKey) ?? []), entry]);
-      groupedEntries.set(dateKey, dateGroup);
+    let groupedRows;
+    if (type === "material") {
+      // Material entries: each transaction is its own independent card.
+      const byDate = new Map<string, Entry[]>();
+      for (const entry of entries) {
+        const dateKey = entryDate(entry, type) || "Unknown";
+        byDate.set(dateKey, [...(byDate.get(dateKey) ?? []), entry]);
+      }
+      groupedRows = [...byDate.entries()].map(([date, dateEntries]) => {
+        // Sort entries within the day chronologically by createdAt ascending
+        const sortedEntries = [...dateEntries].sort((a, b) => {
+          const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return aTime - bTime;
+        });
+        return {
+          date,
+          rows: sortedEntries.map((entry) => ({
+            entries: [entry],
+            primary: entry,
+            total: entrySpend(entry, type),
+            editable: true,
+          })),
+        };
+      });
+    } else {
+      // Other types: existing category-based grouping.
+      const groupedEntries = new Map<string, Map<string, Entry[]>>();
+      for (const entry of entries) {
+        const dateKey = entryDate(entry, type) || "Unknown";
+        const categoryKey = entryCategoryKey(entry, type);
+        const dateGroup = groupedEntries.get(dateKey) ?? new Map<string, Entry[]>();
+        dateGroup.set(categoryKey, [...(dateGroup.get(categoryKey) ?? []), entry]);
+        groupedEntries.set(dateKey, dateGroup);
+      }
+      groupedRows = [...groupedEntries.entries()].map(([date, categoryGroups]) => ({
+        date,
+        rows: [...categoryGroups.values()].map((groupEntries) => ({
+          entries: groupEntries,
+          primary: mergeVisualEntries(groupEntries, type),
+          total: groupEntries.reduce((sum, entry) => sum + entrySpend(entry, type), 0),
+          editable: groupEntries.length === 1,
+        })),
+      }));
     }
-    const groupedRows = [...groupedEntries.entries()].map(([date, categoryGroups]) => ({
-      date,
-      rows: [...categoryGroups.values()].map((groupEntries) => ({
-        entries: groupEntries,
-        primary: mergeVisualEntries(groupEntries, type),
-        total: groupEntries.reduce((sum, entry) => sum + entrySpend(entry, type), 0),
-        editable: groupEntries.length === 1,
-      })),
-    })).sort((left, right) => {
+    groupedRows.sort((left, right) => {
       if (filters.sort === "highest_spend" || filters.sort === "lowest_spend") {
         const leftTotal = left.rows.reduce((sum, row) => sum + row.total, 0);
         const rightTotal = right.rows.reduce((sum, row) => sum + row.total, 0);
@@ -154,7 +183,12 @@ export default function OperationDetailPageClient({
     for (const group of chronologicalGroups) {
       for (const row of group.rows) {
         const categoryKey = entryCategoryKey(row.primary, type);
-        const key = `${group.date}|${categoryKey}`;
+        const id = entryId(row.primary, type);
+        // For material entries each row is an independent transaction;
+        // use the unique entry ID as the running-total lookup key so
+        // same-category transactions on the same day don't overwrite
+        // each other's running total values.
+        const key = (type === "material" && id) ? String(id) : `${group.date}|${categoryKey}`;
         const next = (runningByCategory.get(categoryKey) ?? 0) + row.total;
         runningByCategory.set(categoryKey, next);
         runningTotals.set(key, next);
@@ -377,7 +411,7 @@ export default function OperationDetailPageClient({
             {rows.map((row) => {
               const entry = row.primary;
               const id = entryId(entry, type);
-              const runningKey = `${date}|${entryCategoryKey(entry, type)}`;
+              const runningKey = (type === "material" && id) ? String(id) : `${date}|${entryCategoryKey(entry, type)}`;
               const rowHighlighted = highlightId
                 ? row.entries.some((e) => String(entryId(e, type)) === highlightId)
                 : false;
