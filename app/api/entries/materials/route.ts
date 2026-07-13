@@ -5,9 +5,7 @@ import { checkOwnership } from "@/lib/auth/ownership";
 import { invalidateAdminAnalyticsCache } from "@/lib/cache/invalidate";
 import { db } from "@/lib/db/client";
 import {
-  findMatchingMaterialEntry,
   insertMaterialEntry,
-  mergeMaterialEntry,
 } from "@/lib/db/queries/entries";
 import { materialUnitRuleFor } from "@/lib/db/queries/materialUnitRule";
 import { displayUnitName } from "@/lib/db/queries/materialUnits";
@@ -96,27 +94,6 @@ export const POST = withApi(async ({ request, requestId }) => {
         undefined,
         requestId,
       );
-    }
-
-    const existing = await findMatchingMaterialEntry(siteId, date, materialType, canonicalWorkStage);
-    if (existing) {
-      const merged = await mergeMaterialEntry(existing.materialEntryId, {
-        quantity: String(quantity),
-        cost: String(cost),
-        unitMode: "master",
-        unitMasterId: resolvedUnit.unitId,
-        unitCustomId: null,
-        unit: resolvedUnitName,
-        remarks: remarks || null,
-      });
-
-      runNonCritical(
-        requestId,
-        "analytics_cache_invalidation_failed",
-        invalidateAdminAnalyticsCache(requestId),
-      );
-
-      return successResponse(merged, 200, requestId);
     }
 
     const entry = await insertMaterialEntry({
