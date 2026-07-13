@@ -10,10 +10,11 @@ import { describe } from "vitest";
 import * as schema from "@/lib/db/schema";
 import { sites, userProfiles } from "@/lib/db/schema";
 
+const dbUrl = process.env.DATABASE_URL;
 export const hasDb =
-  Boolean(process.env.DATABASE_URL) &&
-  !process.env.DATABASE_URL.includes("your-project-ref") &&
-  !process.env.DATABASE_URL.includes("aws-0-region");
+  Boolean(dbUrl) &&
+  !dbUrl!.includes("your-project-ref") &&
+  !dbUrl!.includes("aws-0-region");
 
 // Describe-or-skip: use in place of `describe` for DB integration suites.
 export const describeDb = hasDb ? describe : describe.skip;
