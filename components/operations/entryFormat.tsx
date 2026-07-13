@@ -203,9 +203,7 @@ export function renderEntrySummary(entry: Entry, type: EntryType) {
   }
 
   if (type === "material") {
-    const rate = !isMerged && Number(entry.quantity ?? 0) > 0
-      ? Number(entry.cost ?? 0) / Number(entry.quantity)
-      : null;
+    const hasCost = entry.cost != null && entry.cost !== "";
     return (
       <div className="space-y-1">
         <div className="flex flex-wrap items-center gap-2">
@@ -216,9 +214,10 @@ export function renderEntrySummary(entry: Entry, type: EntryType) {
         </div>
         <p className="text-xs text-slate-500">
           {entry.quantity ?? 0} {entry.unit ?? ""}
-          {rate != null ? ` at ${formatCurrency(rate)} each` : ""}
         </p>
-        <p className="text-sm font-bold text-sky-400">{formatCurrency(Number(entry.cost ?? 0))}</p>
+        {hasCost ? (
+          <p className="text-sm font-bold text-sky-400">{formatCurrency(Number(entry.cost))}</p>
+        ) : null}
         {entry.remarks ? <p className="text-xs text-slate-500">{entry.remarks}</p> : null}
       </div>
     );

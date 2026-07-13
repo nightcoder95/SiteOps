@@ -111,7 +111,7 @@ export const POST = withApi(async ({ request, requestId }) => {
       unitCustomId: null,
       unit: resolvedUnitName,
       workStage: canonicalWorkStage,
-      cost: String(cost),
+      cost: cost != null ? String(cost) : null,
       remarks: remarks || null,
       createdBy: auth.session.user.id,
     });

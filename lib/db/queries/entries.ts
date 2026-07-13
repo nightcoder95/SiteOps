@@ -80,7 +80,7 @@ export async function insertMaterialEntry(data: {
   unit: string | null;
   // Managed catalog list (was a pg enum); validated at the route via assertInCatalogList.
   workStage: string | null;
-  cost: string;
+  cost: string | null;
   remarks: string | null;
   createdBy: string;
 }) {

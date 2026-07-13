@@ -53,7 +53,7 @@ const REGISTRY: Record<string, EntryField[]> = {
       catalogCategoryName: "Material Work Stage",
       noun: "Work Stage",
     },
-    { name: "cost", label: "Total Cost", kind: "number", required: true, min: 0.01, step: 0.01 },
+    { name: "cost", label: "Total Cost", kind: "number", required: false, min: 0.01, step: 0.01 },
     { name: "remarks", label: "Remarks", kind: "textarea" },
   ],
   machinery: [

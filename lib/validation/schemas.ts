@@ -197,7 +197,7 @@ export const materialEntrySchema = z
     // Shape only; membership checked at the route via assertInCatalogList
     // ("Material Work Stage") against the active managed list.
     workStage: z.string().min(1).max(100),
-    cost: positiveDecimalSchema(100000000),
+    cost: positiveDecimalSchema(100000000).optional(),
     remarks: z.string().max(500).optional(),
   })
   .and(z.union([materialLegacyShape, z.intersection(z.union([materialDefaultMode, materialCustomMode]), z.union([materialMasterUnit, materialCustomUnit]))]));

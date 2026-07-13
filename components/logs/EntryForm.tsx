@@ -163,6 +163,16 @@ export function EntryForm({
     return null;
   }
 
+  // After edit/delete, return to the operation's logs list (e.g. .../operations/material)
+  // instead of the site detail page. New-log creation keeps landing on the site page.
+  function successDestination(): string {
+    if (!siteId) return "/app/dashboard";
+    if (isEdit && kind !== "dynamic") {
+      return `/app/sites/${siteId}/operations/${kind}`;
+    }
+    return `/app/sites/${siteId}`;
+  }
+
   function buildPayload(): Record<string, unknown> {
     const payload: Record<string, unknown> = {};
     if (siteId) payload.siteId = siteId;
@@ -237,8 +247,7 @@ export function EntryForm({
     }
     toast.success(isEdit ? "Entry updated" : "Entry created");
     if (onSuccess) onSuccess();
-    else if (siteId) router.push(`/app/sites/${siteId}`);
-    else router.push("/app/dashboard");
+    else router.push(successDestination());
   }
 
   async function handleDelete() {
@@ -255,11 +264,7 @@ export function EntryForm({
       return;
     }
     toast.success("Entry deleted");
-    if (siteId) {
-      router.push(`/app/sites/${siteId}`);
-      return;
-    }
-    router.push("/app/dashboard");
+    router.push(successDestination());
   }
 
   return (
