@@ -2,11 +2,7 @@ import { requireSiteAccess } from "@/lib/auth/guards";
 import { checkOwnership } from "@/lib/auth/ownership";
 import { invalidateAdminAnalyticsCache } from "@/lib/cache/invalidate";
 import { db } from "@/lib/db/client";
-import {
-  findMatchingMachineryEntry,
-  insertMachineryEntry,
-  mergeMachineryEntry,
-} from "@/lib/db/queries/entries";
+import { insertMachineryEntry } from "@/lib/db/queries/entries";
 import { ERROR_CODES } from "@/lib/errors/codes";
 import { handleDbError } from "@/lib/errors/db";
 import { errorResponse, successResponse } from "@/lib/errors/response";
@@ -47,27 +43,6 @@ export const POST = withApi(async ({ request, requestId }) => {
   }
 
   try {
-    const existing = await findMatchingMachineryEntry(siteId, date, equipmentType);
-    if (existing) {
-      const merged = await mergeMachineryEntry(existing.machineryEntryId, {
-        count,
-        hoursActive:
-          "hoursActive" in validation.data && validation.data.hoursActive != null
-            ? String(validation.data.hoursActive)
-            : null,
-        totalCost: String(totalCost),
-        remarks: remarks || null,
-      });
-
-      runNonCritical(
-        requestId,
-        "analytics_cache_invalidation_failed",
-        invalidateAdminAnalyticsCache(requestId),
-      );
-
-      return successResponse(merged, 200, requestId);
-    }
-
     const entry = await insertMachineryEntry({
       siteId,
       date,

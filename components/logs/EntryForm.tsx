@@ -10,6 +10,8 @@ import { useApiResult } from "@/lib/http/useApiQuery";
 import type { MaterialUnitRule } from "@/lib/db/queries/materialUnits";
 import { pickCategoryIdByName, type CategoryRowLike } from "@/lib/catalog/selectors";
 import { isSplitLabourWorkType } from "@/lib/validation/schemas";
+import { entrySuccessDestination } from "@/components/operations/categoryView";
+import type { Entry } from "@/components/operations/entryFormat";
 
 import {
   resolveEntryFields,
@@ -246,8 +248,13 @@ export function EntryForm({
       return;
     }
     toast.success(isEdit ? "Entry updated" : "Entry created");
-    if (onSuccess) onSuccess();
-    else router.push(successDestination());
+    if (onSuccess) { onSuccess(); return; }
+    const spend = kind === "material" || kind === "expense" || kind === "labour" || kind === "machinery";
+    if (spend && res.data) {
+      router.push(entrySuccessDestination(res.data as Entry, kind, siteId ?? ""));
+    } else {
+      router.push(successDestination());
+    }
   }
 
   async function handleDelete() {

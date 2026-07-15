@@ -2,27 +2,19 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { notifyError } from "@/lib/ui/toast";
-import { Clock3, Edit3, Trash2 } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Clock3 } from "lucide-react";
 
 import { EntryTypeIcon } from "@/components/constants/EntryTypeIcon";
-import { requestJson } from "@/lib/http/client";
-import { confirmDialog } from "@/lib/ui/confirm";
-import { formatDate as formatDateUtil } from "@/lib/utils/formatDate";
-import type { EntryType } from "@/lib/db/queries/entries";
 import { DateFilterField } from "@/components/operations/DateFilterField";
+import EntryLogList from "@/components/operations/EntryLogList";
+import CategoryGrid from "@/components/operations/CategoryGrid";
+import { buildGroupedRows } from "@/components/operations/categoryView";
+import type { EntryType } from "@/lib/db/queries/entries";
 import {
   type Entry,
-  entryCategoryKey,
-  entryDate,
-  entryId,
-  entrySpend,
   formatCurrency,
   materialStages,
-  mergeVisualEntries,
-  renderEntrySummary,
   typeLabel,
 } from "@/components/operations/entryFormat";
 
@@ -47,12 +39,10 @@ type Props = {
   initialFilters: Filters;
   categoryOptions: string[];
   highlightId?: string | null;
+  initialView?: "category" | "all";
 };
 
-function formatDate(value: string) {
-  if (!value) return "Unknown";
-  return formatDateUtil(value);
-}
+const SPEND_TYPES_WITH_GRID = ["labour", "material", "machinery", "expense"] as const;
 
 export default function OperationDetailPageClient({
   site,
@@ -62,141 +52,52 @@ export default function OperationDetailPageClient({
   initialFilters,
   categoryOptions: initialCategoryOptions,
   highlightId = null,
+  initialView = "category",
 }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
   const [filters, setFilters] = useState(initialFilters);
   const [openDateField, setOpenDateField] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  // Local working copy of the SSR entries so delete can remove a row instantly
-  // (optimistic) and roll back on error. Re-synced whenever the server sends a
-  // fresh list (filter navigation / router.refresh()).
   const [entries, setEntries] = useState(initialEntries);
   useEffect(() => {
     setEntries(initialEntries);
   }, [initialEntries]);
 
-  // Deep-link highlight: when arriving from global search with ?highlight=<entryId>
-  // (read server-side, passed as a prop), scroll the matching log card into view
-  // and pulse it for ~2s, then strip the param from the URL via history.replaceState
-  // (cosmetic only — no Next navigation, so a refresh won't re-pulse).
-  const [pulse, setPulse] = useState(false);
-  useEffect(() => {
-    if (!highlightId) return;
-    setPulse(true);
-    const scrollT = window.setTimeout(() => {
-      document
-        .querySelector("[data-highlight-target]")
-        ?.scrollIntoView({ block: "center", behavior: "smooth" });
-    }, 150);
-    const offT = window.setTimeout(() => setPulse(false), 2400);
+  const isGridEligible = (SPEND_TYPES_WITH_GRID as readonly string[]).includes(type);
+  const [view, setView] = useState<"category" | "all">(initialView);
+
+  function selectView(next: "category" | "all") {
+    setView(next);
     const params = new URLSearchParams(window.location.search);
-    params.delete("highlight");
-    params.delete("date");
-    const qs = params.toString();
-    window.history.replaceState(
-      null,
-      "",
-      qs ? `${window.location.pathname}?${qs}` : window.location.pathname,
-    );
-    return () => {
-      window.clearTimeout(scrollT);
-      window.clearTimeout(offT);
-    };
-  }, [highlightId]);
+    if (next === "all") {
+      params.set("view", "all");
+    } else {
+      params.delete("view");
+    }
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname);
+  }
 
   const categoryOptions = Array.from(
     new Set(filters.category ? [filters.category, ...initialCategoryOptions] : initialCategoryOptions),
   );
 
-  // Grouping, sorting and running totals are O(n) over every entry and only
-  // depend on the data + sort. Memoize so unrelated state (open date picker,
-  // pending delete) doesn't re-run the whole pipeline each render.
-  const { totalSpend, stageTotals, groupedRows, runningTotals, visibleLogCount } = useMemo(() => {
-    const totalSpend = entries.reduce((sum, entry) => sum + entrySpend(entry, type), 0);
-    const stageTotals = materialStages.map((stage) => ({
-      stage,
-      total: entries
-        .filter((entry) => entry.workStage === stage)
-        .reduce((sum, entry) => sum + Number(entry.cost ?? 0), 0),
-    }));
-    let groupedRows;
-    if (type === "material") {
-      // Material entries: each transaction is its own independent card.
-      const byDate = new Map<string, Entry[]>();
-      for (const entry of entries) {
-        const dateKey = entryDate(entry, type) || "Unknown";
-        byDate.set(dateKey, [...(byDate.get(dateKey) ?? []), entry]);
-      }
-      groupedRows = [...byDate.entries()].map(([date, dateEntries]) => {
-        // Sort entries within the day chronologically by createdAt ascending
-        const sortedEntries = [...dateEntries].sort((a, b) => {
-          const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-          return aTime - bTime;
-        });
-        return {
-          date,
-          rows: sortedEntries.map((entry) => ({
-            entries: [entry],
-            primary: entry,
-            total: entrySpend(entry, type),
-            editable: true,
-          })),
-        };
-      });
-    } else {
-      // Other types: existing category-based grouping.
-      const groupedEntries = new Map<string, Map<string, Entry[]>>();
-      for (const entry of entries) {
-        const dateKey = entryDate(entry, type) || "Unknown";
-        const categoryKey = entryCategoryKey(entry, type);
-        const dateGroup = groupedEntries.get(dateKey) ?? new Map<string, Entry[]>();
-        dateGroup.set(categoryKey, [...(dateGroup.get(categoryKey) ?? []), entry]);
-        groupedEntries.set(dateKey, dateGroup);
-      }
-      groupedRows = [...groupedEntries.entries()].map(([date, categoryGroups]) => ({
-        date,
-        rows: [...categoryGroups.values()].map((groupEntries) => ({
-          entries: groupEntries,
-          primary: mergeVisualEntries(groupEntries, type),
-          total: groupEntries.reduce((sum, entry) => sum + entrySpend(entry, type), 0),
-          editable: groupEntries.length === 1,
-        })),
-      }));
-    }
-    groupedRows.sort((left, right) => {
-      if (filters.sort === "highest_spend" || filters.sort === "lowest_spend") {
-        const leftTotal = left.rows.reduce((sum, row) => sum + row.total, 0);
-        const rightTotal = right.rows.reduce((sum, row) => sum + row.total, 0);
-        return filters.sort === "highest_spend" ? rightTotal - leftTotal : leftTotal - rightTotal;
-      }
-      const leftTime = new Date(left.date).getTime();
-      const rightTime = new Date(right.date).getTime();
-      return filters.sort === "oldest" ? leftTime - rightTime : rightTime - leftTime;
-    });
+  // Header numbers only — the grouped-card rendering itself lives in EntryLogList.
+  const { totalSpend, visibleLogCount } = useMemo(
+    () => buildGroupedRows(entries, type, filters.sort),
+    [entries, type, filters.sort],
+  );
 
-    const chronologicalGroups = [...groupedRows].sort(
-      (left, right) => new Date(left.date).getTime() - new Date(right.date).getTime(),
-    );
-    const runningTotals = new Map<string, number>();
-    const runningByCategory = new Map<string, number>();
-    for (const group of chronologicalGroups) {
-      for (const row of group.rows) {
-        const categoryKey = entryCategoryKey(row.primary, type);
-        const id = entryId(row.primary, type);
-        // For material entries each row is an independent transaction;
-        // use the unique entry ID as the running-total lookup key so
-        // same-category transactions on the same day don't overwrite
-        // each other's running total values.
-        const key = (type === "material" && id) ? String(id) : `${group.date}|${categoryKey}`;
-        const next = (runningByCategory.get(categoryKey) ?? 0) + row.total;
-        runningByCategory.set(categoryKey, next);
-        runningTotals.set(key, next);
-      }
-    }
-    const visibleLogCount = groupedRows.reduce((sum, group) => sum + group.rows.length, 0);
-    return { totalSpend, stageTotals, groupedRows, runningTotals, visibleLogCount };
-  }, [entries, type, filters.sort]);
+  const stageTotals = useMemo(
+    () =>
+      materialStages.map((stage) => ({
+        stage,
+        total: entries
+          .filter((entry) => entry.workStage === stage)
+          .reduce((sum, entry) => sum + Number(entry.cost ?? 0), 0),
+      })),
+    [entries],
+  );
 
   function applyFilters() {
     const params = new URLSearchParams();
@@ -212,35 +113,6 @@ export default function OperationDetailPageClient({
   function clearFilters() {
     setFilters({ from: "", to: "", category: "", workStage: "", sort: "newest" });
     router.push(`/app/sites/${siteId}/operations/${type}`);
-  }
-
-  async function handleDelete(entry: Entry) {
-    const id = entryId(entry, type);
-    if (!id) return;
-    const confirmed = await confirmDialog({
-      title: "Delete log entry?",
-      message: "This action cannot be undone.",
-      confirmLabel: "Delete",
-      cancelLabel: "Cancel",
-      tone: "danger",
-    });
-    if (!confirmed) return;
-
-    setDeletingId(id);
-    // Optimistic: drop the row now, restore it if the server rejects.
-    const prevEntries = entries;
-    setEntries((current) => current.filter((item) => entryId(item, type) !== id));
-    const res = await requestJson<null>(`/api/entries/${id}?type=${type}`, { method: "DELETE" });
-    setDeletingId(null);
-
-    if (!res.ok) {
-      setEntries(prevEntries);
-      notifyError(res);
-      return;
-    }
-
-    toast.success("Entry deleted");
-    router.refresh();
   }
 
   return (
@@ -278,6 +150,33 @@ export default function OperationDetailPageClient({
         </div>
       </section>
 
+      {isGridEligible ? (
+        <div className="inline-flex rounded-2xl border border-white/10 bg-white/5 p-1">
+          <button
+            type="button"
+            onClick={() => selectView("category")}
+            className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-colors ${
+              view === "category" ? "bg-sky-500 text-white" : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            By Category
+          </button>
+          <button
+            type="button"
+            onClick={() => selectView("all")}
+            className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-colors ${
+              view === "all" ? "bg-sky-500 text-white" : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            All Logs
+          </button>
+        </div>
+      ) : null}
+
+      {isGridEligible && view === "category" ? (
+        <CategoryGrid entries={entries} type={type} siteId={siteId} />
+      ) : (
+        <>
       <section className="card-standard overflow-visible p-4 grid gap-4 md:grid-cols-5">
         <DateFilterField
           id="filter-from"
@@ -393,84 +292,16 @@ export default function OperationDetailPageClient({
         </section>
       ) : null}
 
-      <section className="space-y-4">
-        {groupedRows.map(({ date, rows }) => (
-          <div key={date} className="space-y-2">
-            <div className="flex items-center justify-between px-1">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400">{formatDate(date)}</h2>
-              {(type === "labour" || type === "material" || type === "machinery" || type === "expense") ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Day total</span>
-                  <span className="text-xs font-bold text-sky-400">
-                    {formatCurrency(rows.reduce((sum, row) => sum + row.total, 0))}
-                  </span>
-                </div>
-              ) : null}
-            </div>
-
-            {rows.map((row) => {
-              const entry = row.primary;
-              const id = entryId(entry, type);
-              const runningKey = (type === "material" && id) ? String(id) : `${date}|${entryCategoryKey(entry, type)}`;
-              const rowHighlighted = highlightId
-                ? row.entries.some((e) => String(entryId(e, type)) === highlightId)
-                : false;
-              return (
-                <div
-                  key={`${runningKey}|${id ?? "group"}`}
-                  data-entry-id={id ?? undefined}
-                  data-highlight-target={rowHighlighted ? "" : undefined}
-                  className={`card-standard p-4 flex items-start justify-between gap-4 transition-shadow ${
-                    rowHighlighted && pulse
-                      ? "ring-2 ring-sky-400 ring-offset-2 ring-offset-[#020617]"
-                      : ""
-                  }`}
-                >
-                  <div className="min-w-0 flex-1">
-                    {renderEntrySummary(entry, type)}
-                    {(type === "labour" || type === "material" || type === "machinery" || type === "expense") ? (
-                      <div className="mt-3 rounded-xl border border-sky-500/10 bg-sky-500/5 px-3 py-2">
-                        <p className="text-[9px] font-extrabold uppercase tracking-widest text-slate-500">Running total</p>
-                        <p className="text-sm font-extrabold text-sky-400">
-                          {formatCurrency(runningTotals.get(runningKey) ?? row.total)}
-                        </p>
-                      </div>
-                    ) : null}
-                  </div>
-                  {row.editable && id ? (
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Link
-                        href={`/app/logs/${id}?type=${type}`}
-                        aria-label="Edit entry"
-                        className="w-10 h-10 rounded-xl border border-white/10 bg-white/5 text-slate-400 hover:text-sky-400 hover:bg-sky-500/10 flex items-center justify-center transition-colors"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => void handleDelete(entry)}
-                        disabled={deletingId === id}
-                        aria-label="Delete entry"
-                        className="w-10 h-10 rounded-xl border border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20 flex items-center justify-center transition-colors disabled:opacity-50"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-        ))}
-
-        {entries.length === 0 ? (
-          <div className="text-center py-20 bg-white/2 rounded-3xl border border-dashed border-white/5">
-            <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest italic">
-              No matching logs found.
-            </p>
-          </div>
-        ) : null}
-      </section>
+      <EntryLogList
+        siteId={siteId}
+        type={type}
+        entries={entries}
+        sort={filters.sort}
+        highlightId={highlightId}
+        onDeleted={() => router.refresh()}
+      />
+        </>
+      )}
     </div>
   );
 }

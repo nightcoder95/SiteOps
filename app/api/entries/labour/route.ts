@@ -2,11 +2,7 @@ import { requireSiteAccess } from "@/lib/auth/guards";
 import { checkOwnership } from "@/lib/auth/ownership";
 import { invalidateAdminAnalyticsCache } from "@/lib/cache/invalidate";
 import { db } from "@/lib/db/client";
-import {
-  findMatchingLabourEntry,
-  insertLabourEntry,
-  mergeLabourEntry,
-} from "@/lib/db/queries/entries";
+import { insertLabourEntry } from "@/lib/db/queries/entries";
 import { ERROR_CODES } from "@/lib/errors/codes";
 import { handleDbError } from "@/lib/errors/db";
 import { errorResponse, successResponse } from "@/lib/errors/response";
@@ -58,33 +54,6 @@ export const POST = withApi(async ({ request, requestId }) => {
   }
 
   try {
-    const existing = await findMatchingLabourEntry(siteId, date, workType);
-    if (existing) {
-      const merged = await mergeLabourEntry(existing.labourEntryId, {
-        peopleCount: "peopleCount" in validation.data ? validation.data.peopleCount : 0,
-        salaryAmount,
-        masonCount: "masonCount" in validation.data ? validation.data.masonCount : null,
-        masonSalaryAmount:
-          "masonSalaryAmount" in validation.data
-            ? String(validation.data.masonSalaryAmount)
-            : null,
-        helperCount: "helperCount" in validation.data ? validation.data.helperCount : null,
-        helperSalaryAmount:
-          "helperSalaryAmount" in validation.data
-            ? String(validation.data.helperSalaryAmount)
-            : null,
-        remarks: remarks || null,
-      });
-
-      runNonCritical(
-        requestId,
-        "analytics_cache_invalidation_failed",
-        invalidateAdminAnalyticsCache(requestId),
-      );
-
-      return successResponse(merged, 200, requestId);
-    }
-
     const entry = await insertLabourEntry({
       siteId,
       date,

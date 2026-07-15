@@ -1,3 +1,4 @@
+export type { EntryType } from "@/lib/db/queries/entries";
 import type { EntryType } from "@/lib/db/queries/entries";
 
 export type Entry = Record<string, any>;
@@ -173,6 +174,17 @@ export function mergeVisualEntries(entries: Entry[], type: EntryType) {
 export function entryCategoryKey(entry: Entry, type: EntryType) {
   if (type === "labour") return String(entry.workType ?? "Labour");
   if (type === "material") return `${entry.materialType ?? "Material"}|${entry.workStage ?? "Other"}`;
+  if (type === "machinery") return String(entry.equipmentType ?? "Machinery");
+  if (type === "expense") return String(entry.category ?? "Misc");
+  return String(entry.incidentType ?? "Incident");
+}
+
+// Grid-grouping key for the category-first operation view. Unlike
+// entryCategoryKey, material groups by materialType alone (work-stage is a
+// filter inside the category detail page, not part of the grid identity).
+export function gridCategoryKey(entry: Entry, type: EntryType): string {
+  if (type === "labour") return String(entry.workType ?? "Labour");
+  if (type === "material") return String(entry.materialType ?? "Material");
   if (type === "machinery") return String(entry.equipmentType ?? "Machinery");
   if (type === "expense") return String(entry.category ?? "Misc");
   return String(entry.incidentType ?? "Incident");
