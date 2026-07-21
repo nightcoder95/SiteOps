@@ -64,15 +64,15 @@ export function SiteRow({ site }: { site: SiteRowData }) {
         <span className="block truncate text-[15px] font-bold uppercase tracking-tight text-white transition-colors group-hover:text-sky-400">
           {site.name}
         </span>
-        <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-500">
-          <span className="flex items-center gap-1">
-            <MapPin className="h-3 w-3" />
-            {site.location}
+        <div className="mt-1.5 flex items-center gap-2 text-[11px] leading-none text-slate-500">
+          <span className="inline-flex items-center gap-1">
+            <MapPin className="h-3 w-3 text-slate-500 shrink-0" />
+            <span className="leading-none">{site.location}</span>
           </span>
           {updated ? (
             <>
-              <span aria-hidden className="text-slate-700">•</span>
-              <span>{updated}</span>
+              <span aria-hidden className="text-slate-500/60 leading-none">•</span>
+              <span className="leading-none">{updated}</span>
             </>
           ) : null}
         </div>

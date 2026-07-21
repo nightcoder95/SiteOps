@@ -56,8 +56,8 @@ export function ToolAddModal({
       onClose={close}
       className="w-full max-w-md rounded-2xl border border-outline-variant bg-surface-container-lowest p-5"
     >
-      <div className="space-y-4">
-        <h3 className="text-lg font-extrabold text-white">Add tool</h3>
+      <div className="space-y-3.5">
+        <h3 className="text-base font-bold text-white">Add tool</h3>
 
         <label className="flex flex-col gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-on-surface-variant">
           Name
@@ -67,7 +67,7 @@ export function ToolAddModal({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Manvatti"
-            className="h-11 w-full rounded-xl border border-outline px-3 text-sm normal-case text-on-surface"
+            className="h-10 w-full rounded-xl border border-outline px-3 text-sm normal-case text-on-surface"
           />
         </label>
 
@@ -76,7 +76,7 @@ export function ToolAddModal({
           <select
             value={categoryId}
             onChange={(e) => setCategoryId(e.target.value)}
-            className="h-11 w-full cursor-pointer rounded-xl border border-outline px-3 text-sm text-on-surface"
+            className="h-10 w-full cursor-pointer rounded-xl border border-outline px-3 text-sm text-on-surface"
           >
             <option value="">Select…</option>
             {categories.map((c) => (
@@ -95,7 +95,7 @@ export function ToolAddModal({
             value={opening}
             onChange={(e) => setOpening(e.target.value)}
             placeholder="0"
-            className="h-11 w-full rounded-xl border border-outline px-3 text-sm text-on-surface"
+            className="h-10 w-full rounded-xl border border-outline px-3 text-sm text-on-surface"
           />
         </label>
 

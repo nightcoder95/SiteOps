@@ -21,14 +21,16 @@ export function DashboardPageClient({ data, showToolTile = false }: { data: Dash
 
   return (
     <div className="space-y-6 pb-20">
-      {/* Company Tools KPI tile — a genuinely separate destination (/app/tools). */}
-      {showToolTile ? <ToolSummaryTile /> : null}
-
       {/* Sites: the Active-Sites count now lives in this card's header, so the
           stat and the list are one thing instead of two redundant blocks. */}
       <SitesCard sites={sites} />
 
-      <ArchivedSites sites={archivedSites} />
+      {/* Company Tools KPI tile — a genuinely separate destination (/app/tools). */}
+      {showToolTile ? <ToolSummaryTile /> : null}
+
+      <div className="pt-2.5">
+        <ArchivedSites sites={archivedSites} />
+      </div>
     </div>
   );
 }
