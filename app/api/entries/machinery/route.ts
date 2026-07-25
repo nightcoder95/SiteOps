@@ -9,6 +9,7 @@ import { errorResponse, successResponse } from "@/lib/errors/response";
 import { parseJsonBody, validateBody } from "@/lib/http/request";
 import { withApi } from "@/lib/http/withApi";
 import { runNonCritical } from "@/lib/services/nonCritical";
+import { assertInCatalogList } from "@/lib/validation/catalogList";
 import { machineryEntrySchema } from "@/lib/validation/schemas";
 
 export const POST = withApi(async ({ request, requestId }) => {
@@ -28,6 +29,15 @@ export const POST = withApi(async ({ request, requestId }) => {
   const { siteId, date, count, totalCost, remarks } = validation.data;
   const equipmentType =
     "equipmentType" in validation.data ? (validation.data.equipmentType ?? "Custom") : "Custom";
+
+  let canonicalWorkStage: string | null = null;
+  if (typeof validation.data.workStage === "string" && validation.data.workStage.trim()) {
+    const workStageCheck = await assertInCatalogList("Work Stage", validation.data.workStage);
+    if (!workStageCheck.ok) {
+      return errorResponse(ERROR_CODES.VALIDATION_ERROR, workStageCheck.message, 400, undefined, requestId);
+    }
+    canonicalWorkStage = workStageCheck.value;
+  }
 
   const site = await db.query.sites.findFirst({
     where: (t, { eq }) => eq(t.siteId, siteId),
@@ -58,6 +68,7 @@ export const POST = withApi(async ({ request, requestId }) => {
           : null,
       totalCost: String(totalCost),
       remarks: remarks || null,
+      workStage: canonicalWorkStage,
       createdBy: auth.session.user.id,
     });
 

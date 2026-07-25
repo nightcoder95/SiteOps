@@ -2,7 +2,7 @@ import { eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { requireCapability } from "@/lib/auth/guards";
-import { usageSourceForCategory } from "@/lib/catalog/usageSources";
+import { usageSourcesForCategory } from "@/lib/catalog/usageSources";
 import { invalidateCategoryTreeCache } from "@/lib/cache/invalidate";
 import { db } from "@/lib/db/client";
 import { categories, subcategories } from "@/lib/db/schema";
@@ -66,19 +66,24 @@ export const POST = withApi(async ({ request, requestId }) => {
     .from(categories)
     .where(eq(categories.categoryId, source.categoryId))
     .limit(1);
-  const usageSource = catRows[0] ? usageSourceForCategory(catRows[0].name) : undefined;
+  const usageSources = catRows[0] ? usageSourcesForCategory(catRows[0].name) : [];
 
   try {
-    if (usageSource) {
-      await db.execute(
-        sql`update ${usageSource.table} set ${usageSource.column} = ${target.name} where ${usageSource.column} = ${source.name}`,
-      );
-    }
+    await db.transaction(async (tx) => {
+      for (const usageSource of usageSources) {
+        // SET takes an unqualified column name; interpolating the PgColumn
+        // renders it table-qualified, which Postgres rejects (42703).
+        const setColumn = sql.identifier(usageSource.column.name);
+        await tx.execute(
+          sql`update ${usageSource.table} set ${setColumn} = ${target.name} where ${usageSource.column} = ${source.name}`,
+        );
+      }
 
-    await db
-      .update(subcategories)
-      .set({ isActive: false })
-      .where(eq(subcategories.subcategoryId, sourceId));
+      await tx
+        .update(subcategories)
+        .set({ isActive: false })
+        .where(eq(subcategories.subcategoryId, sourceId));
+    });
 
     runNonCritical(
       requestId,

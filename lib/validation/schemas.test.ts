@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   entryDateSchema,
+  expenseEntrySchema,
   incidentEntrySchema,
   labourEntrySchema,
   labourSplitWorkTypes,
   machineryEntrySchema,
   materialEntrySchema,
   materialWorkStages,
+  updateExpenseEntrySchema,
   updateIncidentEntrySchema,
   updateLabourEntrySchema,
   updateMachineryEntrySchema,
@@ -352,6 +354,63 @@ describe("operation consolidation schema additions", () => {
       });
 
       expect(result.success).toBe(true);
+    }
+  });
+});
+
+describe("global work stage on labour/machinery/expense", () => {
+  const validLabourPayload = {
+    siteId: validSiteId,
+    date: validEntryDate,
+    peopleCount: 8,
+    wagePerHead: 650.5,
+    workTypeMode: "default_enum" as const,
+    workTypeEnum: "Brick work" as const,
+  };
+
+  const validMachineryPayload = {
+    siteId: validSiteId,
+    date: validEntryDate,
+    equipmentType: "JCB",
+    count: 1,
+    hoursActive: 4,
+    totalCost: 10000,
+  };
+
+  const validExpensePayload = {
+    siteId: validSiteId,
+    date: validEntryDate,
+    description: "Site supplies",
+    amount: 500,
+    category: "Miscellaneous",
+  };
+
+  it("accepts labour create with and without workStage", () => {
+    expect(labourEntrySchema.safeParse({ ...validLabourPayload, workStage: "Basement Level" }).success).toBe(true);
+    expect(labourEntrySchema.safeParse(validLabourPayload).success).toBe(true);
+  });
+
+  it("accepts machinery create with and without workStage", () => {
+    expect(machineryEntrySchema.safeParse({ ...validMachineryPayload, workStage: "Basement Level" }).success).toBe(true);
+    expect(machineryEntrySchema.safeParse(validMachineryPayload).success).toBe(true);
+  });
+
+  it("accepts expense create with and without workStage", () => {
+    expect(expenseEntrySchema.safeParse({ ...validExpensePayload, workStage: "Basement Level" }).success).toBe(true);
+    expect(expenseEntrySchema.safeParse(validExpensePayload).success).toBe(true);
+  });
+
+  it("update schemas accept workStage as null, a valid string, or omitted", () => {
+    for (const schema of [updateLabourEntrySchema, updateMachineryEntrySchema, updateExpenseEntrySchema]) {
+      expect(schema.safeParse({ workStage: null }).success).toBe(true);
+      expect(schema.safeParse({ workStage: "Roof Level" }).success).toBe(true);
+      expect(schema.safeParse({}).success).toBe(true);
+    }
+  });
+
+  it("update schemas reject an empty string workStage", () => {
+    for (const schema of [updateLabourEntrySchema, updateMachineryEntrySchema, updateExpenseEntrySchema]) {
+      expect(schema.safeParse({ workStage: "" }).success).toBe(false);
     }
   });
 });

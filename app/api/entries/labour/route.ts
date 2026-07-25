@@ -9,6 +9,7 @@ import { errorResponse, successResponse } from "@/lib/errors/response";
 import { parseJsonBody, validateBody } from "@/lib/http/request";
 import { withApi } from "@/lib/http/withApi";
 import { runNonCritical } from "@/lib/services/nonCritical";
+import { assertInCatalogList } from "@/lib/validation/catalogList";
 import { isSplitLabourWorkType, labourEntrySchema } from "@/lib/validation/schemas";
 
 export const POST = withApi(async ({ request, requestId }) => {
@@ -39,6 +40,15 @@ export const POST = withApi(async ({ request, requestId }) => {
       : "peopleCount" in validation.data && "wagePerHead" in validation.data
         ? String(Number(validation.data.peopleCount) * Number(validation.data.wagePerHead))
         : null;
+
+  let canonicalWorkStage: string | null = null;
+  if (typeof validation.data.workStage === "string" && validation.data.workStage.trim()) {
+    const workStageCheck = await assertInCatalogList("Work Stage", validation.data.workStage);
+    if (!workStageCheck.ok) {
+      return errorResponse(ERROR_CODES.VALIDATION_ERROR, workStageCheck.message, 400, undefined, requestId);
+    }
+    canonicalWorkStage = workStageCheck.value;
+  }
 
   const site = await db.query.sites.findFirst({
     where: (t, { eq }) => eq(t.siteId, siteId),
@@ -75,6 +85,7 @@ export const POST = withApi(async ({ request, requestId }) => {
           ? String(validation.data.helperSalaryAmount)
           : null,
       remarks: remarks || null,
+      workStage: canonicalWorkStage,
       createdBy: auth.session.user.id,
     });
 

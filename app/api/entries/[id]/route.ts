@@ -118,7 +118,10 @@ export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, conte
   // Former-enum fields are now managed catalog lists — validate membership when
   // the field is being changed, and normalize to the canonical stored value.
   const catalogFieldChecks: Array<[string, string]> = [];
-  if (type === "material" && typeof updateData.workStage === "string") catalogFieldChecks.push(["Material Work Stage", "workStage"]);
+  if (type === "material"  && typeof updateData.workStage === "string") catalogFieldChecks.push(["Work Stage", "workStage"]);
+  if (type === "labour"    && typeof updateData.workStage === "string") catalogFieldChecks.push(["Work Stage", "workStage"]);
+  if (type === "machinery" && typeof updateData.workStage === "string") catalogFieldChecks.push(["Work Stage", "workStage"]);
+  if (type === "expense"   && typeof updateData.workStage === "string") catalogFieldChecks.push(["Work Stage", "workStage"]);
   if (type === "expense" && typeof updateData.category === "string") catalogFieldChecks.push(["Expense Category", "category"]);
   if (type === "incident" && typeof updateData.incidentType === "string") catalogFieldChecks.push(["Incident Type", "incidentType"]);
   if (type === "incident" && typeof updateData.severity === "string") catalogFieldChecks.push(["Incident Severity", "severity"]);

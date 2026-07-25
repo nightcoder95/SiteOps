@@ -194,9 +194,8 @@ export function EntryForm({
         }
       } else if (f.kind === "subcategory") {
         const sub = v as SubcategoryOption | null;
-        if (sub) {
-          payload[f.name] = sub.name;
-        }
+        if (sub) payload[f.name] = sub.name;
+        else if (isEdit && f.clearable) payload[f.name] = null;   // send null → PATCH unsets it
       } else if (f.kind === "number") {
         if (v !== "" && v !== null && v !== undefined) payload[f.name] = Number(v);
       } else if (v !== "" && v !== null && v !== undefined) {

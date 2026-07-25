@@ -210,6 +210,8 @@ export const labourEntries = pgTable("labour_entries", {
   masonSalaryAmount: decimal("mason_salary_amount", { precision: 12, scale: 2 }),
   helperCount: integer("helper_count"),
   helperSalaryAmount: decimal("helper_salary_amount", { precision: 12, scale: 2 }),
+  // Global work stage (managed catalog list "Work Stage"), optional on labour.
+  workStage: varchar("work_stage", { length: 100 }),
   remarks: text("remarks"),
   createdBy: uuid("created_by").notNull().references(() => userProfiles.userId),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -220,6 +222,7 @@ export const labourEntries = pgTable("labour_entries", {
   index("labour_entries_site_date_created_idx").on(t.siteId, t.date.desc(), t.createdAt.desc()),
   index("labour_entries_created_at_idx").on(t.createdAt.desc()),
   index("labour_entries_created_by_idx").on(t.createdBy),
+  index("labour_entries_site_id_work_stage_idx").on(t.siteId, t.workStage),
 ]);
 
 export const materialEntries = pgTable("material_entries", {
@@ -236,7 +239,8 @@ export const materialEntries = pgTable("material_entries", {
   unitMasterId: uuid("unit_master_id").references(() => unitMaster.unitId, { onDelete: "set null" }),
   unitCustomId: uuid("unit_custom_id").references(() => customUnits.unitId, { onDelete: "set null" }),
   unit: varchar("unit", { length: 50 }),
-  // Migrated pg enum -> varchar (managed catalog list "Material Work Stage").
+  // Migrated pg enum -> varchar (managed catalog list "Work Stage", shared globally
+  // across material/labour/machinery/expense). Required on material only.
   workStage: varchar("work_stage", { length: 100 }),
   cost: decimal("cost", { precision: 12, scale: 2 }),
   remarks: text("remarks"),
@@ -263,6 +267,8 @@ export const machineryEntries = pgTable("machinery_entries", {
   count: integer("count").notNull(),
   hoursActive: decimal("hours_active", { precision: 8, scale: 2 }),
   totalCost: decimal("total_cost", { precision: 12, scale: 2 }),
+  // Global work stage (managed catalog list "Work Stage"), optional on machinery.
+  workStage: varchar("work_stage", { length: 100 }),
   remarks: text("remarks"),
   createdBy: uuid("created_by").notNull().references(() => userProfiles.userId),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -273,6 +279,7 @@ export const machineryEntries = pgTable("machinery_entries", {
   index("machinery_entries_site_date_created_idx").on(t.siteId, t.date.desc(), t.createdAt.desc()),
   index("machinery_entries_created_at_idx").on(t.createdAt.desc()),
   index("machinery_entries_created_by_idx").on(t.createdBy),
+  index("machinery_entries_site_id_work_stage_idx").on(t.siteId, t.workStage),
 ]);
 
 export const expenseEntries = pgTable("expense_entries", {
@@ -284,6 +291,8 @@ export const expenseEntries = pgTable("expense_entries", {
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
   // Migrated pg enum -> varchar (managed catalog list "Expense Category").
   category: varchar("category", { length: 100 }).notNull(),
+  // Global work stage (managed catalog list "Work Stage"), optional on expense.
+  workStage: varchar("work_stage", { length: 100 }),
   createdBy: uuid("created_by").notNull().references(() => userProfiles.userId),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -293,6 +302,7 @@ export const expenseEntries = pgTable("expense_entries", {
   index("expense_entries_site_date_created_idx").on(t.siteId, t.date.desc(), t.createdAt.desc()),
   index("expense_entries_created_at_idx").on(t.createdAt.desc()),
   index("expense_entries_created_by_idx").on(t.createdBy),
+  index("expense_entries_site_id_work_stage_idx").on(t.siteId, t.workStage),
 ]);
 
 export const resourceRequests = pgTable("resource_requests", {

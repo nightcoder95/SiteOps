@@ -20,7 +20,7 @@ export const CATALOG_OPERATIONS: CatalogOperationSpec[] = [
     operation: "Materials",
     lists: [
       { key: "material_type", noun: "Material Type", categoryName: "Materials" },
-      { key: "work_stage", noun: "Work Stage", categoryName: "Material Work Stage" },
+      { key: "work_stage", noun: "Work Stage", categoryName: "Work Stage" },
     ],
   },
   { operation: "Equipment", lists: [{ key: "equipment_type", noun: "Equipment Type", categoryName: "Machinery/Equipment" }] },

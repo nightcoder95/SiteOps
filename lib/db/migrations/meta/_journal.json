@@ -176,6 +176,13 @@
       "when": 1783020097372,
       "tag": "0024_tools_inventory",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1784182667449,
+      "tag": "0025_global_work_stage",
+      "breakpoints": true
     }
   ]
 }

@@ -54,6 +54,7 @@ export function mapEntryToFormValues(
         masonSalaryAmount: entry.masonSalaryAmount ?? "",
         helperCount: entry.helperCount ?? "",
         helperSalaryAmount: entry.helperSalaryAmount ?? "",
+        workStage: entry.workStage ?? "",
         remarks: entry.remarks ?? "",
       };
     case "material":
@@ -77,6 +78,7 @@ export function mapEntryToFormValues(
         count: entry.count ?? "",
         hoursActive: entry.hoursActive ?? "",
         totalCost: entry.totalCost ?? "",
+        workStage: entry.workStage ?? "",
         remarks: entry.remarks ?? "",
       };
     case "expense":
@@ -84,6 +86,7 @@ export function mapEntryToFormValues(
         date: entry.date ?? "",
         category: entry.category ?? "",
         description: entry.description ?? "",
+        workStage: entry.workStage ?? "",
         amount: entry.amount ?? "",
       };
     case "incident":

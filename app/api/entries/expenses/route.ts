@@ -54,6 +54,15 @@ export const POST = withApi(async ({ request, requestId }) => {
   }
   const category = categoryCheck.value;
 
+  let canonicalWorkStage: string | null = null;
+  if (typeof validation.data.workStage === "string" && validation.data.workStage.trim()) {
+    const workStageCheck = await assertInCatalogList("Work Stage", validation.data.workStage);
+    if (!workStageCheck.ok) {
+      return errorResponse(ERROR_CODES.VALIDATION_ERROR, workStageCheck.message, 400, undefined, requestId);
+    }
+    canonicalWorkStage = workStageCheck.value;
+  }
+
   const site = await db.query.sites.findFirst({
     where: (t, { eq }) => eq(t.siteId, siteId),
     columns: { supervisorId: true, budget: true, name: true, archivedAt: true },
@@ -74,6 +83,7 @@ export const POST = withApi(async ({ request, requestId }) => {
       description,
       amount: String(amount),
       category,
+      workStage: canonicalWorkStage,
       createdBy: auth.session.user.id,
     });
 

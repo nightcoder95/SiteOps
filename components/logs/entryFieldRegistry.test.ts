@@ -10,7 +10,7 @@ import {
 describe("resolveEntryFields", () => {
   it("returns labour fields for 'Labour'", () => {
     const fields = resolveEntryFields("Labour");
-    expect(fields.map((f) => f.name)).toEqual(["date", "workType", "peopleCount", "wagePerHead", "remarks"]);
+    expect(fields.map((f) => f.name)).toEqual(["date", "workType", "peopleCount", "wagePerHead", "workStage", "remarks"]);
   });
 
   it("is case-insensitive and trims whitespace", () => {
@@ -30,7 +30,7 @@ describe("resolveEntryFields", () => {
 
   it("returns machinery fields for 'Machinery'", () => {
     expect(resolveEntryFields("Machinery").map((f) => f.name)).toEqual([
-      "date", "equipmentType", "count", "hoursActive", "totalCost", "remarks",
+      "date", "equipmentType", "count", "hoursActive", "totalCost", "workStage", "remarks",
     ]);
   });
 
@@ -43,7 +43,7 @@ describe("resolveEntryFields", () => {
 
   it("returns expense fields for 'Expense'", () => {
     expect(resolveEntryFields("Expense").map((f) => f.name)).toEqual([
-      "date", "category", "description", "amount",
+      "date", "category", "description", "workStage", "amount",
     ]);
   });
 
@@ -59,7 +59,7 @@ describe("resolveEntryFields", () => {
 
   it("loads former-enum fields from their managed catalog list (design §3.3)", () => {
     const cases: Array<[string, string, string, string]> = [
-      ["Material", "workStage", "Material Work Stage", "Work Stage"],
+      ["Material", "workStage", "Work Stage", "Work Stage"],
       ["Expense", "category", "Expense Category", "Expense Category"],
       ["Incident", "incidentType", "Incident Type", "Incident Type"],
       ["Incident", "severity", "Incident Severity", "Severity"],
@@ -72,6 +72,22 @@ describe("resolveEntryFields", () => {
       // No more hardcoded option arrays for these.
       expect(field?.options).toBeUndefined();
     }
+  });
+
+  it("gives labour/machinery/expense an optional, clearable Work Stage field", () => {
+    for (const category of ["Labour", "Machinery", "Expense"]) {
+      const field = resolveEntryFields(category).find((f) => f.name === "workStage");
+      expect(field?.kind).toBe("subcategory");
+      expect(field?.required).toBe(false);
+      expect(field?.clearable).toBe(true);
+      expect(field?.catalogCategoryName).toBe("Work Stage");
+    }
+  });
+
+  it("keeps material's Work Stage required and not clearable", () => {
+    const field = resolveEntryFields("Material").find((f) => f.name === "workStage");
+    expect(field?.required).toBe(true);
+    expect(field?.clearable).toBeUndefined();
   });
 });
 

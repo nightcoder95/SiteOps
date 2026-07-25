@@ -53,7 +53,7 @@ export function swapDateRangeIfInverted(from: string, to: string): { from: strin
   return { from, to, swapped: false };
 }
 
-export const materialStages = [
+export const workStages = [
   "Basement Level",
   "Brick Level",
   "Lintel Level",
@@ -197,7 +197,14 @@ export function renderEntrySummary(entry: Entry, type: EntryType) {
     const hasSplitRoles = Number(entry.masonCount ?? 0) > 0 || Number(entry.helperCount ?? 0) > 0;
     return (
       <div className="space-y-1">
-        <p className="font-bold text-slate-100">{entry.workType ?? "Labour"}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="font-bold text-slate-100">{entry.workType ?? "Labour"}</p>
+          {entry.workStage ? (
+            <span className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-emerald-400">
+              {entry.workStage}
+            </span>
+          ) : null}
+        </div>
         {hasSplitRoles ? (
           <div className="space-y-0.5 text-xs text-slate-500">
             <p>Mason: {entry.masonCount ?? 0} people, {formatCurrency(Number(entry.masonSalaryAmount ?? 0))}</p>
@@ -238,7 +245,14 @@ export function renderEntrySummary(entry: Entry, type: EntryType) {
   if (type === "machinery") {
     return (
       <div className="space-y-1">
-        <p className="font-bold text-slate-100">{entry.equipmentType ?? "Machinery"}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="font-bold text-slate-100">{entry.equipmentType ?? "Machinery"}</p>
+          {entry.workStage ? (
+            <span className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-emerald-400">
+              {entry.workStage}
+            </span>
+          ) : null}
+        </div>
         <p className="text-xs text-slate-500">{entry.count ?? 0} units</p>
         {entry.hoursActive ? <p className="text-xs text-slate-500">{entry.hoursActive} hours active</p> : null}
         {entry.totalCost ? <p className="text-sm font-bold text-sky-400">{formatCurrency(Number(entry.totalCost ?? 0))}</p> : null}
@@ -250,7 +264,14 @@ export function renderEntrySummary(entry: Entry, type: EntryType) {
   if (type === "expense") {
     return (
       <div className="space-y-1">
-        <p className="font-bold text-slate-100">{entry.description ?? "Expense"}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="font-bold text-slate-100">{entry.description ?? "Expense"}</p>
+          {entry.workStage ? (
+            <span className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-emerald-400">
+              {entry.workStage}
+            </span>
+          ) : null}
+        </div>
         <p className="text-xs text-slate-500">{entry.category ?? "Misc"}</p>
         <p className="text-sm font-bold text-sky-400">{formatCurrency(Number(entry.amount ?? 0))}</p>
       </div>

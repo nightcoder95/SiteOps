@@ -51,6 +51,7 @@ export async function insertLabourEntry(data: {
   helperCount?: number | null;
   helperSalaryAmount?: string | null;
   remarks: string | null;
+  workStage?: string | null;
   createdBy: string;
 }) {
   const result = await db.insert(labourEntries).values(data).returning();
@@ -98,6 +99,7 @@ export async function insertMachineryEntry(data: {
   hoursActive: string | null;
   totalCost: string;
   remarks: string | null;
+  workStage?: string | null;
   createdBy: string;
 }) {
   const result = await db.insert(machineryEntries).values(data).returning();
@@ -110,6 +112,7 @@ export async function insertExpenseEntry(data: {
   description: string;
   amount: string;
   category: string;
+  workStage?: string | null;
   createdBy: string;
 }) {
   const result = await db.insert(expenseEntries).values(data).returning();
@@ -595,6 +598,7 @@ export async function getEntriesBySite(
         eq(labourEntries.siteId, siteId),
         dateWhere(labourEntries.date),
         category ? eq(labourEntries.workType, category) : undefined,
+        workStage ? eq(labourEntries.workStage, workStage) : undefined,
       ))
       .orderBy(
         sort === "oldest" ? asc(labourEntries.date) : desc(labourEntries.date),
@@ -630,6 +634,7 @@ export async function getEntriesBySite(
         eq(machineryEntries.siteId, siteId),
         dateWhere(machineryEntries.date),
         category ? eq(machineryEntries.equipmentType, category) : undefined,
+        workStage ? eq(machineryEntries.workStage, workStage) : undefined,
       ))
       .orderBy(
         sort === "oldest" ? asc(machineryEntries.date) : desc(machineryEntries.date),
@@ -647,6 +652,7 @@ export async function getEntriesBySite(
         eq(expenseEntries.siteId, siteId),
         dateWhere(expenseEntries.date),
         category ? eq(expenseEntries.category, category as "Labour" | "Materials" | "Equipment" | "Misc") : undefined,
+        workStage ? eq(expenseEntries.workStage, workStage) : undefined,
       ))
       .orderBy(
         sort === "oldest" ? asc(expenseEntries.date) : desc(expenseEntries.date),

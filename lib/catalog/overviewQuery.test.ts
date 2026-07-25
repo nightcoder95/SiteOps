@@ -1,8 +1,25 @@
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { fetchUsageCounts } from "@/lib/catalog/overviewQuery";
 import { describeDb, seedSite, withRollback } from "@/lib/db/testing";
 import { labourEntries, materialEntries } from "@/lib/db/schema";
+
+describe("fetchUsageCounts (unit, mocked executor)", () => {
+  it("sums counts across multiple tables that share a category name and value", async () => {
+    // "Work Stage" spans material/labour/machinery/expense — two tables can report
+    // the same value (e.g. "Basement Level"). The map must sum, not overwrite.
+    const fakeExecutor = {
+      execute: async () => [
+        { category_name: "Work Stage", value: "Basement Level", n: 50 },
+        { category_name: "Work Stage", value: "Basement Level", n: 10 },
+      ],
+    };
+
+    const counts = await fetchUsageCounts(fakeExecutor as any);
+
+    expect(counts.get("Work Stage")?.get("Basement Level")).toBe(60);
+  });
+});
 
 describeDb("fetchUsageCounts", () => {
   it("counts free-text usages grouped by value, keyed by category name", async () => {
@@ -26,7 +43,7 @@ describeDb("fetchUsageCounts", () => {
 
       expect(counts.get("Labour")?.get(wt)).toBe(2);
       expect(counts.get("Materials")?.get(mt)).toBe(1);
-      expect(counts.get("Material Work Stage")?.get(ws)).toBe(1);
+      expect(counts.get("Work Stage")?.get(ws)).toBe(1);
       // Every source key is present even when it has no matching rows.
       expect(counts.has("Incident Severity")).toBe(true);
     });

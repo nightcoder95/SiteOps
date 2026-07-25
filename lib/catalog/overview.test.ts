@@ -5,7 +5,7 @@ import { CATALOG_OPERATIONS, buildCatalogOverview } from "./overview";
 const categories = [
   { categoryId: "c-labour", name: "Labour" },
   { categoryId: "c-mat", name: "Materials" },
-  { categoryId: "c-stage", name: "Material Work Stage" },
+  { categoryId: "c-stage", name: "Work Stage" },
   { categoryId: "c-equip", name: "Machinery/Equipment" },
 ];
 

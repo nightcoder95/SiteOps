@@ -35,7 +35,7 @@ export const POST = withApi(async ({ request, requestId }) => {
 
   const { siteId, date, quantity, workStage, cost, remarks } = validation.data;
 
-  const workStageCheck = await assertInCatalogList("Material Work Stage", workStage);
+  const workStageCheck = await assertInCatalogList("Work Stage", workStage);
   if (!workStageCheck.ok) {
     return errorResponse(ERROR_CODES.VALIDATION_ERROR, workStageCheck.message, 400, undefined, requestId);
   }

@@ -65,4 +65,23 @@ describe("POST labour — no consolidation", () => {
     expect(res.status).toBe(201);
     expect(mockInsertLabour).toHaveBeenCalledTimes(2);
   });
+
+  it("canonicalises and stores workStage when provided", async () => {
+    mockAssertCatalog.mockResolvedValue({ ok: true, value: "Basement Level" });
+    const res = await POST(req({ ...base, workStage: "basement level" }));
+    expect(res.status).toBe(201);
+    expect(mockAssertCatalog).toHaveBeenCalledWith("Work Stage", "basement level");
+    expect(mockInsertLabour).toHaveBeenCalledWith(
+      expect.objectContaining({ workStage: "Basement Level" }),
+    );
+  });
+
+  it("stores workStage: null and skips the catalog check when omitted", async () => {
+    const res = await POST(req(base));
+    expect(res.status).toBe(201);
+    expect(mockAssertCatalog).not.toHaveBeenCalled();
+    expect(mockInsertLabour).toHaveBeenCalledWith(
+      expect.objectContaining({ workStage: null }),
+    );
+  });
 });

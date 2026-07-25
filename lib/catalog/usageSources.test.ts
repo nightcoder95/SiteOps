@@ -1,33 +1,40 @@
 import { describe, expect, it } from "vitest";
 
-import { labourEntries, materialEntries } from "@/lib/db/schema";
+import { expenseEntries, labourEntries, machineryEntries, materialEntries } from "@/lib/db/schema";
 
-import { USAGE_SOURCES, usageSourceForCategory } from "./usageSources";
+import { USAGE_SOURCES, usageSourcesForCategory } from "./usageSources";
 
-describe("usageSources", () => {
-  it("maps a category name to its free-text entry column", () => {
-    const src = usageSourceForCategory("Materials");
-    expect(src?.column).toBe(materialEntries.materialType);
-    expect(src?.table).toBe(materialEntries);
-  });
-
-  it("distinguishes columns within the same table by category name", () => {
-    expect(usageSourceForCategory("Materials")?.column).toBe(materialEntries.materialType);
-    expect(usageSourceForCategory("Material Work Stage")?.column).toBe(materialEntries.workStage);
+describe("usageSourcesForCategory", () => {
+  it("maps a single-table category to a one-element array", () => {
+    const sources = usageSourcesForCategory("Materials");
+    expect(sources).toHaveLength(1);
+    expect(sources[0]?.column).toBe(materialEntries.materialType);
+    expect(sources[0]?.table).toBe(materialEntries);
   });
 
   it("maps Labour to workType", () => {
-    expect(usageSourceForCategory("Labour")?.column).toBe(labourEntries.workType);
+    expect(usageSourcesForCategory("Labour")[0]?.column).toBe(labourEntries.workType);
   });
 
-  it("returns undefined for an unmanaged category", () => {
-    expect(usageSourceForCategory("Nonexistent")).toBeUndefined();
+  it("maps Work Stage to all four entry tables that carry it", () => {
+    const sources = usageSourcesForCategory("Work Stage");
+    expect(sources).toHaveLength(4);
+    expect(sources.find((s) => s.table === materialEntries)?.column).toBe(materialEntries.workStage);
+    expect(sources.find((s) => s.table === labourEntries)?.column).toBe(labourEntries.workStage);
+    expect(sources.find((s) => s.table === machineryEntries)?.column).toBe(machineryEntries.workStage);
+    expect(sources.find((s) => s.table === expenseEntries)?.column).toBe(expenseEntries.workStage);
   });
 
-  it("has a source per managed category in USAGE_SOURCES", () => {
+  it("returns an empty array for an unmanaged category", () => {
+    expect(usageSourcesForCategory("Nonexistent")).toEqual([]);
+  });
+
+  it("resolves a non-empty result for every categoryName present in USAGE_SOURCES, each entry a genuine member", () => {
     expect(USAGE_SOURCES.length).toBeGreaterThan(0);
     for (const src of USAGE_SOURCES) {
-      expect(usageSourceForCategory(src.categoryName)).toBe(src);
+      const resolved = usageSourcesForCategory(src.categoryName);
+      expect(resolved.length).toBeGreaterThan(0);
+      expect(resolved).toContain(src);
     }
   });
 });

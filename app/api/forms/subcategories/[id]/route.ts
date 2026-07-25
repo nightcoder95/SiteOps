@@ -2,7 +2,7 @@ import { and, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { requireCapability } from "@/lib/auth/guards";
-import { usageSourceForCategory } from "@/lib/catalog/usageSources";
+import { usageSourcesForCategory } from "@/lib/catalog/usageSources";
 import { invalidateCategoryTreeCache } from "@/lib/cache/invalidate";
 import { db } from "@/lib/db/client";
 import { categories, subcategories } from "@/lib/db/schema";
@@ -138,13 +138,17 @@ export const DELETE = withApiRoute<RouteCtx>(async ({ request, requestId }, cont
     .from(categories)
     .where(eq(categories.categoryId, row.categoryId))
     .limit(1);
-  const source = catRows[0] ? usageSourceForCategory(catRows[0].name) : undefined;
-  if (source) {
-    const countRows = await db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(source.table)
-      .where(eq(source.column, row.name));
-    const usage = Number(countRows[0]?.n ?? 0);
+  const sources = catRows[0] ? usageSourcesForCategory(catRows[0].name) : [];
+  if (sources.length > 0) {
+    const counts = await Promise.all(
+      sources.map((source) =>
+        db
+          .select({ n: sql<number>`count(*)::int` })
+          .from(source.table)
+          .where(eq(source.column, row.name)),
+      ),
+    );
+    const usage = counts.reduce((sum, c) => sum + Number(c[0]?.n ?? 0), 0);
     if (usage > 0) {
       return errorResponse(
         ERROR_CODES.CONFLICT,

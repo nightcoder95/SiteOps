@@ -91,4 +91,38 @@ describe("DELETE subcategory usage guard", () => {
     expect(res.status).toBe(404);
     expect(mockDelete).not.toHaveBeenCalled();
   });
+
+  it("blocks delete when only a non-first source table has usage (multi-table category)", async () => {
+    // "Work Stage" spans material/labour/machinery/expense (usageSources.ts order).
+    // Material (first source) has 0 usage but labour has 3 — the guard must
+    // aggregate across ALL sources, not just the first match.
+    mockSelect
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ limit: () => Promise.resolve([{ categoryId: "c1", name: "Basement Level" }]) }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ limit: () => Promise.resolve([{ name: "Work Stage" }]) }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => Promise.resolve([{ n: 0 }]) }) }) // material
+      .mockReturnValueOnce({ from: () => ({ where: () => Promise.resolve([{ n: 3 }]) }) }) // labour
+      .mockReturnValueOnce({ from: () => ({ where: () => Promise.resolve([{ n: 0 }]) }) }) // machinery
+      .mockReturnValueOnce({ from: () => ({ where: () => Promise.resolve([{ n: 0 }]) }) }); // expense
+
+    const res = await DELETE(deleteReq(), ctx);
+    const body = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(body.error.message).toMatch(/deactivate/i);
+    expect(mockDelete).not.toHaveBeenCalled();
+  });
+
+  it("deletes a multi-table category item when every source reports zero usage", async () => {
+    mockSelect
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ limit: () => Promise.resolve([{ categoryId: "c1", name: "Basement Level" }]) }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => ({ limit: () => Promise.resolve([{ name: "Work Stage" }]) }) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => Promise.resolve([{ n: 0 }]) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => Promise.resolve([{ n: 0 }]) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => Promise.resolve([{ n: 0 }]) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => Promise.resolve([{ n: 0 }]) }) });
+
+    const res = await DELETE(deleteReq(), ctx);
+    expect(res.status).toBe(200);
+    expect(mockDelete).toHaveBeenCalled();
+  });
 });

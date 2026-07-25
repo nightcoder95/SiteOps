@@ -7,7 +7,7 @@ const NOUN_BY_CATEGORY: Record<string, string> = {
   Labour: "Work Type",
   Materials: "Material Type",
   "Machinery/Equipment": "Equipment Type",
-  "Material Work Stage": "Work Stage",
+  "Work Stage": "Work Stage",
   "Expense Category": "Expense Category",
   "Incident Type": "Incident Type",
   "Incident Severity": "Severity",

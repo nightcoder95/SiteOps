@@ -10,7 +10,7 @@ describe("catalogNounForCategory", () => {
   });
 
   it("maps attribute-list categories to their short noun", () => {
-    expect(catalogNounForCategory("Material Work Stage")).toBe("Work Stage");
+    expect(catalogNounForCategory("Work Stage")).toBe("Work Stage");
     expect(catalogNounForCategory("Incident Severity")).toBe("Severity");
     expect(catalogNounForCategory("Expense Category")).toBe("Expense Category");
     expect(catalogNounForCategory("Incident Type")).toBe("Incident Type");

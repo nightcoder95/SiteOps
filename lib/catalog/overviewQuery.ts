@@ -33,7 +33,10 @@ export async function fetchUsageCounts(
   // Ensure every source key exists even with zero rows (stable shape for callers).
   for (const { categoryName } of USAGE_SOURCES) out.set(categoryName, new Map());
   for (const r of rows) {
-    out.get(r.category_name)?.set(String(r.value), Number(r.n));
+    const catMap = out.get(r.category_name);
+    if (!catMap) continue;
+    const value = String(r.value);
+    catMap.set(value, (catMap.get(value) ?? 0) + Number(r.n));
   }
   return out;
 }

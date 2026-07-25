@@ -2,12 +2,13 @@ import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
-  mockRequireSiteAccess, mockCheckOwnership, mockFindSite, mockInsertMachinery,
+  mockRequireSiteAccess, mockCheckOwnership, mockFindSite, mockInsertMachinery, mockAssertCatalog,
 } = vi.hoisted(() => ({
   mockRequireSiteAccess: vi.fn(),
   mockCheckOwnership: vi.fn(),
   mockFindSite: vi.fn(),
   mockInsertMachinery: vi.fn(),
+  mockAssertCatalog: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/guards", () => ({ requireSiteAccess: mockRequireSiteAccess }));
@@ -22,6 +23,7 @@ vi.mock("@/lib/db/queries/entries", () => ({
 }));
 vi.mock("@/lib/cache/invalidate", () => ({ invalidateAdminAnalyticsCache: vi.fn() }));
 vi.mock("@/lib/services/nonCritical", () => ({ runNonCritical: vi.fn() }));
+vi.mock("@/lib/validation/catalogList", () => ({ assertInCatalogList: mockAssertCatalog }));
 
 import { POST } from "./route";
 
@@ -61,5 +63,24 @@ describe("POST machinery — no consolidation", () => {
     const res = await POST(req(base));
     expect(res.status).toBe(201);
     expect(mockInsertMachinery).toHaveBeenCalledTimes(2);
+  });
+
+  it("canonicalises and stores workStage when provided", async () => {
+    mockAssertCatalog.mockResolvedValue({ ok: true, value: "Basement Level" });
+    const res = await POST(req({ ...base, workStage: "basement level" }));
+    expect(res.status).toBe(201);
+    expect(mockAssertCatalog).toHaveBeenCalledWith("Work Stage", "basement level");
+    expect(mockInsertMachinery).toHaveBeenCalledWith(
+      expect.objectContaining({ workStage: "Basement Level" }),
+    );
+  });
+
+  it("stores workStage: null and skips the catalog check when omitted", async () => {
+    const res = await POST(req(base));
+    expect(res.status).toBe(201);
+    expect(mockAssertCatalog).not.toHaveBeenCalled();
+    expect(mockInsertMachinery).toHaveBeenCalledWith(
+      expect.objectContaining({ workStage: null }),
+    );
   });
 });

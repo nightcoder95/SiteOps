@@ -19,6 +19,9 @@ export type EntryField = {
   catalogCategoryName?: string;
   // Contextual add-CTA / label noun ("Work Stage", "Severity", …).
   noun?: string;
+  // Optional subcategory field that can be explicitly cleared on edit,
+  // sending `null` to un-tag rather than omitting the key.
+  clearable?: boolean;
   placeholder?: string;
   min?: number;
   max?: number;
@@ -38,6 +41,15 @@ const REGISTRY: Record<string, EntryField[]> = {
     { name: "workType", label: "Work Type", kind: "subcategory", required: true, subcategoryHint: "labour" },
     { name: "peopleCount", label: "People Count", kind: "number", required: true, min: 1, max: 10000, step: 1 },
     { name: "wagePerHead", label: "Per Head Salary", kind: "number", required: true, min: 0.01, step: 0.01 },
+    {
+      name: "workStage",
+      label: "Work Stage",
+      kind: "subcategory",
+      required: false,
+      clearable: true,
+      catalogCategoryName: "Work Stage",
+      noun: "Work Stage",
+    },
     { name: "remarks", label: "Remarks", kind: "textarea" },
   ],
   material: [
@@ -50,7 +62,7 @@ const REGISTRY: Record<string, EntryField[]> = {
       label: "Work Stage",
       kind: "subcategory",
       required: true,
-      catalogCategoryName: "Material Work Stage",
+      catalogCategoryName: "Work Stage",
       noun: "Work Stage",
     },
     { name: "cost", label: "Total Cost", kind: "number", required: false, min: 0.01, step: 0.01 },
@@ -62,6 +74,15 @@ const REGISTRY: Record<string, EntryField[]> = {
     { name: "count", label: "Count", kind: "number", required: true, min: 1, step: 1 },
     { name: "hoursActive", label: "Hours Active", kind: "number", required: true, min: 0.1, max: 24, step: 0.1 },
     { name: "totalCost", label: "Total Cost", kind: "number", required: true, min: 0.01, step: 0.01 },
+    {
+      name: "workStage",
+      label: "Work Stage",
+      kind: "subcategory",
+      required: false,
+      clearable: true,
+      catalogCategoryName: "Work Stage",
+      noun: "Work Stage",
+    },
     { name: "remarks", label: "Remarks", kind: "textarea" },
   ],
   expense: [
@@ -75,6 +96,15 @@ const REGISTRY: Record<string, EntryField[]> = {
       noun: "Expense Category",
     },
     { name: "description", label: "Description", kind: "text", required: true },
+    {
+      name: "workStage",
+      label: "Work Stage",
+      kind: "subcategory",
+      required: false,
+      clearable: true,
+      catalogCategoryName: "Work Stage",
+      noun: "Work Stage",
+    },
     { name: "amount", label: "Amount", kind: "number", required: true, min: 0, step: 0.01 },
   ],
   incident: [

@@ -13,7 +13,7 @@ import type { EntryType } from "@/lib/db/queries/entries";
 import {
   type Entry,
   formatCurrency,
-  materialStages,
+  workStages,
 } from "@/components/operations/entryFormat";
 
 type Site = {
@@ -151,7 +151,7 @@ export default function CategoryDetailPageClient({
           openId={openDateField}
           setOpenId={setOpenDateField}
         />
-        {type === "material" ? (
+        {(type === "labour" || type === "material" || type === "machinery" || type === "expense") ? (
           <div className="space-y-2">
             <label
               htmlFor="filter-stage"
@@ -167,7 +167,7 @@ export default function CategoryDetailPageClient({
               aria-label="Work stage"
             >
               <option value="" className="bg-slate-900">All stages</option>
-              {materialStages.map((stage) => (
+              {workStages.map((stage) => (
                 <option key={stage} value={stage} className="bg-slate-900">{stage}</option>
               ))}
             </select>

@@ -98,6 +98,8 @@ const labourCommonCreateShape = z.object({
   siteId: uuidSchema,
   date: entryDateSchema,
   remarks: z.string().max(500).optional(),
+  // Shape only; membership checked at the route via assertInCatalogList ("Work Stage").
+  workStage: z.string().min(1).max(100).optional(),
 });
 
 const labourOrdinaryCostShape = z.object({
@@ -154,6 +156,7 @@ export const updateLabourEntrySchema = z.object({
   workTypeMode: z.enum(["default_enum", "custom"]).optional(),
   workTypeEnum: z.enum(labourDefaultTypes).optional(),
   workTypeCustomId: uuidSchema.optional(),
+  workStage: z.string().min(1).max(100).nullable().optional(),
 });
 
 const materialLegacyShape = z.object({
@@ -195,7 +198,7 @@ export const materialEntrySchema = z
     date: entryDateSchema,
     quantity: z.number().positive().max(1000000),
     // Shape only; membership checked at the route via assertInCatalogList
-    // ("Material Work Stage") against the active managed list.
+    // ("Work Stage") against the active managed list.
     workStage: z.string().min(1).max(100),
     cost: positiveDecimalSchema(100000000).optional(),
     remarks: z.string().max(500).optional(),
@@ -244,6 +247,8 @@ export const machineryEntrySchema = z
     count: z.number().int().positive().max(10000),
     totalCost: positiveDecimalSchema(100000000),
     remarks: z.string().max(500).optional(),
+    // Shape only; membership checked at the route via assertInCatalogList ("Work Stage").
+    workStage: z.string().min(1).max(100).optional(),
   })
   .and(z.union([machineryLegacyShape, machineryDefaultMode, machineryCustomMode]));
 
@@ -256,6 +261,7 @@ export const updateMachineryEntrySchema = z.object({
   equipmentTypeMode: z.enum(["default_enum", "custom"]).optional(),
   equipmentTypeCustomId: uuidSchema.optional(),
   hoursActive: z.number().positive().max(24).optional(),
+  workStage: z.string().min(1).max(100).nullable().optional(),
 });
 
 export const expenseEntrySchema = z.object({
@@ -265,6 +271,9 @@ export const expenseEntrySchema = z.object({
   amount: z.number().positive().max(1000000),
   // Shape only; membership checked at the route ("Expense Category").
   category: z.string().min(1).max(100),
+  // Shape only; membership checked at the route via assertInCatalogList ("Work Stage").
+  // Nullable so the derived update schema (.partial()) accepts null for un-tagging.
+  workStage: z.string().min(1).max(100).nullable().optional(),
 });
 
 export const updateExpenseEntrySchema = expenseEntrySchema.partial().omit({ siteId: true });

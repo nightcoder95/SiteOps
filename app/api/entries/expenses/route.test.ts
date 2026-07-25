@@ -73,4 +73,25 @@ describe("POST expense — no consolidation", () => {
     expect(res.status).toBe(201);
     expect(mockInsertExpense).toHaveBeenCalledTimes(2);
   });
+
+  it("canonicalises and stores workStage when provided", async () => {
+    mockAssertCatalog.mockImplementation(async (list: string, value: string) =>
+      list === "Work Stage" ? { ok: true, value: "Basement Level" } : { ok: true, value },
+    );
+    const res = await POST(req({ ...base, workStage: "basement level" }));
+    expect(res.status).toBe(201);
+    expect(mockAssertCatalog).toHaveBeenCalledWith("Work Stage", "basement level");
+    expect(mockInsertExpense).toHaveBeenCalledWith(
+      expect.objectContaining({ workStage: "Basement Level" }),
+    );
+  });
+
+  it("stores workStage: null and skips the workStage catalog check when omitted", async () => {
+    const res = await POST(req(base));
+    expect(res.status).toBe(201);
+    expect(mockAssertCatalog).not.toHaveBeenCalledWith("Work Stage", expect.anything());
+    expect(mockInsertExpense).toHaveBeenCalledWith(
+      expect.objectContaining({ workStage: null }),
+    );
+  });
 });
