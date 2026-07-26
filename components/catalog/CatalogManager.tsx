@@ -63,37 +63,17 @@ const LIST_ICONS: Record<string, LucideIcon> = {
   severity: TriangleAlert,
 };
 
-// Saturated circle colours cycled per row (deterministic by id).
-const TILE_COLORS = [
-  "bg-sky-500",
-  "bg-violet-500",
-  "bg-amber-500",
-  "bg-emerald-500",
-  "bg-rose-500",
-  "bg-cyan-500",
-] as const;
-
-function tileColor(id: string) {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
-  return TILE_COLORS[Math.abs(hash) % TILE_COLORS.length];
-}
-
 export function CatalogManager() {
   const { data: result, mutate, isLoading } = useApiResult<OverviewResponse>("/api/admin/catalog");
   const [activeOperation, setActiveOperation] = useState(0);
   const [showInactive, setShowInactive] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  // Rename + merge now run through dedicated modals instead of window prompts.
   const [renameTarget, setRenameTarget] = useState<{ id: string; name: string; noun: string } | null>(null);
   const [mergeState, setMergeState] = useState<{ source: CatalogItem; list: CatalogOverviewList } | null>(null);
-  // Allowed-units editor target (material subcategory rows only).
   const [unitsFor, setUnitsFor] = useState<{ id: string; name: string } | null>(null);
 
   const operations = result?.ok ? result.data.operations : [];
   const current = operations[activeOperation];
-  // Single-list operations (e.g. Labour → Work Type) hoist their Add button up
-  // onto the toggle row, matching the catalog reference layout.
   const firstList = current?.lists[0];
   const singleListNoun = current?.lists.length === 1 ? firstList?.noun : null;
 
@@ -130,16 +110,17 @@ export function CatalogManager() {
     const a = list.items[index];
     const b = list.items[index + direction];
     if (!a || !b) return;
-    // Swap sort orders. If they currently tie, nudge to make the move visible.
     const aOrder = a.sortOrder;
     const bOrder = b.sortOrder === aOrder ? aOrder + direction : b.sortOrder;
     setBusyId(a.subcategoryId);
     const ok1 = await requestJson(`/api/forms/subcategories/${a.subcategoryId}`, {
-      method: "PATCH", headers: { "content-type": "application/json" },
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({ sortOrder: bOrder }),
     });
     const ok2 = await requestJson(`/api/forms/subcategories/${b.subcategoryId}`, {
-      method: "PATCH", headers: { "content-type": "application/json" },
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({ sortOrder: aOrder }),
     });
     setBusyId(null);
@@ -171,7 +152,8 @@ export function CatalogManager() {
     return async (name: string) => {
       if (!categoryId) return null;
       const res = await requestJson<{ requiresReview: boolean }>("/api/forms/subcategories/similar", {
-        method: "POST", headers: { "content-type": "application/json" },
+        method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({ name, categoryId }),
       });
       return res.ok ? { requiresReview: res.data.requiresReview } : null;
@@ -179,10 +161,19 @@ export function CatalogManager() {
   }
 
   function makeCreate(categoryId: string | null, noun: string) {
-    return async ({ name, remark, override }: { name: string; remark: string | null; override: boolean }): Promise<CatalogCreateResult> => {
+    return async ({
+      name,
+      remark,
+      override,
+    }: {
+      name: string;
+      remark: string | null;
+      override: boolean;
+    }): Promise<CatalogCreateResult> => {
       if (!categoryId) return { status: "error" };
       const res = await requestJson<{ name: string }>("/api/forms/subcategories", {
-        method: "POST", headers: { "content-type": "application/json" },
+        method: "POST",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({ name, categoryId, overrideDuplicateWarning: override, remarks: remark ?? undefined }),
       });
       if (!res.ok) {
@@ -201,7 +192,6 @@ export function CatalogManager() {
     };
   }
 
-  // Single source of truth for a row's actions.
   function buildRowActions(list: CatalogOverviewList, item: CatalogItem, index: number, count: number): RowAction[] {
     const busy = busyId === item.subcategoryId;
     const actions: RowAction[] = [
@@ -234,10 +224,9 @@ export function CatalogManager() {
     return actions;
   }
 
-  if (isLoading) return <p className="text-sm text-slate-400">Loading catalog…</p>;
-  if (result && !result.ok) return <p className="text-sm text-red-400">Failed to load catalog.</p>;
+  if (isLoading) return <p className="text-sm text-slate-400">Loading operations catalog…</p>;
+  if (result && !result.ok) return <p className="text-sm text-rose-400">Failed to load catalog.</p>;
 
-  // Candidates for the open merge modal: same list, active, self excluded.
   const mergeCandidates: MergeCandidate[] = mergeState
     ? mergeState.list.items
         .filter((i) => i.subcategoryId !== mergeState.source.subcategoryId && i.isActive)
@@ -245,9 +234,9 @@ export function CatalogManager() {
     : [];
 
   return (
-    <div className="space-y-6">
-      {/* Operation chips */}
-      <div className="flex flex-wrap gap-2.5">
+    <div className="space-y-5">
+      {/* Operation category chips */}
+      <div className="flex flex-wrap gap-2 overflow-x-auto pb-1">
         {operations.map((op, i) => {
           const Icon = OPERATION_ICONS[op.operation] ?? Boxes;
           const active = i === activeOperation;
@@ -256,21 +245,21 @@ export function CatalogManager() {
               key={op.operation}
               type="button"
               onClick={() => setActiveOperation(i)}
-              className={`flex cursor-pointer items-center gap-2.5 rounded-2xl px-5 py-3 text-[15px] font-bold tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/50 ${
+              className={`flex cursor-pointer items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 ${
                 active
-                  ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
-                  : "border border-white/10 bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200"
+                  ? "bg-blue-600/20 text-blue-400 border border-blue-500/40 shadow-xs"
+                  : "border border-white/5 bg-slate-900/60 text-slate-400 hover:bg-white/5 hover:text-white"
               }`}
             >
-              <Icon className="h-[18px] w-[18px]" />
+              <Icon className="h-3.5 w-3.5 shrink-0" />
               {op.operation}
             </button>
           );
         })}
       </div>
 
-      {/* Toggle + primary add: on one row when the operation has a single list. */}
-      <div className="flex items-center justify-between gap-3">
+      {/* Toolbar: Toggle + primary add */}
+      <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-slate-900/60 p-3">
         <Toggle checked={showInactive} onChange={setShowInactive} label="Show inactive items" />
         {singleListNoun ? (
           <CatalogAddModal
@@ -284,7 +273,7 @@ export function CatalogManager() {
         ) : null}
       </div>
 
-      {/* Lists */}
+      {/* Item Lists */}
       {current?.lists.map((list) => {
         const items = showInactive ? list.items : list.items.filter((i) => i.isActive);
         const RowIcon = LIST_ICONS[list.key] ?? Boxes;
@@ -296,7 +285,7 @@ export function CatalogManager() {
             className="space-y-3"
           >
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-2xl font-extrabold text-white">{list.noun}</h2>
+              <h2 className="text-base font-bold text-white">{list.noun}</h2>
               {singleListNoun ? null : (
                 <CatalogAddModal
                   noun={list.noun}
@@ -310,34 +299,37 @@ export function CatalogManager() {
             </div>
 
             {items.length === 0 ? (
-              <p className="rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-8 text-center text-sm text-slate-500">
-                No items.
+              <p className="rounded-xl border border-white/5 bg-slate-900/40 px-4 py-6 text-center text-xs text-slate-500">
+                No items added.
               </p>
             ) : (
-              <ul className="space-y-3">
+              <ul className="space-y-2">
                 {items.map((item, index) => (
                   <li
                     key={item.subcategoryId}
-                    className={`flex items-center gap-4 rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-4 transition-colors ${
+                    className={`flex items-center gap-3.5 rounded-xl border border-white/10 bg-slate-900/80 p-3 shadow-xs transition-all hover:border-white/20 ${
                       item.isActive ? "" : "opacity-50"
                     }`}
                   >
-                    <span className={`grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-white ${tileColor(item.subcategoryId)}`}>
-                      <RowIcon className="h-6 w-6" />
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                      <RowIcon className="h-5 w-5" />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-base font-bold text-white">{item.name}</p>
-                      <p className="mt-1 flex items-center gap-1.5 text-[13px] text-slate-500">
+                      <h3 className="truncate text-sm font-bold text-white">{item.name}</h3>
+                      <div className="mt-1 flex items-center gap-2 text-xs">
                         <span
-                          aria-hidden
-                          className={`inline-block h-1.5 w-1.5 rounded-full ${item.isActive ? "bg-emerald-400" : "bg-slate-500"}`}
-                        />
-                        <span className={item.isActive ? "text-emerald-400" : "text-slate-500"}>
+                          className={`rounded-md px-2 py-0.5 text-[10px] font-semibold border ${
+                            item.isActive
+                              ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20"
+                              : "bg-slate-800 text-slate-400 border-slate-700"
+                          }`}
+                        >
                           {item.isActive ? "Active" : "Inactive"}
                         </span>
-                        <span aria-hidden className="text-slate-700">•</span>
-                        Usage {item.usageCount}
-                      </p>
+                        <span className="text-[11px] text-slate-400 font-medium">
+                          Usage {item.usageCount}
+                        </span>
+                      </div>
                     </div>
                     <RowActionsMenu
                       actions={buildRowActions(list, item, index, items.length)}
@@ -352,21 +344,13 @@ export function CatalogManager() {
       })}
 
       {/* Info footer */}
-      <div className="card-standard flex items-center gap-4 p-5">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/5 text-slate-400 ring-1 ring-white/10">
-          <Info className="h-5 w-5" />
+      <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-slate-950/50 p-4">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20">
+          <Info className="h-4 w-4" />
         </span>
-        <p className="flex-1 text-[13px] leading-relaxed text-slate-400">
-          Changes are reflected across all dropdowns.
-          <br className="hidden sm:block" /> Deactivated items remain in history.
+        <p className="flex-1 text-xs leading-relaxed text-slate-400">
+          Changes are reflected across all dropdowns. Deactivated items remain in history.
         </p>
-        <a
-          href="/app/admin/catalog"
-          className="inline-flex shrink-0 items-center gap-1 text-[13px] font-bold text-sky-400 transition-colors hover:text-sky-300"
-        >
-          Learn more
-          <ChevronRight className="h-4 w-4" strokeWidth={2.5} />
-        </a>
       </div>
 
       <RenameModal

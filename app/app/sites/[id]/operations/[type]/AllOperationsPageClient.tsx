@@ -12,7 +12,7 @@ import { requestJson } from "@/lib/http/client";
 import { confirmDialog } from "@/lib/ui/confirm";
 import { formatDate } from "@/lib/utils/formatDate";
 import { DateFilterField } from "@/components/operations/DateFilterField";
-import { getTypeColor, getTypeSolidColor } from "@/components/operations/typeStyles";
+import { getTypeColor, getTypeActiveGlowColor, getTypeDotColor } from "@/components/operations/typeStyles";
 import {
   formatCurrency,
   renderEntrySummary,
@@ -110,6 +110,16 @@ export default function AllOperationsPageClient({
     () => deriveOperationsView(rows, enabledTypes, filters.sort),
     [rows, enabledTypes, filters.sort],
   );
+
+  const allSelected = enabledTypes.size === SPEND_TYPES.length;
+
+  function toggleAllTypes() {
+    if (allSelected) {
+      setEnabledTypes(new Set([SPEND_TYPES[0]]));
+    } else {
+      setEnabledTypes(new Set(SPEND_TYPES));
+    }
+  }
 
   function toggleType(type: SpendType) {
     setEnabledTypes((current) => {
@@ -243,6 +253,30 @@ export default function AllOperationsPageClient({
           </select>
         </div>
 
+        <div className="flex items-center justify-between gap-2 md:col-span-3">
+          <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
+            Operation Types
+          </span>
+          <div className="flex items-center gap-2">
+            <span
+              className={`rounded-md px-2.5 py-0.5 text-[10px] font-semibold transition-all ${
+                allSelected
+                  ? "bg-blue-500/15 text-blue-400 border border-blue-500/30"
+                  : "bg-slate-800 text-slate-400 border border-slate-700"
+              }`}
+            >
+              {allSelected ? "All Selected" : `${enabledTypes.size} of ${SPEND_TYPES.length} Selected`}
+            </span>
+            <button
+              type="button"
+              onClick={toggleAllTypes}
+              className="text-[10px] font-bold text-sky-400 hover:text-sky-300 underline cursor-pointer"
+            >
+              {allSelected ? "Deselect All" : "Select All"}
+            </button>
+          </div>
+        </div>
+
         <div
           className="flex flex-wrap items-center gap-2 md:col-span-3"
           role="group"
@@ -256,19 +290,21 @@ export default function AllOperationsPageClient({
                 type="button"
                 onClick={() => toggleType(type)}
                 aria-pressed={active}
-                className={`inline-flex h-11 items-center gap-2 rounded-xl border px-3.5 text-[11px] font-bold uppercase tracking-widest transition-colors ${
+                className={`inline-flex h-11 items-center justify-between gap-2.5 rounded-xl px-3.5 text-[11px] font-bold uppercase tracking-widest transition-all cursor-pointer ${
                   active
-                    ? `${getTypeSolidColor(type)} shadow-sm`
-                    : "border-white/10 bg-white/[0.03] text-slate-500 hover:border-white/20 hover:text-slate-300"
+                    ? getTypeActiveGlowColor(type)
+                    : "border border-white/10 bg-slate-900/60 text-slate-400 hover:border-white/20 hover:text-white"
                 }`}
               >
-                {active ? (
-                  <CheckCircle2 className="w-4 h-4 shrink-0" strokeWidth={2.5} />
-                ) : (
-                  <Circle className="w-4 h-4 shrink-0 text-slate-600" strokeWidth={2} />
-                )}
-                <EntryTypeIcon type={type} className="w-4 h-4 shrink-0" />
-                {typeLabel[type]}
+                <div className="flex items-center gap-2">
+                  <EntryTypeIcon type={type} className="w-4 h-4 shrink-0" />
+                  <span>{typeLabel[type]}</span>
+                </div>
+                <span
+                  className={`h-2.5 w-2.5 shrink-0 rounded-full transition-all ${
+                    active ? getTypeDotColor(type) : "bg-slate-700"
+                  }`}
+                />
               </button>
             );
           })}

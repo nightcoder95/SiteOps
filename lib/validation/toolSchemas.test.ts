@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { batchSaveSchema, createCategorySchema, createToolSchema } from "./toolSchemas";
+import { batchSaveSchema, createCategorySchema, createToolSchema, toolMovementSchema } from "./toolSchemas";
 
 const uuid = () => crypto.randomUUID();
 
@@ -54,3 +54,65 @@ describe("createCategorySchema", () => {
     expect(createCategorySchema.safeParse({ name: "X", codePrefix: "H-D" }).success).toBe(false);
   });
 });
+
+describe("toolMovementSchema", () => {
+  it("validates send_to_site action", () => {
+    const valid = toolMovementSchema.safeParse({
+      kind: "send_to_site",
+      targetSiteId: uuid(),
+      quantity: 5,
+      note: "Sent with Sasi",
+    });
+    expect(valid.success).toBe(true);
+  });
+
+  it("validates return_to_godown action", () => {
+    const valid = toolMovementSchema.safeParse({
+      kind: "return_to_godown",
+      fromSiteId: uuid(),
+      quantity: 2,
+    });
+    expect(valid.success).toBe(true);
+  });
+
+  it("validates transfer_site action", () => {
+    const valid = toolMovementSchema.safeParse({
+      kind: "transfer_site",
+      fromSiteId: uuid(),
+      targetSiteId: uuid(),
+      quantity: 3,
+    });
+    expect(valid.success).toBe(true);
+  });
+
+  it("validates add_stock and remove_stock actions", () => {
+    expect(toolMovementSchema.safeParse({ kind: "add_stock", quantity: 10 }).success).toBe(true);
+    expect(toolMovementSchema.safeParse({ kind: "remove_stock", quantity: 1 }).success).toBe(true);
+  });
+
+  it("rejects non-positive quantity", () => {
+    const invalid = toolMovementSchema.safeParse({
+      kind: "send_to_site",
+      targetSiteId: uuid(),
+      quantity: 0,
+    });
+    expect(invalid.success).toBe(false);
+  });
+
+  it("requires targetSiteId for send_to_site", () => {
+    const invalid = toolMovementSchema.safeParse({
+      kind: "send_to_site",
+      quantity: 2,
+    });
+    expect(invalid.success).toBe(false);
+  });
+
+  it("rejects unknown kind", () => {
+    const invalid = toolMovementSchema.safeParse({
+      kind: "invalid_kind",
+      quantity: 1,
+    });
+    expect(invalid.success).toBe(false);
+  });
+});
+

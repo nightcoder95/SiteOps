@@ -1,16 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { getTypeSolidColor } from "./typeStyles";
+import { getTypeActiveGlowColor, getTypeDotColor } from "./typeStyles";
 
-describe("getTypeSolidColor", () => {
-  it("returns a solid, high-contrast fill for each spend type", () => {
-    expect(getTypeSolidColor("labour")).toContain("bg-sky-500");
-    expect(getTypeSolidColor("material")).toContain("bg-emerald-500");
-    expect(getTypeSolidColor("machinery")).toContain("bg-slate-400");
-    expect(getTypeSolidColor("expense")).toContain("bg-amber-500");
+describe("typeStyles Option 1 Glowing Glass", () => {
+  it("returns glowing glass active styling for each spend type", () => {
+    expect(getTypeActiveGlowColor("labour")).toContain("bg-sky-500/15");
+    expect(getTypeActiveGlowColor("material")).toContain("bg-emerald-500/15");
+    expect(getTypeActiveGlowColor("machinery")).toContain("bg-violet-500/15");
+    expect(getTypeActiveGlowColor("expense")).toContain("bg-amber-500/15");
   });
 
-  it("pairs the solid fill with a dark foreground for contrast", () => {
-    expect(getTypeSolidColor("labour")).toContain("text-slate-950");
+  it("returns glowing status dot colors for each spend type", () => {
+    expect(getTypeDotColor("labour")).toContain("bg-sky-400");
+    expect(getTypeDotColor("material")).toContain("bg-emerald-400");
+    expect(getTypeDotColor("machinery")).toContain("bg-violet-400");
+    expect(getTypeDotColor("expense")).toContain("bg-amber-400");
   });
 });

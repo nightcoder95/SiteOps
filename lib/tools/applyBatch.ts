@@ -26,6 +26,7 @@ export type ToolPayload = {
   version: number;
   totalQuantity?: number; // omitted → total unchanged (§6)
   assignments?: AssignmentInput[]; // omitted → distribution untouched (§6)
+  note?: string;
 };
 
 export type ApplyResult =
@@ -180,6 +181,7 @@ export async function applyOneTool(payload: ToolPayload, actorUserId: string): P
         toLocation: m.kind === "assign" ? m.siteId : WAREHOUSE,
         quantity: m.qty,
         kind: m.kind,
+        note: payload.note ?? null,
         actorUserId,
       });
     }
@@ -193,6 +195,7 @@ export async function applyOneTool(payload: ToolPayload, actorUserId: string): P
         toLocation: delta > 0 ? WAREHOUSE : EXTERNAL,
         quantity: Math.abs(delta),
         kind: delta > 0 ? "procure" : "retire",
+        note: payload.note ?? null,
         actorUserId,
       });
     }

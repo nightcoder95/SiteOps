@@ -9,23 +9,17 @@ import { RowActionsMenu, type RowAction } from "@/components/catalog/RowActionsM
 import { ToolAddModal } from "@/components/tools/ToolAddModal";
 import { ToolCategoryManager } from "@/components/tools/ToolCategoryManager";
 import { useToolCategories, useToolMutations, useTools, type ToolDTO } from "@/lib/client/tools";
+import { confirmDialog } from "@/lib/ui/confirm";
 import { notifyError } from "@/lib/ui/toast";
 
 const SUBTABS = ["Tools", "Categories"] as const;
-
-const TILE_COLORS = ["bg-sky-500", "bg-violet-500", "bg-amber-500", "bg-emerald-500", "bg-rose-500", "bg-cyan-500"] as const;
-function tileColor(id: string) {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
-  return TILE_COLORS[Math.abs(hash) % TILE_COLORS.length];
-}
 
 export function ToolCatalogManager() {
   const [sub, setSub] = useState<(typeof SUBTABS)[number]>("Tools");
 
   return (
-    <div className="space-y-5">
-      <div className="flex gap-2">
+    <div className="space-y-4">
+      <div className="flex gap-1.5 rounded-lg border border-white/10 bg-slate-950/50 p-1 w-fit">
         {SUBTABS.map((t) => {
           const active = t === sub;
           return (
@@ -33,10 +27,10 @@ export function ToolCatalogManager() {
               key={t}
               type="button"
               onClick={() => setSub(t)}
-              className={`cursor-pointer rounded-full px-5 py-2.5 text-[13px] font-bold uppercase tracking-widest transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/50 ${
+              className={`cursor-pointer rounded-md px-3 py-1.5 text-xs font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 ${
                 active
-                  ? "bg-sky-500 text-slate-950"
-                  : "border border-white/10 bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200"
+                  ? "bg-blue-600/20 text-blue-400 border border-blue-500/40 shadow-xs"
+                  : "text-slate-400 hover:bg-white/5 hover:text-white border border-transparent"
               }`}
             >
               {t}
@@ -62,13 +56,13 @@ function ToolsTable() {
 
   const tools = result?.ok ? result.data.tools : [];
   const categories = (catResult?.ok ? catResult.data.categories : []).filter((c) => c.isActive);
-  const catName = (id: string) => categories.find((c) => c.categoryId === id)?.name ?? "—";
+  const catName = (id: string) => categories.find((c) => c.categoryId === id)?.name ?? "Uncategorized";
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return tools.filter((t) => {
       if (categoryFilter && t.categoryId !== categoryFilter) return false;
-      if (q && !t.name.toLowerCase().includes(q) && !t.code.toLowerCase().includes(q)) return false;
+      if (q && !t.name.toLowerCase().includes(q)) return false;
       return true;
     });
   }, [tools, query, categoryFilter]);
@@ -88,12 +82,26 @@ function ToolsTable() {
   }
 
   async function remove(tool: ToolDTO) {
-    if (!window.confirm(`Delete "${tool.name}"? This soft-deletes the tool.`)) return;
+    const confirmed = await confirmDialog({
+      title: "Delete Tool",
+      message: `Are you sure you want to delete "${tool.name}"? This soft-deletes the tool from your active inventory.`,
+      confirmLabel: "Delete Tool",
+      cancelLabel: "Cancel",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+
     setBusyId(tool.toolId);
     let res = await deleteTool(tool.toolId, false);
-    // 409 = units deployed; offer force-return path (case 7).
     if (!res.ok && res.kind === "api_error" && res.status === 409) {
-      if (window.confirm(`"${tool.name}" has units deployed to sites. Return them all and delete anyway?`)) {
+      const forceConfirmed = await confirmDialog({
+        title: "Tool Units Deployed",
+        message: `"${tool.name}" currently has units deployed to active sites. Return all deployed units and force-delete anyway?`,
+        confirmLabel: "Force Delete",
+        cancelLabel: "Cancel",
+        tone: "danger",
+      });
+      if (forceConfirmed) {
         res = await deleteTool(tool.toolId, true);
       } else {
         setBusyId(null);
@@ -115,77 +123,91 @@ function ToolsTable() {
   }
 
   if (isLoading) return <p className="text-sm text-slate-400">Loading tools…</p>;
-  if (result && !result.ok) return <p className="text-sm text-red-400">Failed to load tools.</p>;
+  if (result && !result.ok) return <p className="text-sm text-rose-400">Failed to load tools.</p>;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Toolbar: search / filter / add as one grouped bar. */}
-      <div className="card-standard flex flex-wrap items-center gap-2 p-2">
-        <div className="relative min-w-[10rem] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 rounded-xl border border-white/10 bg-slate-900/60 p-2.5">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search tools…"
-            className="h-10 w-full rounded-xl border border-white/10 bg-white/5 pl-9 pr-3 text-sm text-white outline-none placeholder-slate-600 focus:ring-2 focus:ring-sky-500/50"
+            placeholder="Search tools by name..."
+            className="h-8.5 w-full rounded-lg border border-white/10 bg-slate-900 pl-9 pr-3 text-xs text-white outline-none placeholder-slate-500 focus:border-blue-500"
           />
         </div>
-        <select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          className="h-10 min-w-[8rem] flex-1 cursor-pointer rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white outline-none focus:ring-2 focus:ring-sky-500/50 sm:flex-none"
-        >
-          <option value="">All categories</option>
-          {categories.map((c) => (
-            <option key={c.categoryId} value={c.categoryId}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          onClick={() => setAddOpen(true)}
-          className="inline-flex h-10 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl bg-sky-500 px-4 text-sm font-bold text-slate-950 transition-colors hover:bg-sky-400"
-        >
-          <Plus className="h-4 w-4" />
-          Add tool
-        </button>
+        <div className="flex items-center gap-2">
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="h-8.5 flex-1 sm:flex-none cursor-pointer rounded-lg border border-white/10 bg-slate-900 px-3 text-xs text-white outline-none focus:border-blue-500"
+          >
+            <option value="">All categories</option>
+            {categories.map((c) => (
+              <option key={c.categoryId} value={c.categoryId}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            className="inline-flex h-8.5 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 text-xs font-bold text-white transition-colors hover:bg-blue-500"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add Tool
+          </button>
+        </div>
       </div>
 
       {filtered.length === 0 ? (
         tools.length === 0 ? (
           <EmptyState onAdd={() => setAddOpen(true)} />
         ) : (
-          <p className="rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-10 text-center text-sm text-slate-500">
+          <p className="rounded-xl border border-white/5 bg-slate-900/40 px-4 py-8 text-center text-xs text-slate-500">
             No tools match your search.
           </p>
         )
       ) : (
-        <ul className="space-y-3">
+        <ul className="space-y-2">
           {filtered.map((tool) => (
             <li
               key={tool.toolId}
-              className="flex items-center gap-4 rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-4"
+              className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-slate-900/80 p-3 shadow-xs transition-all hover:border-white/20"
             >
-              <span className={`grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-white ${tileColor(tool.toolId)}`}>
-                <Wrench className="h-6 w-6" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="truncate text-base font-bold text-white">{tool.name}</p>
-                  <span className="shrink-0 rounded-md bg-white/5 px-1.5 py-0.5 font-mono text-[11px] text-slate-400">
-                    {tool.code}
-                  </span>
+              {/* Left Content */}
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                  <Wrench className="h-5 w-5" />
+                </span>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="truncate text-sm font-bold text-white">{tool.name}</h3>
+                    <span className="shrink-0 rounded-md bg-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-400">
+                      {catName(tool.categoryId)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs flex-wrap">
+                    <span className="whitespace-nowrap rounded-md bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 border border-emerald-500/20">
+                      In Godown: {tool.free}
+                    </span>
+                    <span className="whitespace-nowrap rounded-md bg-blue-500/15 px-2 py-0.5 text-[10px] font-semibold text-blue-400 border border-blue-500/20">
+                      At Sites: {tool.totalQuantity - tool.free}
+                    </span>
+                    <span className="whitespace-nowrap text-[10px] font-medium text-slate-400">
+                      (Total {tool.totalQuantity})
+                    </span>
+                  </div>
                 </div>
-                <p className="mt-1 flex items-center gap-3 text-[13px] text-slate-500">
-                  <span>{catName(tool.categoryId)}</span>
-                  <span aria-hidden className="text-slate-700">•</span>
-                  <span className="tabular-nums">Total {tool.totalQuantity}</span>
-                  <StockPill free={tool.free} total={tool.totalQuantity} />
-                </p>
               </div>
-              <RowActionsMenu actions={rowActions(tool)} label={`Actions for ${tool.name}`} />
+
+              {/* Right Action Menu */}
+              <div className="shrink-0">
+                <RowActionsMenu actions={rowActions(tool)} label={`Actions for ${tool.name}`} />
+              </div>
             </li>
           ))}
         </ul>
@@ -204,37 +226,23 @@ function ToolsTable() {
   );
 }
 
-// Free/total as a small bar + count, so stock reads at a glance.
-function StockPill({ free, total }: { free: number; total: number }) {
-  const pct = total > 0 ? Math.round((free / total) * 100) : 0;
-  const tone = free === 0 ? "bg-amber-400/70" : "bg-emerald-400/70";
-  return (
-    <span className="inline-flex items-center gap-2">
-      <span className="h-1.5 w-12 overflow-hidden rounded-full bg-white/5">
-        <span className={`block h-full rounded-full ${tone}`} style={{ width: `${pct}%` }} />
-      </span>
-      <span className="tabular-nums text-slate-500">{free} free</span>
-    </span>
-  );
-}
-
 function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
-    <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-6 py-14 text-center">
-      <div className="grid h-12 w-12 place-items-center rounded-full bg-white/5">
-        <Wrench className="h-6 w-6 text-slate-400" />
+    <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-white/10 bg-slate-900/40 px-6 py-12 text-center">
+      <div className="grid h-10 w-10 place-items-center rounded-full bg-white/5">
+        <Wrench className="h-5 w-5 text-slate-400" />
       </div>
       <div>
-        <p className="font-bold text-white">No tools yet</p>
-        <p className="mt-1 text-sm text-slate-400">Add your first company tool to start tracking stock.</p>
+        <p className="font-bold text-sm text-white">No tools added yet</p>
+        <p className="mt-0.5 text-xs text-slate-400">Add your first company tool to start tracking stock.</p>
       </div>
       <button
         type="button"
         onClick={onAdd}
-        className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-xl bg-sky-500 px-4 text-sm font-bold text-slate-950 transition-colors hover:bg-sky-400"
+        className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-lg bg-blue-600 px-3 text-xs font-bold text-white transition-colors hover:bg-blue-500"
       >
-        <Plus className="h-4 w-4" />
-        Add tool
+        <Plus className="h-3.5 w-3.5" />
+        Add Tool
       </button>
     </div>
   );
