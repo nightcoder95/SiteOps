@@ -19,7 +19,7 @@ export function AdminTabNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="mb-6 flex gap-1 overflow-x-auto scrollbar-none rounded-2xl bg-slate-950/40 backdrop-blur-xl border border-white/[0.06] p-1.5 shadow-2xl shadow-black/50">
+    <nav className="mb-4 flex gap-1 overflow-x-auto scrollbar-none rounded-xl bg-slate-900/80 p-1 border border-white/10 shadow-xs">
       {tabs.map((tab) => {
         const active = pathname.startsWith(tab.href);
         return (
@@ -27,29 +27,27 @@ export function AdminTabNav() {
             key={tab.href}
             href={tab.href}
             className={[
-              'relative flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-3.5 text-[15px] font-bold tracking-tight transition-all duration-300 select-none cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-blue-500/50',
-              active
-                ? ''
-                : 'hover:bg-white/[0.04] active:bg-white/[0.08]',
+              'relative flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold transition-all duration-200 select-none cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-blue-500/50',
+              active ? '' : 'hover:bg-white/5 active:bg-white/10',
             ].join(' ')}
           >
             {active && (
               <motion.div
                 layoutId="active-admin-tab"
-                className="absolute inset-0 rounded-xl bg-blue-500/15 border border-blue-500/40 shadow-[0_0_16px_rgba(37,99,235,0.25)]"
+                className="absolute inset-0 rounded-lg bg-blue-600/20 border border-blue-500/40 shadow-xs"
                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
               />
             )}
             <span
               className={[
-                'relative z-10 flex items-center gap-2 transition-colors duration-300',
-                active ? 'text-white font-bold' : 'text-slate-400 hover:text-slate-200',
+                'relative z-10 flex items-center gap-1.5 transition-colors duration-200',
+                active ? 'text-blue-400 font-bold' : 'text-slate-400 hover:text-slate-200',
               ].join(' ')}
             >
               <tab.icon
                 className={[
-                  'h-[18px] w-[18px] transition-transform duration-300',
-                  active ? 'scale-110 drop-shadow-[0_0_6px_rgba(59,130,246,0.6)]' : '',
+                  'h-3.5 w-3.5 shrink-0 transition-transform duration-200',
+                  active ? 'scale-105' : '',
                 ].join(' ')}
               />
               {tab.label}
@@ -60,4 +58,3 @@ export function AdminTabNav() {
     </nav>
   );
 }
-

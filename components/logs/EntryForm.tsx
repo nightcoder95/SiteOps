@@ -3,6 +3,7 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { confirmDialog } from "@/lib/ui/confirm";
 import { notifyError, notifyGenericError } from "@/lib/ui/toast";
 
 import { requestJson } from "@/lib/http/client";
@@ -259,7 +260,12 @@ export function EntryForm({
 
   async function handleDelete() {
     if (!entryId || kind === "dynamic") return;
-    const confirmed = window.confirm("Delete this log entry?");
+    const confirmed = await confirmDialog({
+      title: "Delete Log Entry",
+      message: "Are you sure you want to delete this log entry? This action cannot be undone.",
+      confirmLabel: "Delete Entry",
+      tone: "danger",
+    });
     if (!confirmed) return;
     setDeleting(true);
     const res = await requestJson<null>(`/api/entries/${entryId}?type=${kind}`, {

@@ -84,3 +84,15 @@ export const movementsQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 });
 export type MovementsQuery = z.infer<typeof movementsQuerySchema>;
+
+const noteField = z.string().trim().max(500).optional();
+
+export const toolMovementSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("send_to_site"), targetSiteId: z.string().uuid(), quantity: z.number().int().min(1).max(1_000_000), note: noteField }).strict(),
+  z.object({ kind: z.literal("return_to_godown"), fromSiteId: z.string().uuid(), quantity: z.number().int().min(1).max(1_000_000), note: noteField }).strict(),
+  z.object({ kind: z.literal("transfer_site"), fromSiteId: z.string().uuid(), targetSiteId: z.string().uuid(), quantity: z.number().int().min(1).max(1_000_000), note: noteField }).strict(),
+  z.object({ kind: z.literal("add_stock"), quantity: z.number().int().min(1).max(1_000_000), note: noteField }).strict(),
+  z.object({ kind: z.literal("remove_stock"), quantity: z.number().int().min(1).max(1_000_000), note: noteField }).strict(),
+]);
+export type ToolMovementBody = z.infer<typeof toolMovementSchema>;
+

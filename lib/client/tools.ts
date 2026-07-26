@@ -6,6 +6,7 @@ import { useSWRConfig } from "swr";
 import { requestJson, type ClientResult } from "@/lib/http/client";
 import { useApiResult } from "@/lib/http/useApiQuery";
 import type { AssignmentInput, InvalidReason, ToolResultStatus } from "@/lib/tools/types";
+import type { ToolMovementBody } from "@/lib/validation/toolSchemas";
 
 // ── Client-facing DTOs (mirror the API envelopes; no server deps) ────────────
 export type ToolDTO = {
@@ -183,5 +184,18 @@ export function useToolMutations() {
     [revalidateTools],
   );
 
-  return { saveBatch, createTool, patchTool, deleteTool, createCategory, updateCategory, clearMovements };
+  const moveTool = useCallback(
+    async (toolId: string, body: ToolMovementBody) => {
+      const res = await requestJson<{ status: string; tool: ToolDTO }>(`/api/tools/${toolId}/move`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) revalidateTools();
+      return res;
+    },
+    [revalidateTools],
+  );
+
+  return { saveBatch, createTool, patchTool, deleteTool, createCategory, updateCategory, clearMovements, moveTool };
 }

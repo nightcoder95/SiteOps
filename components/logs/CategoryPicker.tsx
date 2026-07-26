@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { confirmDialog } from "@/lib/ui/confirm";
 import { notifyError } from "@/lib/ui/toast";
 import { motion } from "motion/react";
 import { ChevronRight, Plus, Trash2, Loader2, AlertCircle } from "lucide-react";
@@ -135,7 +136,12 @@ export function CategoryPicker({ initialCategories = [], onSelect, role, siteId 
 
   async function handleDelete(category: CategoryOption) {
     if (role !== "Admin") return;
-    const confirmed = window.confirm(`Delete category "${category.name}"?`);
+    const confirmed = await confirmDialog({
+      title: "Delete Category",
+      message: `Are you sure you want to delete category "${category.name}"?`,
+      confirmLabel: "Delete Category",
+      tone: "danger",
+    });
     if (!confirmed) return;
 
     const prevCatalog = catalog;

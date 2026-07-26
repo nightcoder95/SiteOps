@@ -56,6 +56,26 @@ export function GlobalSearchOverlay({ open, onClose }: Props) {
     return undefined;
   }, [open]);
 
+  // Intercept browser back button / popstate events to close search overlay.
+  useEffect(() => {
+    if (!open) return undefined;
+
+    window.history.pushState({ searchOverlay: true }, "");
+
+    function handlePopState(e: PopStateEvent) {
+      onClose();
+    }
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      if (window.history.state?.searchOverlay) {
+        window.history.back();
+      }
+    };
+  }, [open, onClose]);
+
   const handleSelect = (hit: SearchHit) => {
     onClose();
     router.push(hitHref(hit));
@@ -153,15 +173,15 @@ export function GlobalSearchOverlay({ open, onClose }: Props) {
             <button
               type="button"
               onClick={onClose}
-              className="p-2 rounded-xl hover:bg-white/5"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white shadow-xs transition-all hover:bg-white/20 hover:border-white/30 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
               aria-label="Close search"
             >
-              <X className="w-5 h-5 text-slate-400" />
+              <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* Body */}
-          <div className="flex-1 overflow-y-auto overscroll-contain">
+          <div className="flex-1 overflow-y-auto overscroll-contain pb-28">
             {mode === 'suggest' ? (
               <SuggestBody
                 query={query}
@@ -334,7 +354,7 @@ function ResultsBody(props: {
           No results in this category.
         </p>
       ) : (
-        <ul className="py-1">
+        <ul className="py-1 pb-10">
           {results.map((hit) => (
             <li key={`${hit.source}:${hit.entryId}`}>
               <SearchHitRow hit={hit} query={query} onSelect={onSelect} />

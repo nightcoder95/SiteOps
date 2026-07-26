@@ -20,9 +20,6 @@ const paramToTab: Record<string, Tab> = { operations: "Operations", units: "Unit
 export function CatalogAdminTabs() {
   const [tab, setTab] = useState<Tab>("Operations");
 
-  // Read the initial tab from ?tab= on mount (client-only, so no Suspense
-  // boundary is required). Lets the "Tool missing? Add in catalog →" CTA
-  // deep-link to ?tab=tools while preserving local-state tab UX thereafter.
   useEffect(() => {
     const param = new URLSearchParams(window.location.search).get("tab");
     if (param && paramToTab[param.toLowerCase()]) setTab(paramToTab[param.toLowerCase()]);
@@ -37,29 +34,27 @@ export function CatalogAdminTabs() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <div className="flex gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-1.5">
-          {TABS.map(({ label, icon: Icon }) => {
-            const active = label === tab;
-            return (
-              <button
-                key={label}
-                type="button"
-                onClick={() => selectTab(label)}
-                className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-[15px] font-bold tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/50 ${
-                  active
-                    ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
-                    : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
-                }`}
-              >
-                <Icon className="h-[18px] w-[18px]" />
-                {label}
-              </button>
-            );
-          })}
-        </div>
-        <div className="mt-6 h-px bg-white/5" />
+      <div className="flex rounded-xl border border-white/10 bg-slate-900/80 p-1 shadow-xs">
+        {TABS.map(({ label, icon: Icon }) => {
+          const active = label === tab;
+          return (
+            <button
+              key={label}
+              type="button"
+              onClick={() => selectTab(label)}
+              className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-xs font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 ${
+                active
+                  ? "bg-blue-600 text-white shadow-xs"
+                  : "text-slate-400 hover:bg-white/5 hover:text-white"
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </button>
+          );
+        })}
       </div>
+
       {tab === "Operations" ? <CatalogManager /> : tab === "Units" ? <UnitsManager /> : <ToolCatalogManager />}
     </div>
   );

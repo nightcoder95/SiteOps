@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { confirmDialog } from "@/lib/ui/confirm";
 import { notifyError } from "@/lib/ui/toast";
 
 import { CatalogAddModal, type CatalogCreateResult } from "@/components/catalog/CatalogAddModal";
@@ -151,7 +152,12 @@ export function SubcategoryCombobox({
 
   async function handleDelete(option: SubcategoryOption) {
     if (role !== "Admin") return;
-    const confirmed = window.confirm(`Delete ${itemNounLower} "${option.name}"?`);
+    const confirmed = await confirmDialog({
+      title: `Delete ${itemNoun}`,
+      message: `Are you sure you want to delete ${itemNounLower} "${option.name}"?`,
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
     if (!confirmed) return;
 
     const prevCatalog = catalog;

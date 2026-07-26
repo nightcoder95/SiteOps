@@ -16,13 +16,6 @@ import { notifyError } from "@/lib/ui/toast";
 
 type UnitsResponse = { groups: UnitGroup[] };
 
-const TILE_COLORS = ["bg-sky-500", "bg-violet-500", "bg-amber-500", "bg-emerald-500", "bg-rose-500", "bg-cyan-500"] as const;
-function tileColor(id: string) {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
-  return TILE_COLORS[Math.abs(hash) % TILE_COLORS.length];
-}
-
 export function UnitsManager() {
   const { data: result, mutate, isLoading } = useApiResult<UnitsResponse>("/api/catalog/units");
   const [showInactive, setShowInactive] = useState(false);
@@ -69,10 +62,14 @@ export function UnitsManager() {
     const bOrder = b.sortOrder === aOrder ? aOrder + direction : b.sortOrder;
     setBusyId(a.unitId);
     const ok1 = await requestJson(`/api/catalog/units/${a.unitId}`, {
-      method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ sortOrder: bOrder }),
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sortOrder: bOrder }),
     });
     const ok2 = await requestJson(`/api/catalog/units/${b.unitId}`, {
-      method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ sortOrder: aOrder }),
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sortOrder: aOrder }),
     });
     setBusyId(null);
     if (!ok1.ok) return notifyError(ok1);
@@ -82,7 +79,9 @@ export function UnitsManager() {
 
   async function checkSimilarity(name: string) {
     const res = await requestJson<{ requiresReview: boolean }>("/api/catalog/units/similar", {
-      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }),
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name }),
     });
     return res.ok ? { requiresReview: res.data.requiresReview } : null;
   }
@@ -92,7 +91,9 @@ export function UnitsManager() {
       const trimmed = category.trim();
       if (!trimmed) return { status: "error" };
       const res = await requestJson<{ label: string }>("/api/catalog/units", {
-        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ label: name, category: trimmed }),
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ label: name, category: trimmed }),
       });
       if (!res.ok) {
         notifyError(res);
@@ -122,12 +123,12 @@ export function UnitsManager() {
   }
 
   if (isLoading) return <p className="text-sm text-slate-400">Loading units…</p>;
-  if (result && !result.ok) return <p className="text-sm text-red-400">Failed to load units.</p>;
+  if (result && !result.ok) return <p className="text-sm text-rose-400">Failed to load units.</p>;
 
   return (
-    <div className="space-y-6">
-      {/* Toolbar: show-inactive toggle + new quantity-type category */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-5">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-slate-900/60 p-3">
         <Toggle checked={showInactive} onChange={setShowInactive} label="Show inactive items" />
         <div className="flex items-center gap-2">
           <input
@@ -135,7 +136,7 @@ export function UnitsManager() {
             value={newCategory}
             onChange={(e) => setNewCategory(e.target.value)}
             placeholder="Quantity type (e.g. Weight)"
-            className="h-10 w-48 rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white outline-none placeholder-slate-600 focus:ring-2 focus:ring-sky-500/50"
+            className="h-9 w-48 rounded-lg border border-white/10 bg-slate-900 px-3 text-xs text-white outline-none placeholder-slate-500 focus:border-blue-500"
           />
           <CatalogAddModal
             noun="Unit"
@@ -147,8 +148,8 @@ export function UnitsManager() {
       </div>
 
       {groups.length === 0 ? (
-        <p className="rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-8 text-center text-sm text-slate-500">
-          No units yet.
+        <p className="rounded-xl border border-white/5 bg-slate-900/40 px-4 py-6 text-center text-xs text-slate-500">
+          No units added.
         </p>
       ) : (
         groups.map((group) => {
@@ -159,29 +160,39 @@ export function UnitsManager() {
               key={group.category}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="card-standard p-5 sm:p-6"
+              className="space-y-3"
             >
-              <div className="mb-5 flex items-center justify-between gap-3">
-                <h2 className="text-2xl font-extrabold text-white">{group.category}</h2>
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-base font-bold text-white">{group.category}</h2>
                 <CatalogAddModal noun="Unit" onCheckSimilarity={checkSimilarity} onCreate={makeCreate(group.category)} />
               </div>
-              <ul className="space-y-3">
+              <ul className="space-y-2">
                 {units.map((unit, index) => (
                   <li
                     key={unit.unitId}
-                    className={`flex items-center gap-4 rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-4 ${unit.isActive ? "" : "opacity-50"}`}
+                    className={`flex items-center gap-3.5 rounded-xl border border-white/10 bg-slate-900/80 p-3 shadow-xs transition-all hover:border-white/20 ${
+                      unit.isActive ? "" : "opacity-50"
+                    }`}
                   >
-                    <span className={`grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-white ${tileColor(unit.unitId)}`}>
-                      <Ruler className="h-6 w-6" />
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                      <Ruler className="h-5 w-5" />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-base font-bold text-white">{unit.label}</p>
-                      <p className="mt-1 flex items-center gap-1.5 text-[13px] text-slate-500">
-                        <span aria-hidden className={`inline-block h-1.5 w-1.5 rounded-full ${unit.isActive ? "bg-emerald-400" : "bg-slate-500"}`} />
-                        <span className={unit.isActive ? "text-emerald-400" : "text-slate-500"}>{unit.isActive ? "Active" : "Inactive"}</span>
-                        <span aria-hidden className="text-slate-700">•</span>
-                        Usage {unit.usageCount}
-                      </p>
+                      <h3 className="truncate text-sm font-bold text-white">{unit.label}</h3>
+                      <div className="mt-1 flex items-center gap-2 text-xs">
+                        <span
+                          className={`rounded-md px-2 py-0.5 text-[10px] font-semibold border ${
+                            unit.isActive
+                              ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/20"
+                              : "bg-slate-800 text-slate-400 border-slate-700"
+                          }`}
+                        >
+                          {unit.isActive ? "Active" : "Inactive"}
+                        </span>
+                        <span className="text-[11px] text-slate-400 font-medium">
+                          Usage {unit.usageCount}
+                        </span>
+                      </div>
                     </div>
                     <RowActionsMenu actions={buildRowActions(units, unit, index)} label={`Actions for ${unit.label}`} />
                   </li>

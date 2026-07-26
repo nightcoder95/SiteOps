@@ -108,9 +108,9 @@ export function ToolLedgerDrawer({
                 type="button"
                 aria-label="Close history"
                 onClick={onClose}
-                className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-full border border-outline-variant text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-white shadow-xs transition-all hover:bg-white/20 hover:border-white/30 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
               >
-                <X className="h-3.5 w-3.5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
