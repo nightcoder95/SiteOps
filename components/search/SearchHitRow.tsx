@@ -1,6 +1,7 @@
 'use client';
 
 import { EntryTypeIcon } from '@/components/constants/EntryTypeIcon';
+import { formatCurrency } from '@/components/operations/entryFormat';
 import { splitHighlight } from '@/lib/search/highlight';
 import type { SearchHit, SearchSource } from '@/lib/db/queries/search';
 
@@ -43,7 +44,7 @@ export function SearchHitRow({ hit, query, active = false, optionId, onSelect }:
         <EntryTypeIcon type={hit.source} className="w-4 h-4" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block text-sm text-slate-200 line-clamp-2">
+        <span className="block text-sm text-slate-200 line-clamp-2 break-words">
           {parts.map((part, i) =>
             part.match ? (
               <mark key={i} className="bg-transparent text-sky-300 font-semibold">
@@ -58,6 +59,11 @@ export function SearchHitRow({ hit, query, active = false, optionId, onSelect }:
           {hit.siteName} · {SOURCE_LABEL[hit.source]} · {formatShortDate(hit.date)}
         </span>
       </span>
+      {hit.amount != null && (
+        <span className="mt-0.5 shrink-0 text-xs font-bold text-sky-400 tabular-nums">
+          {formatCurrency(hit.amount)}
+        </span>
+      )}
     </button>
   );
 }

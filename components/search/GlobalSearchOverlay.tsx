@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { SearchHitRow } from '@/components/search/SearchHitRow';
+import { popOverlayEntry, pushOverlayEntry } from '@/components/search/overlayHistory';
 import { hitHref, useGlobalSearch } from '@/components/search/useGlobalSearch';
 import type { SearchHit, SearchSource } from '@/components/search/useGlobalSearch';
 
@@ -56,13 +57,18 @@ export function GlobalSearchOverlay({ open, onClose }: Props) {
     return undefined;
   }, [open]);
 
+  // Set when the overlay closes because we are navigating to a hit, so the
+  // teardown below leaves the router's new history entry alone.
+  const navigatingRef = useRef(false);
+
   // Intercept browser back button / popstate events to close search overlay.
   useEffect(() => {
     if (!open) return undefined;
 
-    window.history.pushState({ searchOverlay: true }, "");
+    navigatingRef.current = false;
+    pushOverlayEntry(window.history);
 
-    function handlePopState(e: PopStateEvent) {
+    function handlePopState() {
       onClose();
     }
 
@@ -70,13 +76,12 @@ export function GlobalSearchOverlay({ open, onClose }: Props) {
 
     return () => {
       window.removeEventListener("popstate", handlePopState);
-      if (window.history.state?.searchOverlay) {
-        window.history.back();
-      }
+      popOverlayEntry(window.history, { navigating: navigatingRef.current });
     };
   }, [open, onClose]);
 
   const handleSelect = (hit: SearchHit) => {
+    navigatingRef.current = true;
     onClose();
     router.push(hitHref(hit));
   };

@@ -22,7 +22,7 @@ import { db } from "@/lib/db/client";
 // the pooler's 2min so an orphan is reaped long before it can starve the pool.
 const DEFAULT_TIMEOUT_MS = 15_000;
 
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 // Runs `fn` inside a transaction guarded by a statement_timeout backstop. Use for
 // the heavy read endpoints. Any query that overruns is cancelled server-side
