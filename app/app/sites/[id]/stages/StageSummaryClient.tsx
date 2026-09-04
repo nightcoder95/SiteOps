@@ -80,23 +80,24 @@ export default function StageSummaryClient({
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 pt-2">
-      <div className="px-1">
+    <div className="max-w-3xl mx-auto space-y-6 pt-2 pb-24">
+      <section className="card-standard p-5 border-sky-500/10 bg-sky-500/5">
         <Link
           href={`/app/sites/${siteId}`}
-          className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-sky-400 transition-colors"
+          className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-sky-400 hover:text-sky-300"
         >
-          <ChevronLeft className="w-4 h-4" />
-          {siteName}
+          <ChevronLeft className="w-3.5 h-3.5" />
+          Back to site
         </Link>
-        <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-white uppercase">
+        <h1 className="mt-3 text-2xl font-extrabold tracking-tight text-white uppercase">
           Work Stages
-        </h2>
-        <p className="text-sm text-slate-500 font-medium italic mt-1.5">
+        </h1>
+        <p className="text-xs text-slate-500 font-semibold mt-1">{siteName}</p>
+        <p className="text-sm text-slate-400 font-semibold mt-2">
           {formatCurrency(tracked)} tracked
           {budget ? ` of ${formatCurrency(budget)} budget` : ""}
         </p>
-      </div>
+      </section>
 
       {rows.length === 0 ? (
         <p className="card-standard p-6 text-sm text-slate-500 font-semibold">
@@ -120,9 +121,9 @@ export default function StageSummaryClient({
                   className="w-full p-5 text-left focus:outline-none focus:ring-2 focus:ring-sky-500/70 hover:bg-white/5 transition-colors"
                 >
                   <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p
-                        className={`text-sm font-extrabold uppercase tracking-widest ${
+                        className={`text-sm font-extrabold uppercase tracking-wide break-words ${
                           row.kind === "stage" ? "text-white" : "text-slate-400"
                         }`}
                       >
