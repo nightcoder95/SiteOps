@@ -29,7 +29,27 @@ export function getSessionUserFromHeaders(headers: Headers): SessionUser | null 
     return null;
   }
 
-  const role = parseSessionRole(headers.get(AUTH_USER_ROLE_HEADER)) ?? ROLES.SUPERVISOR;
+  const parsedRole = parseSessionRole(headers.get(AUTH_USER_ROLE_HEADER));
+  if (!parsedRole) {
+    // A verified JWT with no usable user_role claim means the Supabase
+    // custom_access_token hook did not run or was misconfigured. Today this
+    // silently grants Supervisor — a real set of capabilities (create entries,
+    // read sites), not a harmless default. Logged so the real-world rate can be
+    // MEASURED before the default is changed to fail closed; flipping it while
+    // the hook is broken for any user logs them out with no self-service
+    // recovery. See .docs/2026-08-06-audit-remediation/phase-7, S2.
+    //
+    // console.warn, not lib/logging/log.ts: every logger there requires a
+    // requestId and this is a pure header reader with no request in scope.
+    // Threading a requestId through it just for this would be worse. The
+    // message is a stable, greppable prefix for log search.
+    console.warn(
+      `auth_role_claim_missing userId=${userId} role=${
+        headers.get(AUTH_USER_ROLE_HEADER) ?? "<absent>"
+      }`,
+    );
+  }
+  const role = parsedRole ?? ROLES.SUPERVISOR;
   const email = headers.get(AUTH_USER_EMAIL_HEADER) ?? "";
 
   return {

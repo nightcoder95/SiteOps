@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type ChangeEvent, type FormEvent } from "react";
+import { CheckCircle2, Save, Trash2 } from 'lucide-react';
+import { useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { confirmDialog } from "@/lib/ui/confirm";
@@ -8,7 +9,7 @@ import { notifyError, notifyGenericError } from "@/lib/ui/toast";
 
 import { requestJson } from "@/lib/http/client";
 import { useApiResult } from "@/lib/http/useApiQuery";
-import type { MaterialUnitRule } from "@/lib/db/queries/materialUnits";
+import type { MaterialUnitRule } from "@/lib/catalog/units";
 import { pickCategoryIdByName, type CategoryRowLike } from "@/lib/catalog/selectors";
 import { isSplitLabourWorkType } from "@/lib/validation/schemas";
 import { entrySuccessDestination } from "@/components/operations/categoryView";
@@ -18,8 +19,10 @@ import {
   resolveEntryFields,
   resolveEntryKind,
   entryEndpointFor,
+  numericInputModeFor,
   type EntryField,
 } from "./entryFieldRegistry";
+import { validateEntryValues, type ValidationFailure } from "./EntryForm.validate";
 import { SubcategoryCombobox, type SubcategoryOption } from "./SubcategoryCombobox";
 import { UnitSelect, type UnitOption } from "./UnitSelect";
 
@@ -108,8 +111,14 @@ export function EntryForm({
   });
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [fieldError, setFieldError] = useState<ValidationFailure | null>(null);
 
   function update(name: string, val: FieldValue) {
+    // Any edit to the field we complained about clears the complaint — leaving a
+    // stale "X is required" under a now-filled field is worse than no message.
+    // The masonCount case covers the split-labour aggregate error, which is
+    // anchored to masonCount but satisfied by editing any of the four fields.
+    setFieldError((prev) => (prev && (prev.field === name || prev.field === "masonCount") ? null : prev));
     setValues((s) => ({ ...s, [name]: val }));
   }
 
@@ -140,30 +149,8 @@ export function EntryForm({
     return pickCategoryIdByName(categoryList, field.catalogCategoryName) ?? "";
   }
 
-  function validate(): string | null {
-    if (!siteId && !isEdit) return "Site is required";
-    for (const f of fields) {
-      if (splitLabour && (f.name === "peopleCount" || f.name === "wagePerHead")) {
-        continue;
-      }
-      if (!f.required) continue;
-      const v = values[f.name];
-      if (f.kind === "subcategory" || f.kind === "unit") {
-        if (!v) return `${f.label} is required`;
-        continue;
-      }
-      if (v === "" || v === null || v === undefined) return `${f.label} is required`;
-    }
-    if (splitLabour) {
-      const masonCount = Number(values.masonCount || 0);
-      const masonSalaryAmount = Number(values.masonSalaryAmount || 0);
-      const helperCount = Number(values.helperCount || 0);
-      const helperSalaryAmount = Number(values.helperSalaryAmount || 0);
-      if (masonCount <= 0 && masonSalaryAmount <= 0 && helperCount <= 0 && helperSalaryAmount <= 0) {
-        return "Mason or Helper values are required";
-      }
-    }
-    return null;
+  function validate(): ValidationFailure | null {
+    return validateEntryValues({ fields, values, siteId: siteId ?? null, isEdit, splitLabour });
   }
 
   // After edit/delete, return to the operation's logs list (e.g. .../operations/material)
@@ -228,9 +215,25 @@ export function EntryForm({
     e.preventDefault();
     const err = validate();
     if (err) {
-      notifyGenericError();
+      setFieldError(err);
+      // notifyGenericError is the string escape hatch (notifyError needs a
+      // ClientResult). The message comes from our own validator, never a backend
+      // string, so toast discipline is preserved.
+      notifyGenericError(err.message);
+      // Bring the offending field into view — on a long form the inline error is
+      // otherwise off-screen. Prefer the input itself (focusable); fall back to
+      // the row wrapper for pickers that render no input id. `siteId` has no
+      // rendered row at all, hence the optional chaining.
+      if (typeof document !== "undefined") {
+        const el =
+          document.getElementById(`field-${err.field}`) ??
+          document.getElementById(`fieldrow-${err.field}`);
+        el?.scrollIntoView({ block: "center", behavior: "smooth" });
+        (el as HTMLElement | null)?.focus?.({ preventScroll: true });
+      }
       return;
     }
+    setFieldError(null);
     setSubmitting(true);
     const payload = buildPayload();
     const url = isEdit ? `/api/entries/${entryId}?type=${kind}` : entryEndpointFor(kind);
@@ -289,6 +292,7 @@ export function EntryForm({
               key="split-labour-fields"
               values={values}
               update={update}
+              error={fieldError?.field === "masonCount" ? fieldError.message : undefined}
             />
           );
         }
@@ -302,6 +306,7 @@ export function EntryForm({
             role={role}
             siteId={siteId}
             allowedUnitNames={kind === "material" ? (materialUnitRule?.allowedNames ?? undefined) : undefined}
+            error={fieldError?.field === f.name ? fieldError.message : undefined}
           />
         );
       })}
@@ -311,9 +316,7 @@ export function EntryForm({
           disabled={submitting}
           className="btn-primary w-full py-3.5 flex items-center justify-center gap-2"
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
-            {isEdit ? 'save' : 'check_circle'}
-          </span>
+          {isEdit ? <Save className="w-[18px] h-[18px]" /> : <CheckCircle2 className="w-[18px] h-[18px]" />}
           {submitting ? "Saving…" : isEdit ? "Update Entry" : "Submit Entry"}
         </button>
         {isEdit ? (
@@ -323,12 +326,36 @@ export function EntryForm({
             disabled={deleting}
             className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-red-500/30 bg-red-500/10 text-[11px] font-bold uppercase tracking-widest text-red-400 hover:bg-red-500/20 transition-all disabled:opacity-50"
           >
-            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>delete</span>
+            <Trash2 className="w-[18px] h-[18px]" />
             {deleting ? "Deleting…" : "Delete Entry"}
           </button>
         ) : null}
       </div>
     </form>
+  );
+}
+
+// Row wrapper: owns the scroll anchor and the inline validation slot so every
+// field kind (including the pickers that render their own label) gets both.
+function Field({
+  name,
+  error,
+  children,
+}: {
+  name: string;
+  error?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-2" id={`fieldrow-${name}`}>
+      {children}
+      {error ? (
+        // 12px floor — this is content a user must read, not decoration.
+        <p role="alert" className="text-xs font-semibold text-rose-400">
+          {error}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -340,6 +367,7 @@ function FieldRow({
   role,
   siteId,
   allowedUnitNames,
+  error,
 }: {
   field: EntryField;
   value: FieldValue;
@@ -348,39 +376,44 @@ function FieldRow({
   role: "Admin" | "Supervisor";
   siteId?: string;
   allowedUnitNames?: string[];
+  error?: string;
 }) {
   const id = `field-${field.name}`;
 
   if (field.kind === "unit") {
     return (
-      <UnitSelect
-        label={field.label}
-        value={value as UnitOption | null}
-        onChange={onChange}
-        required={field.required}
-        allowedNames={allowedUnitNames}
-      />
+      <Field name={field.name} error={error}>
+        <UnitSelect
+          label={field.label}
+          value={value as UnitOption | null}
+          onChange={onChange}
+          required={field.required}
+          allowedNames={allowedUnitNames}
+        />
+      </Field>
     );
   }
 
   if (field.kind === "subcategory") {
     return (
-      <SubcategoryCombobox
-        label={field.label}
-        noun={field.noun}
-        parentCategoryId={categoryId}
-        value={value as SubcategoryOption | null}
-        onChange={onChange}
-        required={field.required}
-        role={role}
-        siteId={siteId}
-      />
+      <Field name={field.name} error={error}>
+        <SubcategoryCombobox
+          label={field.label}
+          noun={field.noun}
+          parentCategoryId={categoryId}
+          value={value as SubcategoryOption | null}
+          onChange={onChange}
+          required={field.required}
+          role={role}
+          siteId={siteId}
+        />
+      </Field>
     );
   }
 
   if (field.kind === "select") {
     return (
-      <div className="flex flex-col gap-2">
+      <Field name={field.name} error={error}>
         <label htmlFor={id} className={labelClass}>
           {field.label}
           {field.required && " *"}
@@ -399,13 +432,13 @@ function FieldRow({
             </option>
           ))}
         </select>
-      </div>
+      </Field>
     );
   }
 
   if (field.kind === "textarea") {
     return (
-      <div className="flex flex-col gap-2">
+      <Field name={field.name} error={error}>
         <label htmlFor={id} className={labelClass}>
           {field.label}
           {field.required && " *"}
@@ -418,12 +451,12 @@ function FieldRow({
           required={field.required}
           className={textareaClass}
         />
-      </div>
+      </Field>
     );
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <Field name={field.name} error={error}>
       <label htmlFor={id} className={labelClass}>
         {field.label}
         {field.required && " *"}
@@ -431,6 +464,7 @@ function FieldRow({
       <input
         id={id}
         type={field.kind === "number" ? "number" : field.kind === "date" ? "date" : "text"}
+        inputMode={numericInputModeFor(field)}
         value={String(value ?? "")}
         onChange={(e) => onChange(e.target.value)}
         min={field.min}
@@ -440,19 +474,30 @@ function FieldRow({
         required={field.required}
         className={inputClass}
       />
-    </div>
+    </Field>
   );
 }
 
 function SplitLabourFields({
   values,
   update,
+  error,
 }: {
   values: Record<string, FieldValue>;
   update: (name: string, val: FieldValue) => void;
+  error?: string;
 }) {
   return (
     <div className="grid gap-4 md:grid-cols-2">
+      {error ? (
+        <p id="field-masonCount" role="alert" className="md:col-span-2 text-xs font-semibold text-rose-400">
+          {error}
+        </p>
+      ) : (
+        // Keeps the scroll anchor resolvable on the very first submit, before
+        // the error node has been rendered.
+        <span id="field-masonCount" className="hidden" aria-hidden="true" />
+      )}
       {[
         ["Mason", "masonCount", "masonSalaryAmount"],
         ["Helper", "helperCount", "helperSalaryAmount"],
@@ -460,9 +505,11 @@ function SplitLabourFields({
         <section key={label} className="space-y-3 rounded-xl border border-white/10 bg-white/[0.03] p-4">
           <p className="text-[10px] font-extrabold uppercase tracking-widest text-sky-400">{label}</p>
           <div className="space-y-2">
-            <label className={labelClass}>Count</label>
+            <label htmlFor={`split-${countName}`} className={labelClass}>Count</label>
             <input
+              id={`split-${countName}`}
               type="number"
+              inputMode="numeric"
               min={0}
               step={1}
               value={String(values[countName] ?? "")}
@@ -471,9 +518,11 @@ function SplitLabourFields({
             />
           </div>
           <div className="space-y-2">
-            <label className={labelClass}>Salary Amount</label>
+            <label htmlFor={`split-${amountName}`} className={labelClass}>Salary Amount</label>
             <input
+              id={`split-${amountName}`}
               type="number"
+              inputMode="decimal"
               min={0}
               step="0.01"
               value={String(values[amountName] ?? "")}

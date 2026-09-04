@@ -8,6 +8,7 @@ import type { Role } from '@/lib/auth/roles';
 import { useApiQuery } from '@/lib/http/useApiQuery';
 import { UNREAD_BADGE_KEY } from '@/lib/http/notificationsKeys';
 import { GlobalSearchOverlay } from '@/components/search/GlobalSearchOverlay';
+import { logicalParent } from '@/lib/nav/logicalParent';
 
 type Props = {
   // Use the canonical Role type rather than a duplicated literal union. The
@@ -61,8 +62,19 @@ export function AppHeader({ role, initialUnread = 0 }: Props) {
         <div className="flex items-center gap-3">
           {!isDashboard ? (
             <button
-              onClick={() => router.back()}
-              className="p-2 -ml-2 rounded-xl hover:bg-white/5 transition-colors"
+              onClick={() => {
+                // In-app navigation: honour the user's real history. A
+                // deep-linked arrival (push notification, shared URL, PWA
+                // shortcut) has none, and router.back() would leave the app —
+                // so fall back to the route's logical parent.
+                //
+                // history.length > 1 is a heuristic, not a guarantee (a fresh
+                // tab reports 1; a reused one reports more). Its failure mode is
+                // benign: one extra, still-correct back navigation.
+                if (typeof window !== 'undefined' && window.history.length > 1) router.back();
+                else router.push(logicalParent(pathname));
+              }}
+              className="p-3 -ml-3 rounded-xl hover:bg-white/5 transition-colors"
               aria-label="Go back"
             >
               <ChevronLeft className="w-5 h-5 text-slate-400" />
@@ -85,7 +97,7 @@ export function AppHeader({ role, initialUnread = 0 }: Props) {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setSearchOpen(true)}
-            className="p-2 text-slate-500 hover:text-sky-400 transition-colors"
+            className="p-3 text-slate-500 hover:text-sky-400 transition-colors"
             aria-label="Search remarks"
           >
             <Search className="w-5 h-5" />
@@ -93,13 +105,13 @@ export function AppHeader({ role, initialUnread = 0 }: Props) {
 
           <button
             onClick={() => router.push('/app/notifications')}
-            className="p-2 text-slate-500 hover:text-sky-400 transition-colors relative"
+            className="p-3 text-slate-500 hover:text-sky-400 transition-colors relative"
             aria-label="Notifications"
           >
             <Bell className="w-5 h-5" />
             {unread > 0 ? (
               <span
-                className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-600 rounded-full border-2 border-slate-950"
+                className="absolute top-2.5 right-2.5 w-2 h-2 bg-blue-600 rounded-full border-2 border-slate-950"
                 aria-label={`${unread} unread notification${unread === 1 ? '' : 's'}`}
               />
             ) : null}

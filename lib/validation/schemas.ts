@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+// F18: numeric bounds live in one place, shared with the form field registry.
+import { ENTRY_FIELD_CONSTRAINTS } from "@/lib/entryTypes/constraints";
+
 export const uuidSchema = z.string().uuid();
 export const emailSchema = z.string().email().max(255);
 
@@ -103,8 +106,8 @@ const labourCommonCreateShape = z.object({
 });
 
 const labourOrdinaryCostShape = z.object({
-  peopleCount: z.number().int().positive().max(10000),
-  wagePerHead: positiveDecimalSchema(1000000),
+  peopleCount: z.number().int().positive().max(ENTRY_FIELD_CONSTRAINTS.peopleCount.max),
+  wagePerHead: positiveDecimalSchema(ENTRY_FIELD_CONSTRAINTS.wagePerHead.max),
   salaryAmount: positiveDecimalSchema(100000000).optional(),
 });
 
@@ -144,8 +147,8 @@ export const labourEntrySchema = labourCommonCreateShape
 
 export const updateLabourEntrySchema = z.object({
   date: entryDateSchema.optional(),
-  peopleCount: z.number().int().positive().max(10000).optional(),
-  wagePerHead: positiveDecimalSchema(1000000).optional(),
+  peopleCount: z.number().int().positive().max(ENTRY_FIELD_CONSTRAINTS.peopleCount.max).optional(),
+  wagePerHead: positiveDecimalSchema(ENTRY_FIELD_CONSTRAINTS.wagePerHead.max).optional(),
   salaryAmount: positiveDecimalSchema(100000000).optional(),
   masonCount: z.number().int().min(0).max(10000).optional(),
   masonSalaryAmount: nonNegativeMoneySchema.optional(),
@@ -196,20 +199,20 @@ export const materialEntrySchema = z
   .object({
     siteId: uuidSchema,
     date: entryDateSchema,
-    quantity: z.number().positive().max(1000000),
+    quantity: z.number().positive().max(ENTRY_FIELD_CONSTRAINTS.quantity.max),
     // Shape only; membership checked at the route via assertInCatalogList
     // ("Work Stage") against the active managed list.
     workStage: z.string().min(1).max(100),
-    cost: positiveDecimalSchema(100000000).optional(),
+    cost: positiveDecimalSchema(ENTRY_FIELD_CONSTRAINTS.cost.max).optional(),
     remarks: z.string().max(500).optional(),
   })
   .and(z.union([materialLegacyShape, z.intersection(z.union([materialDefaultMode, materialCustomMode]), z.union([materialMasterUnit, materialCustomUnit]))]));
 
 export const updateMaterialEntrySchema = z.object({
   date: entryDateSchema.optional(),
-  quantity: z.number().positive().max(1000000).optional(),
+  quantity: z.number().positive().max(ENTRY_FIELD_CONSTRAINTS.quantity.max).optional(),
   workStage: z.string().min(1).max(100).optional(),
-  cost: positiveDecimalSchema(100000000).optional(),
+  cost: positiveDecimalSchema(ENTRY_FIELD_CONSTRAINTS.cost.max).optional(),
   remarks: z.string().max(500).optional(),
   materialType: z.string().min(1).max(100).optional(),
   materialTypeMode: z.enum(["default_enum", "custom"]).optional(),
@@ -223,29 +226,29 @@ export const updateMaterialEntrySchema = z.object({
 
 const machineryLegacyShape = z.object({
   equipmentType: z.string().min(1).max(100),
-  hoursActive: z.number().positive().max(24),
+  hoursActive: z.number().positive().max(ENTRY_FIELD_CONSTRAINTS.hoursActive.max),
 });
 
 const machineryDefaultMode = z.object({
   equipmentTypeMode: z.literal("default_enum"),
   equipmentTypeCustomId: z.never().optional(),
   equipmentType: z.string().optional(),
-  hoursActive: z.number().positive().max(24).optional(),
+  hoursActive: z.number().positive().max(ENTRY_FIELD_CONSTRAINTS.hoursActive.max).optional(),
 });
 
 const machineryCustomMode = z.object({
   equipmentTypeMode: z.literal("custom"),
   equipmentTypeCustomId: uuidSchema,
   equipmentType: z.string().optional(),
-  hoursActive: z.number().positive().max(24).optional(),
+  hoursActive: z.number().positive().max(ENTRY_FIELD_CONSTRAINTS.hoursActive.max).optional(),
 });
 
 export const machineryEntrySchema = z
   .object({
     siteId: uuidSchema,
     date: entryDateSchema,
-    count: z.number().int().positive().max(10000),
-    totalCost: positiveDecimalSchema(100000000),
+    count: z.number().int().positive().max(ENTRY_FIELD_CONSTRAINTS.count.max),
+    totalCost: positiveDecimalSchema(ENTRY_FIELD_CONSTRAINTS.totalCost.max),
     remarks: z.string().max(500).optional(),
     // Shape only; membership checked at the route via assertInCatalogList ("Work Stage").
     workStage: z.string().min(1).max(100).optional(),
@@ -254,13 +257,13 @@ export const machineryEntrySchema = z
 
 export const updateMachineryEntrySchema = z.object({
   date: entryDateSchema.optional(),
-  count: z.number().int().positive().max(10000).optional(),
-  totalCost: positiveDecimalSchema(100000000).optional(),
+  count: z.number().int().positive().max(ENTRY_FIELD_CONSTRAINTS.count.max).optional(),
+  totalCost: positiveDecimalSchema(ENTRY_FIELD_CONSTRAINTS.totalCost.max).optional(),
   remarks: z.string().max(500).optional(),
   equipmentType: z.string().min(1).max(100).optional(),
   equipmentTypeMode: z.enum(["default_enum", "custom"]).optional(),
   equipmentTypeCustomId: uuidSchema.optional(),
-  hoursActive: z.number().positive().max(24).optional(),
+  hoursActive: z.number().positive().max(ENTRY_FIELD_CONSTRAINTS.hoursActive.max).optional(),
   workStage: z.string().min(1).max(100).nullable().optional(),
 });
 
@@ -268,7 +271,7 @@ export const expenseEntrySchema = z.object({
   siteId: uuidSchema,
   date: entryDateSchema,
   description: z.string().min(1).max(500),
-  amount: z.number().positive().max(1000000),
+  amount: z.number().positive().max(ENTRY_FIELD_CONSTRAINTS.amount.max),
   // Shape only; membership checked at the route ("Expense Category").
   category: z.string().min(1).max(100),
   // Shape only; membership checked at the route via assertInCatalogList ("Work Stage").
@@ -284,7 +287,7 @@ export const incidentEntrySchema = z.object({
   incidentType: z.string().min(1).max(100),
   severity: z.string().min(1).max(50).optional(),
   description: z.string().min(1).max(2000),
-  durationEstimate: z.number().int().positive().max(10080).optional(),
+  durationEstimate: z.number().int().positive().max(ENTRY_FIELD_CONSTRAINTS.durationEstimate.max).optional(),
 });
 
 export const updateIncidentEntrySchema = incidentEntrySchema.partial().omit({ siteId: true });

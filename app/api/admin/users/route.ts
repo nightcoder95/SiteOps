@@ -7,6 +7,7 @@ import { createSupabaseServiceClient } from "@/lib/auth/config";
 import { requireCapability } from "@/lib/auth/guards";
 import { ROLES_TUPLE } from "@/lib/auth/roles";
 import { db } from "@/lib/db/client";
+import { listAdminUsers } from "@/lib/db/queries/adminUsers";
 import { userProfiles } from "@/lib/db/schema";
 import { ERROR_CODES } from "@/lib/errors/codes";
 import { handleDbError } from "@/lib/errors/db";
@@ -37,52 +38,14 @@ export const GET = withApi(async ({ request, requestId }) => {
     );
   }
 
-  // Stateful actor-role check (§8.7): this read leaks every user id + email, so
-  // re-read the actor's role from the DB to deny a demoted admin holding a
-  // still-valid token, rather than trusting the JWT header (S2).
-  const actorRole = await getActorRoleFromDb(auth.session.user.id);
-  if (!actorRole || !can(actorRole, "user:list")) {
+  const result = await listAdminUsers(auth.session.user.id);
+  if (!result.ok) {
     return withNoStore(
       errorResponse(ERROR_CODES.FORBIDDEN, "Admin access required", 403, undefined, requestId),
     );
   }
 
-  const profiles = await db
-    .select({
-      userId: userProfiles.userId,
-      role: userProfiles.role,
-      designation: userProfiles.designation,
-      mustChangePassword: userProfiles.mustChangePassword,
-    })
-    .from(userProfiles);
-
-  // Emails live in auth.users — fetch via the service-role admin API and merge.
-  // Paginate so tenants beyond 1000 accounts are not silently truncated (S2).
-  const supabase = createSupabaseServiceClient();
-  const emailById = new Map<string, string>();
-  try {
-    const perPage = 1000;
-    for (let page = 1; ; page += 1) {
-      const { data } = await supabase.auth.admin.listUsers({ page, perPage });
-      const batch = data?.users ?? [];
-      for (const u of batch) {
-        if (u.id && u.email) emailById.set(u.id, u.email);
-      }
-      if (batch.length < perPage) break;
-    }
-  } catch {
-    // Email enrichment is best-effort; the list still returns roles/ids.
-  }
-
-  const users = profiles.map((p) => ({
-    userId: p.userId,
-    email: emailById.get(p.userId) ?? null,
-    role: p.role,
-    designation: p.designation,
-    mustChangePassword: p.mustChangePassword,
-  }));
-
-  return withNoStore(successResponse(users, 200, requestId));
+  return withNoStore(successResponse(result.users, 200, requestId));
 });
 
 // POST /api/admin/users — provision an account (closed/invite-only model).

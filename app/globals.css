@@ -1,6 +1,26 @@
 @import "tailwindcss";
 
+/* Type floor: 12px (text-xs) for anything a user must read; 14px+ for labels on
+   interactive controls. 9-10px is reserved for decorative micro-labels that
+   duplicate adjacent content. Field supervisors read this app outdoors on
+   phones — see the 2026-07-17 audit, finding F17. tests/ui/contrast.test.ts
+   fences the user-critical sites and the placeholder contrast floor (WCAG AA
+   4.5:1 on the #020617 surface, which slate-500 does NOT meet at 4.24:1). */
+
 :root {
+  /* Layering scale. Overlays must sit above the fixed header (z-50) or they
+     render behind it — this was a live bug in the export and row-action
+     dropdowns, both of which used z-30. Values match what is already in use, so
+     defining them moves nothing. Use these in new code and when you next touch
+     a file; a wholesale migration risks a stacking regression nobody notices.
+     Fenced by tests/ui/z-index.test.ts. */
+  --z-sticky: 50;    /* the fixed app header */
+  --z-dropdown: 60;  /* menus and popovers anchored to a control */
+  --z-overlay: 70;   /* full-screen scrims */
+  --z-modal: 80;
+  --z-toast: 90;
+  --z-confirm: 1000; /* confirmDialog — always the topmost surface */
+
   --sat: env(safe-area-inset-top);
   --sar: env(safe-area-inset-right);
   --sab: env(safe-area-inset-bottom);
@@ -127,7 +147,7 @@
   }
 
   .input-standard {
-    @apply w-full px-4 py-3 bg-white/5 border border-white/5 rounded-xl text-white text-sm outline-none transition-all placeholder-slate-600 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50;
+    @apply w-full px-4 py-3 bg-white/5 border border-white/5 rounded-xl text-white text-sm outline-none transition-all placeholder-slate-400 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50;
   }
 }
 
@@ -157,22 +177,6 @@
     scrollbar-width: none;
   }
 
-  .material-icon,
-  .material-symbols-outlined {
-    font-family: "Material Symbols Outlined";
-    font-weight: normal;
-    font-style: normal;
-    font-size: 24px;
-    line-height: 1;
-    letter-spacing: normal;
-    text-transform: none;
-    display: inline-block;
-    white-space: nowrap;
-    word-wrap: normal;
-    direction: ltr;
-    -webkit-font-feature-settings: "liga";
-    -webkit-font-smoothing: antialiased;
-  }
 }
 
 /* Reduced-motion fallback (WCAG 2.3.3): kill CSS transitions/animations for

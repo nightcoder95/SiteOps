@@ -352,6 +352,7 @@ export function ToolDrawer({
                           <label className="block text-[11px] font-medium text-slate-300 mb-1">Quantity</label>
                           <input
                             type="number"
+                            inputMode="numeric"
                             min={1}
                             max={Math.max(1, inGodown)}
                             value={sendQty}
@@ -437,6 +438,7 @@ export function ToolDrawer({
                           <label className="block text-[11px] font-medium text-slate-300 mb-1">Quantity</label>
                           <input
                             type="number"
+                            inputMode="numeric"
                             min={1}
                             max={maxReturnQty}
                             value={returnQty}
@@ -543,6 +545,7 @@ export function ToolDrawer({
                           <label className="block text-[11px] font-medium text-slate-300 mb-1">Quantity</label>
                           <input
                             type="number"
+                            inputMode="numeric"
                             min={1}
                             max={maxTransferQty}
                             value={transferQty}
@@ -604,6 +607,7 @@ export function ToolDrawer({
                       <label className="block text-[11px] font-medium text-slate-300 mb-1">Quantity</label>
                       <input
                         type="number"
+                        inputMode="numeric"
                         min={1}
                         value={addQty}
                         onChange={(e) => {
@@ -656,6 +660,7 @@ export function ToolDrawer({
                       <label className="block text-[11px] font-medium text-slate-300 mb-1">Quantity</label>
                       <input
                         type="number"
+                        inputMode="numeric"
                         min={1}
                         max={Math.max(1, inGodown)}
                         value={removeQty}

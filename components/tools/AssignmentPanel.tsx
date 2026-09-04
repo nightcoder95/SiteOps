@@ -83,6 +83,7 @@ export function AssignmentPanel({
                   <input
                     aria-label={`Quantity for ${nameOf(a.siteId)}`}
                     type="number"
+                    inputMode="numeric"
                     min={0}
                     value={a.qty}
                     onChange={(e) => setQty(a.siteId, Math.max(0, Math.floor(Number(e.target.value) || 0)))}
@@ -144,6 +145,7 @@ export function AssignmentPanel({
               <input
                 aria-label="Units to assign"
                 type="number"
+                inputMode="numeric"
                 min={1}
                 max={maxAddQty}
                 value={clampedAddQty}

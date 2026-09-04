@@ -62,3 +62,34 @@ describe('src retirement', () => {
     expect(offenders).toEqual([]);
   });
 });
+
+// F13 fence: lib/db/queries/* reaches the Drizzle client. A client component
+// that value-imports from there pulls the whole DB layer into the browser
+// bundle. Type-only imports are erased at compile time and stay allowed.
+describe('client/server module boundary', () => {
+  test('client components do not import runtime values from lib/db/queries', () => {
+    const repoRoot = path.resolve(__dirname, '..', '..');
+    const files = ['components', 'app'].flatMap((part) => {
+      try {
+        return walkFiles(path.join(repoRoot, part));
+      } catch {
+        return [];
+      }
+    });
+
+    const offenders: string[] = [];
+    for (const file of files) {
+      const source = readFileSync(file, 'utf8');
+      // Only client components matter — server components legitimately query.
+      if (!/^\s*['"]use client['"]/m.test(source)) continue;
+      for (const line of source.split('\n')) {
+        if (!/from\s+['"]@\/lib\/db\/queries\//.test(line)) continue;
+        if (/^\s*import\s+type\s/.test(line)) continue;
+        if (/^\s*export\s+type\s/.test(line)) continue;
+        offenders.push(`${path.relative(repoRoot, file)}: ${line.trim()}`);
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+});

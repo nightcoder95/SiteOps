@@ -1,3 +1,4 @@
+import { CloudOff } from 'lucide-react';
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -11,7 +12,7 @@ export default function OfflinePage() {
   return (
     <div className="min-h-dvh bg-background flex flex-col items-center justify-center px-6 text-center safe-area-top safe-area-bottom">
       <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary-container border border-outline mb-6">
-        <span className="material-symbols-outlined text-3xl text-primary">cloud_off</span>
+        <CloudOff className="w-8 h-8 text-primary" />
       </div>
       <h1 className="text-2xl font-extrabold tracking-tight text-on-surface uppercase">
         You&apos;re offline

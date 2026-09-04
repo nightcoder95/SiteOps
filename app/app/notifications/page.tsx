@@ -1,5 +1,6 @@
 'use client';
 
+import { AlertTriangle, ClipboardCheck, Megaphone, Wallet, type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useOptimistic, useState } from 'react';
 import { mutate as globalMutate } from 'swr';
@@ -29,11 +30,11 @@ type NotificationsResponse = {
   offset: number;
 };
 
-const TYPE_META: Record<Notification['type'], { icon: string; bg: string; fg: string }> = {
-  approval: { icon: 'fact_check', bg: 'bg-primary-container', fg: 'text-on-primary-container' },
-  budget_alert: { icon: 'account_balance_wallet', bg: 'bg-amber-500/15', fg: 'text-amber-300' },
-  incident: { icon: 'report', bg: 'bg-red-500/10', fg: 'text-red-300' },
-  system: { icon: 'campaign', bg: 'bg-slate-500/15', fg: 'text-slate-300' },
+const TYPE_META: Record<Notification['type'], { icon: LucideIcon; bg: string; fg: string }> = {
+  approval: { icon: ClipboardCheck, bg: 'bg-primary-container', fg: 'text-on-primary-container' },
+  budget_alert: { icon: Wallet, bg: 'bg-amber-500/15', fg: 'text-amber-300' },
+  incident: { icon: AlertTriangle, bg: 'bg-red-500/10', fg: 'text-red-300' },
+  system: { icon: Megaphone, bg: 'bg-slate-500/15', fg: 'text-slate-300' },
 };
 
 export default function NotificationsPage() {
@@ -137,9 +138,7 @@ export default function NotificationsPage() {
             return (
               <article key={notification.id} className={`flex items-start gap-3 p-4 ${unread ? '' : 'opacity-60'}`}>
                 <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${meta.bg} ${meta.fg}`}>
-                  <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                    {meta.icon}
-                  </span>
+                  <meta.icon className="w-5 h-5" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">

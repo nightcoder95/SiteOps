@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 
 import { requireSiteAccess } from "@/lib/auth/guards";
-import { checkOwnership } from "@/lib/auth/ownership";
+import { assertSiteWritable } from "@/lib/auth/siteWritable";
 import { db } from "@/lib/db/client";
 import { fieldDefinitions, genericEntries } from "@/lib/db/schema";
 import { ERROR_CODES } from "@/lib/errors/codes";
@@ -24,18 +24,13 @@ export const POST = withApi(async ({ request, requestId }) => {
 
   const { siteId, date, fieldDefinitionId, value } = validation.data;
 
-  const site = await db.query.sites.findFirst({
-    where: (t, { eq: opEq }) => opEq(t.siteId, siteId),
-    columns: { supervisorId: true, archivedAt: true },
+  const writable = await assertSiteWritable({
+    request,
+    siteId,
+    requestId,
+    forbiddenMessage: "You can only log entries for sites you supervise",
   });
-
-  if (!site || site.archivedAt) {
-    return errorResponse(ERROR_CODES.NOT_FOUND, "Site not found", 404, undefined, requestId);
-  }
-
-  if (!checkOwnership(auth.session.user, site.supervisorId)) {
-    return errorResponse(ERROR_CODES.FORBIDDEN, "You can only log entries for sites you supervise", 403, undefined, requestId);
-  }
+  if (!writable.ok) return writable.response;
 
   const fieldDef = await db
     .select()
@@ -73,7 +68,7 @@ export const POST = withApi(async ({ request, requestId }) => {
         date,
         fieldDefinitionId,
         value,
-        createdBy: auth.session.user.id,
+        createdBy: writable.session.user.id,
       })
       .returning();
 

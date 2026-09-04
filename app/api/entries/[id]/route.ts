@@ -6,7 +6,6 @@ import { checkOwnership } from "@/lib/auth/ownership";
 import { invalidateAdminAnalyticsCache } from "@/lib/cache/invalidate";
 import { db } from "@/lib/db/client";
 import { materialUnitRuleFor } from "@/lib/db/queries/materialUnitRule";
-import { displayUnitName } from "@/lib/db/queries/materialUnits";
 import {
   deleteEntryById,
   getEntryById,
@@ -14,6 +13,7 @@ import {
   type EntryType,
 } from "@/lib/db/queries/entries";
 import { unitMaster } from "@/lib/db/schema";
+import { serverDescriptorFor } from "@/lib/entryTypes/server";
 import { entryOwnerId, type LabourEntryRow, type MaterialEntryRow } from "@/lib/types/entry";
 import { ERROR_CODES } from "@/lib/errors/codes";
 import { handleDbError } from "@/lib/errors/db";
@@ -21,17 +21,9 @@ import { errorResponse, successResponse } from "@/lib/errors/response";
 import { parseJsonBody, validateBody } from "@/lib/http/request";
 import { withApiRoute } from "@/lib/http/withApi";
 import { coerceDecimals } from "@/lib/services/decimals";
-import { decimalFieldsFor, evaluateLabourSplit } from "@/lib/services/entries";
+import { evaluateLabourSplit, resolveMaterialUnit } from "@/lib/services/entries";
 import { runNonCritical } from "@/lib/services/nonCritical";
 import { assertInCatalogList } from "@/lib/validation/catalogList";
-import {
-  updateExpenseEntrySchema,
-  updateIncidentEntrySchema,
-  updateLabourEntrySchema,
-  updateMachineryEntrySchema,
-  updateMaterialEntrySchema,
-} from "@/lib/validation/schemas";
-
 type RouteCtx = { params: Promise<{ id: string }> };
 
 // Entries on an archived site are read-only — block edits/deletes even for
@@ -91,41 +83,22 @@ export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, conte
   const parsed = await parseJsonBody(request, requestId);
   if (!parsed.ok) return parsed.response;
 
-  const schema =
-    type === "labour"
-      ? updateLabourEntrySchema
-      : type === "material"
-        ? updateMaterialEntrySchema
-        : type === "machinery"
-          ? updateMachineryEntrySchema
-          : type === "expense"
-            ? updateExpenseEntrySchema
-            : type === "incident"
-              ? updateIncidentEntrySchema
-              : null;
+  const descriptor = serverDescriptorFor(type);
 
-  if (!schema) {
-    return errorResponse(ERROR_CODES.INVALID_REQUEST, "Unsupported entry type", 400, undefined, requestId);
-  }
-
-  const validation = validateBody(schema, parsed.data, requestId);
+  const validation = validateBody(descriptor.zodUpdate, parsed.data, requestId);
   if (!validation.ok) return validation.response;
 
   const updateData: Record<string, unknown> = { ...validation.data };
   // Drizzle `decimal` columns are strings; coerce numeric money/quantity fields.
-  coerceDecimals(updateData, decimalFieldsFor(type));
+  coerceDecimals(updateData, descriptor.decimalFields);
 
   // Former-enum fields are now managed catalog lists — validate membership when
   // the field is being changed, and normalize to the canonical stored value.
-  const catalogFieldChecks: Array<[string, string]> = [];
-  if (type === "material"  && typeof updateData.workStage === "string") catalogFieldChecks.push(["Work Stage", "workStage"]);
-  if (type === "labour"    && typeof updateData.workStage === "string") catalogFieldChecks.push(["Work Stage", "workStage"]);
-  if (type === "machinery" && typeof updateData.workStage === "string") catalogFieldChecks.push(["Work Stage", "workStage"]);
-  if (type === "expense"   && typeof updateData.workStage === "string") catalogFieldChecks.push(["Work Stage", "workStage"]);
-  if (type === "expense" && typeof updateData.category === "string") catalogFieldChecks.push(["Expense Category", "category"]);
-  if (type === "incident" && typeof updateData.incidentType === "string") catalogFieldChecks.push(["Incident Type", "incidentType"]);
-  if (type === "incident" && typeof updateData.severity === "string") catalogFieldChecks.push(["Incident Severity", "severity"]);
-  for (const [listKey, field] of catalogFieldChecks) {
+  for (const [listKey, field] of descriptor.catalogFields) {
+    // Only check a field this request is actually changing: a PATCH that omits
+    // workStage must not be rejected for it, and sending null (un-tag)
+    // deliberately skips the check.
+    if (typeof updateData[field] !== "string") continue;
     const check = await assertInCatalogList(listKey, updateData[field] as string);
     if (!check.ok) {
       return errorResponse(ERROR_CODES.VALIDATION_ERROR, check.message, 400, undefined, requestId);
@@ -171,35 +144,31 @@ export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, conte
         : typeof material.unitMasterId === "string"
           ? material.unitMasterId
           : "";
+    // Precedence for "what unit did the user mean": an explicitly submitted
+    // master id, else an explicitly submitted unit name, else whatever the row
+    // already has. resolveMaterialUnit normalises the name itself.
     const submittedUnitName = submittedUnitMasterId
-      ? displayUnitName(activeUnits.find((unit) => unit.unitId === submittedUnitMasterId)?.label ?? "")
+      ? (activeUnits.find((unit) => unit.unitId === submittedUnitMasterId)?.label ?? "")
       : typeof updateData.unit === "string"
-        ? displayUnitName(updateData.unit)
+        ? updateData.unit
         : typeof material.unit === "string"
-          ? displayUnitName(material.unit)
+          ? material.unit
           : "";
-    const resolvedUnitName =
-      unitRule.allowedNames.length === 1
-        ? unitRule.preferredName
-        : unitRule.allowedNames.includes(submittedUnitName)
-          ? submittedUnitName
-          : unitRule.preferredName;
-    const resolvedUnit = activeUnits.find((unit) => displayUnitName(unit.label) === resolvedUnitName);
 
-    if (!resolvedUnit) {
-      return errorResponse(
-        ERROR_CODES.VALIDATION_ERROR,
-        `${targetMaterialType} must use ${unitRule.allowedNames.join(" or ")} as the unit`,
-        400,
-        undefined,
-        requestId,
-      );
+    const resolved = resolveMaterialUnit({
+      materialType: targetMaterialType,
+      rule: unitRule,
+      submittedUnitName,
+      activeUnits,
+    });
+    if (!resolved.ok) {
+      return errorResponse(ERROR_CODES.VALIDATION_ERROR, resolved.message, 400, undefined, requestId);
     }
 
     updateData.unitMode = "master";
-    updateData.unitMasterId = resolvedUnit.unitId;
+    updateData.unitMasterId = resolved.unitId;
     updateData.unitCustomId = null;
-    updateData.unit = resolvedUnitName;
+    updateData.unit = resolved.unitName;
   }
 
   try {

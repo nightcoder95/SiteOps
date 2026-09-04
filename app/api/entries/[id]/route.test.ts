@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   mockRequireCapability, mockCheckOwnership, mockFindSite,
   mockGetEntryById, mockUpdateEntryById, mockDeleteEntryById, mockAssertCatalog,
+  mockUnitRuleFor, mockSelectWhere,
 } = vi.hoisted(() => ({
   mockRequireCapability: vi.fn(),
   mockCheckOwnership: vi.fn(),
@@ -12,6 +13,8 @@ const {
   mockUpdateEntryById: vi.fn(),
   mockDeleteEntryById: vi.fn(),
   mockAssertCatalog: vi.fn(),
+  mockUnitRuleFor: vi.fn(),
+  mockSelectWhere: vi.fn(async () => [] as Array<{ unitId: string; label: string }>),
 }));
 
 vi.mock("@/lib/auth/guards", () => ({ requireCapability: mockRequireCapability }));
@@ -19,9 +22,10 @@ vi.mock("@/lib/auth/ownership", () => ({ checkOwnership: mockCheckOwnership }));
 vi.mock("@/lib/db/client", () => ({
   db: {
     query: { sites: { findFirst: mockFindSite } },
-    select: () => ({ from: () => ({ where: async () => [] }) }),
+    select: () => ({ from: () => ({ where: mockSelectWhere }) }),
   },
 }));
+vi.mock("@/lib/db/queries/materialUnitRule", () => ({ materialUnitRuleFor: mockUnitRuleFor }));
 vi.mock("@/lib/db/queries/entries", async () => {
   const actual = await vi.importActual<typeof import("@/lib/db/queries/entries")>(
     "@/lib/db/queries/entries",
@@ -89,5 +93,102 @@ describe("PATCH entries — workStage catalog checks", () => {
     expect(res.status).toBe(200);
     expect(mockAssertCatalog).not.toHaveBeenCalled();
     expect(mockUpdateEntryById).toHaveBeenCalledWith("some-id", "expense", expect.objectContaining({ workStage: null }));
+  });
+});
+
+describe("PATCH material entries — unit resolution", () => {
+  const UNITS = [
+    { unitId: "aaaaaaaa-1111-4111-8111-111111111111", label: "Bag" },
+    { unitId: "bbbbbbbb-2222-4222-8222-222222222222", label: "Tonne" },
+  ];
+  const materialRow = {
+    siteId: "s1",
+    createdBy: "u1",
+    materialType: "Sand",
+    unit: "Tonne",
+    unitMasterId: null,
+  };
+
+  async function json(res: Response) {
+    return (await res.json()) as { error?: { code: string; message: string } };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRequireCapability.mockResolvedValue({ session: { user: { id: "u1", role: "supervisor" } } });
+    mockCheckOwnership.mockReturnValue(true);
+    mockFindSite.mockResolvedValue({ archivedAt: null });
+    mockAssertCatalog.mockResolvedValue({ ok: true, value: "Roof Level" });
+    mockUpdateEntryById.mockImplementation(async (_id: string, _type: string, data: unknown) => data);
+    mockSelectWhere.mockResolvedValue(UNITS);
+    mockUnitRuleFor.mockResolvedValue({ allowedNames: ["Tonne", "Bag"], preferredName: "Tonne" });
+    mockGetEntryById.mockResolvedValue(materialRow);
+  });
+
+  it("accepts a submitted unit that the material's rule allows", async () => {
+    const res = await PATCH(reqType("material", { unit: "Bag" }), ctx);
+    expect(res.status).toBe(200);
+    expect(mockUpdateEntryById).toHaveBeenCalledWith(
+      "some-id",
+      "material",
+      expect.objectContaining({
+        unitMode: "master",
+        unitMasterId: UNITS[0].unitId,
+        unitCustomId: null,
+        unit: "Bag",
+      }),
+    );
+  });
+
+  it("auto-assigns when the material allows exactly one unit", async () => {
+    mockUnitRuleFor.mockResolvedValue({ allowedNames: ["Bag"], preferredName: "Bag" });
+    const res = await PATCH(reqType("material", { unit: "Tonne" }), ctx);
+    expect(res.status).toBe(200);
+    expect(mockUpdateEntryById).toHaveBeenCalledWith(
+      "some-id",
+      "material",
+      expect.objectContaining({ unitMasterId: UNITS[0].unitId, unit: "Bag" }),
+    );
+  });
+
+  it("REJECTS an unallowed unit instead of silently falling back", async () => {
+    mockUnitRuleFor.mockResolvedValue({ allowedNames: ["Tonne", "CFT"], preferredName: "Tonne" });
+    const res = await PATCH(reqType("material", { unit: "Bag" }), ctx);
+    expect(res.status).toBe(400);
+    const body = await json(res);
+    expect(body.error?.message).toBe("Sand must use Tonne or CFT as the unit");
+    expect(mockUpdateEntryById).not.toHaveBeenCalled();
+  });
+
+  it("resolves against the NEW materialType when the type is being changed", async () => {
+    mockUnitRuleFor.mockResolvedValue({ allowedNames: ["Bag"], preferredName: "Bag" });
+    const res = await PATCH(reqType("material", { materialType: "Cement" }), ctx);
+    expect(res.status).toBe(200);
+    expect(mockUnitRuleFor).toHaveBeenCalledWith("Cement");
+    expect(mockUpdateEntryById).toHaveBeenCalledWith(
+      "some-id",
+      "material",
+      expect.objectContaining({ unit: "Bag" }),
+    );
+  });
+
+  it("rejects when the row's existing unit is disallowed by the new materialType", async () => {
+    // Only the type changes; the unit falls back to the stored "Tonne", which
+    // the new type does not allow → 400 rather than a silent rewrite.
+    mockUnitRuleFor.mockResolvedValue({ allowedNames: ["Bag", "CFT"], preferredName: "Bag" });
+    const res = await PATCH(reqType("material", { materialType: "Cement" }), ctx);
+    expect(res.status).toBe(400);
+    const body = await json(res);
+    expect(body.error?.message).toBe("Cement must use Bag or CFT as the unit");
+  });
+
+  it("does not touch unit fields when the update changes neither type nor unit", async () => {
+    const res = await PATCH(reqType("material", { quantity: 5 }), ctx);
+    expect(res.status).toBe(200);
+    expect(mockUnitRuleFor).not.toHaveBeenCalled();
+    const data = mockUpdateEntryById.mock.calls[0][2] as Record<string, unknown>;
+    expect(data).not.toHaveProperty("unitMode");
+    expect(data).not.toHaveProperty("unitMasterId");
+    expect(data).not.toHaveProperty("unit");
   });
 });

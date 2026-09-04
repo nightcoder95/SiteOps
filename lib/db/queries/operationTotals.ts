@@ -1,4 +1,5 @@
-import type { EntryType } from "./entries";
+import { labourSpend, type LabourSpendInput } from "@/lib/services/labourSpend";
+import type { EntryType } from "@/lib/types/entry";
 
 // Default page size when caller does not specify. Keeps initial site-detail
 // payload small enough to avoid 1MB+ RSC responses while still showing a
@@ -28,14 +29,6 @@ export function computeEntriesLimit(
   return fullAll ? clampLimit(limit) : Math.min(clampLimit(limit), ALL_TYPE_PREVIEW_LIMIT);
 }
 
-type LabourTotalInput = {
-  peopleCount?: number | null;
-  wagePerHead?: string | number | null;
-  salaryAmount?: string | number | null;
-  masonSalaryAmount?: string | number | null;
-  helperSalaryAmount?: string | number | null;
-};
-
 type MaterialRateInput = string | number | null | undefined;
 
 function finiteNumber(value: string | number | null | undefined) {
@@ -43,28 +36,9 @@ function finiteNumber(value: string | number | null | undefined) {
   return Number.isFinite(next) ? next : 0;
 }
 
-export function calculateLabourTotal(
-  rowOrPeople: LabourTotalInput | number | null | undefined,
-  wage?: string | number | null,
-) {
-  if (typeof rowOrPeople === "number" || rowOrPeople == null) {
-    const people = Number(rowOrPeople ?? 0);
-    const wageValue = finiteNumber(wage);
-    return Number.isFinite(people) && Number.isFinite(wageValue) ? people * wageValue : 0;
-  }
-
-  const splitTotal =
-    finiteNumber(rowOrPeople.masonSalaryAmount) +
-    finiteNumber(rowOrPeople.helperSalaryAmount);
-  if (splitTotal > 0) return splitTotal;
-
-  const stored = finiteNumber(rowOrPeople.salaryAmount);
-  if (stored > 0) return stored;
-
-  const people = Number(rowOrPeople.peopleCount ?? 0);
-  const wageValue = finiteNumber(rowOrPeople.wagePerHead);
-  return Number.isFinite(people) && Number.isFinite(wageValue) ? people * wageValue : 0;
-}
+// Single implementation, owned by lib/services/labourSpend.ts so non-DB callers
+// have an import path that does not reach into lib/db/queries (audit F10/F13).
+export const calculateLabourTotal = labourSpend;
 
 export function calculateMaterialUnitRate(cost: MaterialRateInput, quantity: MaterialRateInput) {
   const total = finiteNumber(cost);
@@ -87,7 +61,7 @@ export function consolidationKeyForEntry(type: EntryType, entry: Record<string, 
 }
 
 export function calculateSiteTrackedSpend(rows: {
-  labour: LabourTotalInput[];
+  labour: LabourSpendInput[];
   material: Array<{ cost?: string | number | null }>;
   machinery: Array<{ totalCost?: string | number | null }>;
   expense: Array<{ amount?: string | number | null }>;

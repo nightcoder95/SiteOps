@@ -1,3 +1,4 @@
+import { ArrowLeft } from 'lucide-react';
 import { eq } from "drizzle-orm";
 import dynamicImport from "next/dynamic";
 import { headers } from "next/headers";
@@ -55,7 +56,7 @@ export default async function LogsNewCategoryPage({
           href={backHref}
           className="p-2 -ml-2 rounded-xl hover:bg-white/5 transition-colors text-slate-400"
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_back</span>
+          <ArrowLeft className="w-[18px] h-[18px]" />
         </Link>
         <div>
           <h2 className="text-2xl font-extrabold tracking-tight text-white uppercase">Log {category.name}</h2>

@@ -1,10 +1,9 @@
 import { z } from "zod";
 
 import { requireAuth } from "@/lib/auth/guards";
-import { getOrSetJson } from "@/lib/cache/getOrSetJson";
 import { invalidateUserProfileCache } from "@/lib/cache/invalidate";
-import { userProfileCacheKey } from "@/lib/cache/keys";
 import { db } from "@/lib/db/client";
+import { getUserProfile } from "@/lib/db/queries/userProfile";
 import { userProfiles } from "@/lib/db/schema";
 import { measureDbQuery } from "@/lib/db/timing";
 import { handleDbError } from "@/lib/errors/db";
@@ -29,19 +28,7 @@ export const GET = withApi(async ({ request, requestId }) => {
     return errorResponse(auth.error, "Authentication required", auth.status, undefined, requestId);
   }
 
-  const { value: profile } = await getOrSetJson<UserProfile | null>(
-    requestId,
-    userProfileCacheKey(auth.session.user.id),
-    300,
-    () =>
-      measureDbQuery(requestId, "users.me.profile", () =>
-        db.query.userProfiles
-          .findFirst({
-            where: (t, { eq }) => eq(t.userId, auth.session.user.id),
-          })
-          .then((r) => r ?? null)
-      )
-  );
+  const profile = await getUserProfile(requestId, auth.session.user.id);
 
   return successResponse(
     {

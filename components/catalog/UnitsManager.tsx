@@ -136,7 +136,7 @@ export function UnitsManager() {
             value={newCategory}
             onChange={(e) => setNewCategory(e.target.value)}
             placeholder="Quantity type (e.g. Weight)"
-            className="h-9 w-48 rounded-lg border border-white/10 bg-slate-900 px-3 text-xs text-white outline-none placeholder-slate-500 focus:border-blue-500"
+            className="h-9 w-48 rounded-lg border border-white/10 bg-slate-900 px-3 text-xs text-white outline-none placeholder-slate-400 focus:border-blue-500"
           />
           <CatalogAddModal
             noun="Unit"

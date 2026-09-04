@@ -90,7 +90,7 @@ export function EditSiteModal({
         </div>
         <div className="flex flex-col gap-2">
           <label className={labelClass}>Budget (₹)</label>
-          <input type="number" min="0" step="0.01" value={budget} onChange={(e) => setBudget(e.target.value)} className={inputClass} />
+          <input type="number" inputMode="decimal" min="0" step="0.01" value={budget} onChange={(e) => setBudget(e.target.value)} className={inputClass} />
         </div>
         <div className="flex flex-col gap-2">
           <label className={labelClass}>Status</label>

@@ -77,33 +77,78 @@ export function CatalogManager() {
   const firstList = current?.lists[0];
   const singleListNoun = current?.lists.length === 1 ? firstList?.noun : null;
 
-  async function patch(subcategoryId: string, body: Record<string, unknown>) {
-    setBusyId(subcategoryId);
-    const res = await requestJson(`/api/forms/subcategories/${subcategoryId}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    setBusyId(null);
-    if (!res.ok) {
-      notifyError(res);
-      return false;
-    }
-    await mutate();
-    return true;
+  // Apply a change to the cached overview without refetching. `revalidate: false`
+  // is deliberate: the server response for these PATCHes carries no information
+  // the client does not already have, and the underlying aggregate is a full
+  // scan of every entry table.
+  async function applyLocal(update: (ops: CatalogOverviewOperation[]) => CatalogOverviewOperation[]) {
+    await mutate(
+      (current) =>
+        current && current.ok
+          ? { ...current, data: { ...current.data, operations: update(current.data.operations) } }
+          : current,
+      { revalidate: false },
+    );
+  }
+
+  // Map every item in every list through `fn`, preserving structure.
+  function mapItems(
+    ops: CatalogOverviewOperation[],
+    fn: (item: CatalogItem) => CatalogItem,
+  ): CatalogOverviewOperation[] {
+    return ops.map((op) => ({
+      ...op,
+      lists: op.lists.map((l) => ({ ...l, items: l.items.map(fn) })),
+    }));
   }
 
   async function toggleActive(item: CatalogItem) {
-    if (await patch(item.subcategoryId, { isActive: !item.isActive })) {
-      toast.success(`${item.isActive ? "Deactivated" : "Activated"} "${item.name}"`);
+    const nextActive = !item.isActive;
+    // Optimistic flip first so the row responds instantly on a slow site link.
+    await applyLocal((ops) =>
+      mapItems(ops, (i) => (i.subcategoryId === item.subcategoryId ? { ...i, isActive: nextActive } : i)),
+    );
+
+    setBusyId(item.subcategoryId);
+    const res = await requestJson(`/api/forms/subcategories/${item.subcategoryId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ isActive: nextActive }),
+    });
+    setBusyId(null);
+
+    if (!res.ok) {
+      notifyError(res);
+      // Roll back by revalidating — the server is the truth and we just learned
+      // our optimistic guess was wrong.
+      await mutate();
+      return;
     }
+    toast.success(`${item.isActive ? "Deactivated" : "Activated"} "${item.name}"`);
   }
 
   async function submitRename(next: string) {
     if (!renameTarget) return false;
-    const ok = await patch(renameTarget.id, { name: next });
-    if (ok) toast.success(`Renamed to "${next}"`);
-    return ok;
+    const target = renameTarget;
+    await applyLocal((ops) =>
+      mapItems(ops, (i) => (i.subcategoryId === target.id ? { ...i, name: next } : i)),
+    );
+
+    setBusyId(target.id);
+    const res = await requestJson(`/api/forms/subcategories/${target.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: next }),
+    });
+    setBusyId(null);
+
+    if (!res.ok) {
+      notifyError(res);
+      await mutate();
+      return false;
+    }
+    toast.success(`Renamed to "${next}"`);
+    return true;
   }
 
   async function reorder(list: CatalogOverviewList, index: number, direction: -1 | 1) {
@@ -112,21 +157,53 @@ export function CatalogManager() {
     if (!a || !b) return;
     const aOrder = a.sortOrder;
     const bOrder = b.sortOrder === aOrder ? aOrder + direction : b.sortOrder;
+
+    await applyLocal((ops) =>
+      ops.map((op) => ({
+        ...op,
+        lists: op.lists.map((l) =>
+          l.key !== list.key
+            ? l
+            : {
+                ...l,
+                items: l.items
+                  .map((i) =>
+                    i.subcategoryId === a.subcategoryId
+                      ? { ...i, sortOrder: bOrder }
+                      : i.subcategoryId === b.subcategoryId
+                        ? { ...i, sortOrder: aOrder }
+                        : i,
+                  )
+                  // Mirrors buildCatalogOverview's ordering exactly, so the row
+                  // does not jump on the next revalidation.
+                  .sort((x, y) => x.sortOrder - y.sortOrder || x.name.localeCompare(y.name)),
+              },
+        ),
+      })),
+    );
+
     setBusyId(a.subcategoryId);
-    const ok1 = await requestJson(`/api/forms/subcategories/${a.subcategoryId}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sortOrder: bOrder }),
-    });
-    const ok2 = await requestJson(`/api/forms/subcategories/${b.subcategoryId}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sortOrder: aOrder }),
-    });
+    // Parallel, not sequential: one arrow tap used to cost three round-trips.
+    const [ok1, ok2] = await Promise.all([
+      requestJson(`/api/forms/subcategories/${a.subcategoryId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sortOrder: bOrder }),
+      }),
+      requestJson(`/api/forms/subcategories/${b.subcategoryId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sortOrder: aOrder }),
+      }),
+    ]);
     setBusyId(null);
-    if (!ok1.ok) return notifyError(ok1);
-    if (!ok2.ok) return notifyError(ok2);
-    await mutate();
+
+    // Partial failure leaves the two rows inconsistent — revalidate so the UI
+    // shows what the database actually holds rather than our optimistic guess.
+    if (!ok1.ok || !ok2.ok) {
+      notifyError(ok1.ok ? ok2 : ok1);
+      await mutate();
+    }
   }
 
   async function submitMerge(targetId: string) {
@@ -144,6 +221,8 @@ export function CatalogManager() {
     }
     const targetName = mergeState.list.items.find((i) => i.subcategoryId === targetId)?.name ?? "target";
     toast.success(`Merged "${mergeState.source.name}" into "${targetName}"`);
+    // Full revalidate: a merge moves usage counts between rows — the client has
+    // no way to compute the resulting counts.
     await mutate();
     return true;
   }
@@ -187,6 +266,8 @@ export function CatalogManager() {
         return { status: "error" };
       }
       toast.success(`Added ${noun} "${res.data.name}"`);
+      // Full revalidate: the server assigns the id and may return a
+      // review-pending state we cannot predict client-side.
       await mutate();
       return { status: "created" };
     };
@@ -224,7 +305,27 @@ export function CatalogManager() {
     return actions;
   }
 
-  if (isLoading) return <p className="text-sm text-slate-400">Loading operations catalog…</p>;
+  // Skeleton rather than a bare "Loading…" string: the loaded view is a chip
+  // row, a toolbar and a list, so a one-line placeholder collapsed the page and
+  // then jumped when the data arrived. Heights mirror the real elements
+  // (chips ~34px, toolbar ~58px, rows ~56px).
+  if (isLoading) {
+    return (
+      <div className="space-y-5" aria-busy="true" aria-label="Loading operations catalog">
+        <div className="flex flex-wrap gap-2 pb-1">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-[34px] w-28 animate-pulse rounded-lg bg-slate-900" />
+          ))}
+        </div>
+        <div className="h-[58px] animate-pulse rounded-xl border border-white/10 bg-slate-900/60" />
+        <div className="space-y-2.5">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-14 animate-pulse rounded-xl bg-slate-900" />
+          ))}
+        </div>
+      </div>
+    );
+  }
   if (result && !result.ok) return <p className="text-sm text-rose-400">Failed to load catalog.</p>;
 
   const mergeCandidates: MergeCandidate[] = mergeState

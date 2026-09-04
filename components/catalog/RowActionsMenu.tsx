@@ -65,7 +65,7 @@ export function RowActionsMenu({ actions, label = "Row actions" }: { actions: Ro
             exit={{ opacity: 0, y: -4, scale: 0.97 }}
             transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
             role="menu"
-            className="absolute right-0 top-full z-30 mt-2 min-w-52 origin-top-right overflow-hidden rounded-2xl border border-white/10 bg-[#0d1526]/95 p-1.5 shadow-2xl shadow-black/50 backdrop-blur-xl"
+            className="absolute right-0 top-full z-[60] mt-2 min-w-52 origin-top-right overflow-hidden rounded-2xl border border-white/10 bg-[#0d1526]/95 p-1.5 shadow-2xl shadow-black/50 backdrop-blur-xl"
           >
             {actions.map((action) => {
               const Icon = action.icon;

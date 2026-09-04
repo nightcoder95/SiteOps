@@ -1,12 +1,11 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
-import { can } from "@/lib/auth/capabilities";
 import { requireSiteAccess } from "@/lib/auth/guards";
-import { invalidateCategoryTreeCache } from "@/lib/cache/invalidate";
+import { invalidateCatalogOverviewCache, invalidateCategoryTreeCache } from "@/lib/cache/invalidate";
+import { buildFieldRequestRows, submitForReview, SIMILARITY_REVIEW_THRESHOLD } from "@/lib/catalog/review";
 import { db } from "@/lib/db/client";
-import { createNotification, getAllAdmins } from "@/lib/db/queries/notifications";
-import { categories, fieldRequests, sites, subcategories } from "@/lib/db/schema";
+import { categories, fieldRequests, subcategories } from "@/lib/db/schema";
 import { ERROR_CODES } from "@/lib/errors/codes";
 import { handleDbError } from "@/lib/errors/db";
 import { errorResponse, successResponse } from "@/lib/errors/response";
@@ -29,34 +28,6 @@ const createSubcategorySchema = z
     remarks: z.string().max(500).optional(),
   })
   .strict();
-
-async function resolveReviewSiteId(
-  preferredSiteId: string | undefined,
-  sessionUserId: string,
-  role: "Admin" | "Supervisor",
-) {
-  if (preferredSiteId) {
-    const rows = await db
-      .select({ siteId: sites.siteId })
-      .from(sites)
-      .where(and(eq(sites.siteId, preferredSiteId), isNull(sites.archivedAt)));
-    if (rows[0]?.siteId) return rows[0].siteId;
-  }
-
-  const rows = can(role, "site:read_all")
-    ? await db
-      .select({ siteId: sites.siteId })
-      .from(sites)
-      .where(isNull(sites.archivedAt))
-      .limit(1)
-    : await db
-      .select({ siteId: sites.siteId })
-      .from(sites)
-      .where(and(eq(sites.supervisorId, sessionUserId), isNull(sites.archivedAt)))
-      .limit(1);
-
-  return rows[0]?.siteId ?? null;
-}
 
 export const POST = withApi(async ({ request, requestId }) => {
   const auth = await requireSiteAccess(request);
@@ -97,7 +68,7 @@ export const POST = withApi(async ({ request, requestId }) => {
     subcategoryName,
     existing.map((item) => ({ id: item.subcategoryId, name: item.name })),
   );
-  const requiresReview = ranked.topScore >= 0.7;
+  const requiresReview = ranked.topScore >= SIMILARITY_REVIEW_THRESHOLD;
   if (requiresReview && !validation.data.overrideDuplicateWarning) {
     return errorResponse(
       ERROR_CODES.CONFLICT,
@@ -134,69 +105,27 @@ export const POST = withApi(async ({ request, requestId }) => {
     }
 
     if (requiresReview) {
-      const admins = await getAllAdmins();
-      runNonCritical(
+      await submitForReview({
         requestId,
-        "subcategory_review_notification_failed",
-        Promise.all(
-          admins.map((admin) =>
-            createNotification(
-              admin.id,
-              "approval",
-              "Subcategory needs review",
-              `A similar subcategory "${subcategoryName}" was created and flagged for admin review.`,
-              validation.data.siteId
-                ? `/app/sites/${validation.data.siteId}`
-                : "/app/logs/new",
-            ),
-          ),
-        ),
-        { categoryId: validation.data.categoryId, subcategoryId: created.subcategoryId, name: subcategoryName },
-      );
-
-      const reviewSiteId = await resolveReviewSiteId(
-        validation.data.siteId,
-        auth.session.user.id,
-        auth.session.user.role,
-      );
-      if (reviewSiteId) {
-        await db.insert(fieldRequests).values({
-          siteId: reviewSiteId,
-          proposedName: `[Subcategory Review] ${subcategoryName}`,
-          categoryId: validation.data.categoryId,
-          subcategoryId: null,
-          fieldType: "Text",
-          status: "Pending",
-          requestedBy: auth.session.user.id,
-        });
-      }
+        noun: "subcategory",
+        name: subcategoryName,
+        categoryId: validation.data.categoryId,
+        subcategoryId: created.subcategoryId,
+        preferredSiteId: validation.data.siteId,
+        sessionUserId: auth.session.user.id,
+        role: auth.session.user.role,
+      });
     }
 
     if (validation.data.siteId && (validation.data.customFields?.length || validation.data.remarks?.trim())) {
-      const requestRows = [
-        ...(validation.data.customFields ?? [])
-          .filter((item) => item.label.trim())
-          .map((item) => ({
-            siteId: validation.data.siteId as string,
-            proposedName: item.unit?.trim() ? `${item.label.trim()} (${item.unit.trim()})` : item.label.trim(),
-            categoryId: validation.data.categoryId,
-            subcategoryId: created.subcategoryId,
-            fieldType: item.fieldType,
-            status: "Pending" as const,
-            requestedBy: auth.session.user.id,
-          })),
-        ...(validation.data.remarks?.trim()
-          ? [{
-            siteId: validation.data.siteId as string,
-            proposedName: `Remarks: ${validation.data.remarks.trim()}`,
-            categoryId: validation.data.categoryId,
-            subcategoryId: created.subcategoryId,
-            fieldType: "Text" as const,
-            status: "Pending" as const,
-            requestedBy: auth.session.user.id,
-          }]
-          : []),
-      ];
+      const requestRows = buildFieldRequestRows({
+        siteId: validation.data.siteId,
+        categoryId: validation.data.categoryId,
+        subcategoryId: created.subcategoryId,
+        requestedBy: auth.session.user.id,
+        customFields: validation.data.customFields,
+        remarks: validation.data.remarks,
+      });
       if (requestRows.length > 0) {
         await db.insert(fieldRequests).values(requestRows);
       }
@@ -206,6 +135,11 @@ export const POST = withApi(async ({ request, requestId }) => {
       requestId,
       "category_tree_cache_invalidation_failed",
       invalidateCategoryTreeCache(validation.data.categoryId, requestId),
+    );
+    runNonCritical(
+      requestId,
+      "catalog_overview_cache_invalidation_failed",
+      invalidateCatalogOverviewCache(requestId),
     );
 
     return successResponse(

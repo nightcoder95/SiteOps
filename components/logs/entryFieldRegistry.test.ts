@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   entryEndpointFor,
   fallbackFields,
+  numericInputModeFor,
   resolveEntryFields,
   resolveEntryKind,
 } from "./entryFieldRegistry";
@@ -102,6 +103,61 @@ describe("resolveEntryKind", () => {
 
   it("falls back to dynamic for unknown categories", () => {
     expect(resolveEntryKind("Custom")).toBe("dynamic");
+  });
+});
+
+describe("numericInputModeFor", () => {
+  it("returns undefined for non-numeric fields", () => {
+    expect(numericInputModeFor({ name: "remarks", label: "Remarks", kind: "textarea" })).toBeUndefined();
+    expect(numericInputModeFor({ name: "date", label: "Date", kind: "date" })).toBeUndefined();
+  });
+
+  it("returns numeric for whole-number fields (step 1)", () => {
+    expect(
+      numericInputModeFor({ name: "peopleCount", label: "People Count", kind: "number", step: 1 }),
+    ).toBe("numeric");
+  });
+
+  it("returns decimal for fractional fields", () => {
+    expect(
+      numericInputModeFor({ name: "wagePerHead", label: "Per Head Salary", kind: "number", step: 0.01 }),
+    ).toBe("decimal");
+    expect(
+      numericInputModeFor({ name: "hoursActive", label: "Hours Active", kind: "number", step: 0.1 }),
+    ).toBe("decimal");
+  });
+
+  it("defaults an unstepped number field to decimal", () => {
+    expect(numericInputModeFor({ name: "quantity", label: "Quantity", kind: "number" })).toBe("decimal");
+  });
+
+  it("honours an explicit inputMode override", () => {
+    expect(
+      numericInputModeFor({ name: "count", label: "Count", kind: "number", step: 0.01, inputMode: "numeric" }),
+    ).toBe("numeric");
+  });
+
+  it("assigns an inputMode to every numeric field in the registry", () => {
+    for (const category of ["labour", "material", "machinery", "expense", "incident"]) {
+      for (const field of resolveEntryFields(category)) {
+        if (field.kind !== "number") continue;
+        expect(numericInputModeFor(field), `${category}.${field.name}`).toBeDefined();
+      }
+    }
+  });
+
+  it("maps the known registry fields to the expected keyboards", () => {
+    const byName = (cat: string, name: string) =>
+      numericInputModeFor(resolveEntryFields(cat).find((f) => f.name === name)!);
+    expect(byName("labour", "peopleCount")).toBe("numeric");
+    expect(byName("labour", "wagePerHead")).toBe("decimal");
+    expect(byName("material", "quantity")).toBe("decimal");
+    expect(byName("material", "cost")).toBe("decimal");
+    expect(byName("machinery", "count")).toBe("numeric");
+    expect(byName("machinery", "hoursActive")).toBe("decimal");
+    expect(byName("machinery", "totalCost")).toBe("decimal");
+    expect(byName("expense", "amount")).toBe("decimal");
+    expect(byName("incident", "durationEstimate")).toBe("numeric");
   });
 });
 

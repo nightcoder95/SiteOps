@@ -22,6 +22,10 @@ export function categoryTreeCacheKey(categoryId: string) {
   return `category:${categoryId}:tree`;
 }
 
+export function catalogOverviewCacheKey() {
+  return `admin:catalogOverview`;
+}
+
 export function catalogListNamesCacheKey(listKey: string) {
   return `catalog:list:${listKey.toLowerCase()}:active`;
 }

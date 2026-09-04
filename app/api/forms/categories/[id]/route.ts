@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { requireCapability } from "@/lib/auth/guards";
 import { getOrSetJson } from "@/lib/cache/getOrSetJson";
 import {
+  invalidateCatalogOverviewCache,
   invalidateCategoryListCache,
   invalidateCategoryTreeCache,
 } from "@/lib/cache/invalidate";
@@ -116,6 +117,12 @@ export const DELETE = withApiRoute<RouteCtx>(async ({ request, requestId }, cont
       invalidateCategoryTreeCache(id, requestId),
       invalidateCategoryListCache(requestId),
     ]),
+  );
+
+  runNonCritical(
+    requestId,
+    "catalog_overview_cache_invalidation_failed",
+    invalidateCatalogOverviewCache(requestId),
   );
 
   return successResponse(null, 200, requestId);

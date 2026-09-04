@@ -1,6 +1,5 @@
 import { sql } from "drizzle-orm";
 
-import { requireCapability } from "@/lib/auth/guards";
 import { groupUnitsByCategory, unitCodeFromLabel, type UnitRow } from "@/lib/catalog/units";
 import { db } from "@/lib/db/client";
 import { materialEntries, unitMaster } from "@/lib/db/schema";
@@ -8,51 +7,46 @@ import { ERROR_CODES } from "@/lib/errors/codes";
 import { handleDbError } from "@/lib/errors/db";
 import { errorResponse, successResponse } from "@/lib/errors/response";
 import { parseJsonBody } from "@/lib/http/request";
-import { withApi } from "@/lib/http/withApi";
+import { withAuthedApi } from "@/lib/http/withApi";
 import { normalizeLabel } from "@/lib/utils/stringSimilarity";
 
 // Units live in unit_master, a separate SSOT from subcategory-backed lists.
 // Usage is counted against the free-text material_entries.unit column.
-export const GET = withApi(async ({ request, requestId }) => {
-  const auth = await requireCapability(request, "site:read_all");
-  if (!("session" in auth)) {
-    return errorResponse(auth.error, "Admin access required", auth.status, undefined, requestId);
-  }
+export const GET = withAuthedApi(
+  "site:read_all",
+  async ({ requestId }) => {
 
-  const rows = await db
-    .select({
-      unitId: unitMaster.unitId,
-      label: unitMaster.label,
-      category: unitMaster.category,
-      sortOrder: unitMaster.sortOrder,
-      isActive: unitMaster.isActive,
-    })
-    .from(unitMaster);
+    const rows = await db
+      .select({
+        unitId: unitMaster.unitId,
+        label: unitMaster.label,
+        category: unitMaster.category,
+        sortOrder: unitMaster.sortOrder,
+        isActive: unitMaster.isActive,
+      })
+      .from(unitMaster);
 
-  const usageRows = await db
-    .select({ value: materialEntries.unit, n: sql<number>`count(*)::int` })
-    .from(materialEntries)
-    .groupBy(materialEntries.unit);
+    const usageRows = await db
+      .select({ value: materialEntries.unit, n: sql<number>`count(*)::int` })
+      .from(materialEntries)
+      .groupBy(materialEntries.unit);
 
-  const usageByLabel = new Map<string, number>();
-  for (const row of usageRows) {
-    if (row.value != null) usageByLabel.set(String(row.value), Number(row.n));
-  }
+    const usageByLabel = new Map<string, number>();
+    for (const row of usageRows) {
+      if (row.value != null) usageByLabel.set(String(row.value), Number(row.n));
+    }
 
-  const unitRows: UnitRow[] = rows.map((r) => ({
-    ...r,
-    usageCount: usageByLabel.get(r.label) ?? 0,
-  }));
+    const unitRows: UnitRow[] = rows.map((r) => ({
+      ...r,
+      usageCount: usageByLabel.get(r.label) ?? 0,
+    }));
 
-  return successResponse({ groups: groupUnitsByCategory(unitRows) }, 200, requestId);
-});
+    return successResponse({ groups: groupUnitsByCategory(unitRows) }, 200, requestId);
+  },
+  { unauthorizedMessage: "Admin access required" },
+);
 
-export const POST = withApi(async ({ request, requestId }) => {
-  const auth = await requireCapability(request, "catalog:create");
-  if (!("session" in auth)) {
-    return errorResponse(auth.error, "Authentication required", auth.status, undefined, requestId);
-  }
-
+export const POST = withAuthedApi("catalog:create", async ({ request, requestId }) => {
   const parsed = await parseJsonBody(request, requestId);
   if (!parsed.ok) return parsed.response;
   const body = parsed.data as Record<string, unknown>;

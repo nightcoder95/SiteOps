@@ -20,6 +20,18 @@ async function signUpSupervisor(page: import("@playwright/test").Page) {
 }
 
 test.describe("Tools Inventory — authz gate (Supervisor)", () => {
+  // QUARANTINED (2026-09-04): signUpSupervisor() below creates a REAL Supabase
+  // auth user, and Playwright's webServer runs `npm run dev` against .env.local
+  // — the production database. It also depends on self-service sign-up, which is
+  // disabled (/api/auth/create-profile returns 410; accounts are admin-provisioned).
+  // The authz assertions are correct and worth keeping; only the way they obtain
+  // a Supervisor session is wrong. Restore with a storageState fixture seeded on
+  // a non-prod environment.
+  test.skip(
+    true,
+    "Creates a real user via removed self-service sign-up, against the production database. Needs a Supervisor auth fixture.",
+  );
+
   test("Supervisor is 404'd from the Company Tools hub", async ({ page }) => {
     await signUpSupervisor(page);
     const res = await page.goto("/app/tools");

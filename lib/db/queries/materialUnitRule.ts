@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import { categories, materialTypeUnits, subcategories, unitMaster } from "@/lib/db/schema";
 
-import { computeMaterialUnitRule, type MaterialUnitRule } from "./materialUnits";
+import { computeMaterialUnitRule, type MaterialUnitRule } from "@/lib/catalog/units";
 
 // Server-only: resolve the allowed/preferred units for a material type from the
 // material_type_units mapping, falling back to ALL active units (design §3.3).

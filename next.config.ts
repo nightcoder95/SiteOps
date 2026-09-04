@@ -1,36 +1,7 @@
 import type { NextConfig } from "next";
 import withSerwist from "@serwist/next";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const posthogHost = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "";
-
-// Report-only CSP for now: collect violation reports without breaking anything,
-// then promote to enforcing Content-Security-Policy in a follow-up.
-const cspReportOnly = [
-  "default-src 'self'",
-  `connect-src 'self' ${supabaseUrl} ${posthogHost} https://*.upstash.io wss://${supabaseUrl.replace(/^https?:\/\//, "")}`.trim(),
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "img-src 'self' data: blob: https:",
-  "font-src 'self' https://fonts.gstatic.com data:",
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-].join("; ");
-
-const securityHeaders = [
-  // Prevent clickjacking by disallowing the page from being embedded in a frame.
-  { key: "X-Frame-Options", value: "DENY" },
-  // Prevent MIME type sniffing, which can lead to XSS in older browsers.
-  { key: "X-Content-Type-Options", value: "nosniff" },
-  // Only send the origin as the referrer for cross-origin requests.
-  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  // Restrict access to sensitive browser features that this app doesn't need.
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
-  // Report-only mode; flip the header name to `Content-Security-Policy` once
-  // violations are clean.
-  { key: "Content-Security-Policy-Report-Only", value: cspReportOnly },
-];
+import { buildSecurityHeaders } from "./lib/security/headers";
 
 const nextConfig: NextConfig = {
   // `pg` and related packages must stay external to avoid bundling native bindings.
@@ -39,7 +10,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/(.*)",
-        headers: securityHeaders,
+        headers: buildSecurityHeaders(),
       },
       {
         // `/_next/static` already gets `public, max-age=31536000, immutable`

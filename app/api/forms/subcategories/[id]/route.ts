@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { requireCapability } from "@/lib/auth/guards";
 import { usageSourcesForCategory } from "@/lib/catalog/usageSources";
-import { invalidateCategoryTreeCache } from "@/lib/cache/invalidate";
+import { invalidateCatalogOverviewCache, invalidateCategoryTreeCache } from "@/lib/cache/invalidate";
 import { db } from "@/lib/db/client";
 import { categories, subcategories } from "@/lib/db/schema";
 import { ERROR_CODES } from "@/lib/errors/codes";
@@ -82,6 +82,11 @@ export const PATCH = withApiRoute<RouteCtx>(async ({ request, requestId }, conte
       requestId,
       "category_tree_cache_invalidation_failed",
       invalidateCategoryTreeCache(row.categoryId, requestId),
+    );
+    runNonCritical(
+      requestId,
+      "catalog_overview_cache_invalidation_failed",
+      invalidateCatalogOverviewCache(requestId),
     );
 
     return successResponse(updated[0], 200, requestId);
@@ -166,6 +171,11 @@ export const DELETE = withApiRoute<RouteCtx>(async ({ request, requestId }, cont
     requestId,
     "category_tree_cache_invalidation_failed",
     invalidateCategoryTreeCache(row.categoryId, requestId),
+  );
+  runNonCritical(
+    requestId,
+    "catalog_overview_cache_invalidation_failed",
+    invalidateCatalogOverviewCache(requestId),
   );
 
   return successResponse(null, 200, requestId);

@@ -1,7 +1,9 @@
 "use client";
 
 import { AnimatePresence, motion, type HTMLMotionProps, type Transition } from "motion/react";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
+
+import { lockBodyScroll } from "@/lib/ui/scrollLock";
 
 const EASE: Transition["ease"] = [0.22, 1, 0.36, 1];
 
@@ -123,10 +125,31 @@ export function ModalShell({
   children: ReactNode;
   className?: string;
 }) {
+  // Escape closes the overlay, matching the click-outside affordance already
+  // wired below. Without this, a keyboard user had no way out of any of the
+  // eight surfaces built on ModalShell.
+  useEffect(() => {
+    if (!open || !onClose) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose]);
+
+  // Stop the page behind the overlay from scrolling. Ref-counted, so a confirm
+  // dialog opening over a modal does not unlock the page when it closes.
+  useEffect(() => {
+    if (!open) return;
+    return lockBodyScroll();
+  }, [open]);
+
   return (
     <AnimatePresence>
       {open ? (
         <motion.div
+          role="dialog"
+          aria-modal="true"
           className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 p-4 sm:items-center sm:p-0"
           {...overlayFade}
           onClick={(e) => {

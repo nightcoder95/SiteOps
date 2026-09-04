@@ -22,11 +22,19 @@ import {
   type SpendType,
 } from "@/components/operations/entryFormat";
 import {
+  boundaryIdsFor,
   buildApplyFiltersUrl,
   canApplyFilters,
+  canLoadMore,
   deriveOperationsView,
+  mergeLoadedRows,
   type AllOperationsSort,
 } from "@/components/operations/allOperationsView";
+import { buildCombinedRows } from "@/components/operations/entryFormat";
+
+// Matches the per-type limit the server page requests; a short page therefore
+// means that type is exhausted.
+const PAGE_SIZE = 200;
 
 type Site = {
   name: string;
@@ -71,12 +79,21 @@ export default function AllOperationsPageClient({
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Local working copy of the SSR rows so delete can remove a row instantly
-  // (optimistic) and roll back on error. Re-synced whenever the server sends
-  // a fresh list (filter navigation / router.refresh()).
+  // (optimistic) and roll back on error, and so "Load more" can append. Re-synced
+  // whenever the server sends a fresh list (filter navigation).
   const [rows, setRows] = useState(initialRows);
   useEffect(() => {
     setRows(initialRows);
   }, [initialRows]);
+
+  // `capped` starts as the server's per-type cap report and shrinks as pages are
+  // loaded: a type that returns a short page has nothing left, so its banner
+  // (and its share of "Load more") goes away.
+  const [cappedTypes, setCappedTypes] = useState<SpendType[]>(capped);
+  useEffect(() => {
+    setCappedTypes(capped);
+  }, [capped]);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // Deep-link highlight: when arriving from global search with ?highlight=<id>
   // (read server-side, passed as a prop), scroll the matching log card into
@@ -169,7 +186,57 @@ export default function AllOperationsPageClient({
     }
 
     toast.success("Entry deleted");
-    router.refresh();
+    // No router.refresh(): grandTotal / visibleLogCount / groupedRows are all
+    // derived client-side from `rows`, which the optimistic update above has
+    // already corrected. Refreshing re-ran the full five-table SSR fetch for
+    // nothing. `capped` (the 200-row banner) is server-derived and may be one
+    // row stale until the next navigation — accepted; it is advisory only.
+  }
+
+  // Keyset "load more": one request per still-capped type, continuing from the
+  // last row already loaded for it. The server re-applies the site scope and the
+  // same filters, so this only ever extends the current view.
+  async function handleLoadMore() {
+    const boundaries = boundaryIdsFor(rows, cappedTypes);
+    const types = Object.keys(boundaries) as SpendType[];
+    if (types.length === 0) return;
+
+    setLoadingMore(true);
+    const params = (type: SpendType) => {
+      const qs = new URLSearchParams({ type, sort: filters.sort, limit: String(PAGE_SIZE) });
+      qs.set("after", String(boundaries[type]));
+      if (filters.from) qs.set("from", filters.from);
+      if (filters.to) qs.set("to", filters.to);
+      return qs.toString();
+    };
+
+    const results = await Promise.all(
+      types.map(async (type) => ({
+        type,
+        res: await requestJson<Record<string, unknown>[]>(`/api/sites/${siteId}/entries?${params(type)}`),
+      })),
+    );
+    setLoadingMore(false);
+
+    const failed = results.find((result) => !result.res.ok);
+    if (failed && !failed.res.ok) {
+      notifyError(failed.res);
+      return;
+    }
+
+    const grouped = { labour: [], material: [], machinery: [], expense: [] } as Record<
+      SpendType,
+      Record<string, unknown>[]
+    >;
+    const exhausted: SpendType[] = [];
+    for (const { type, res } of results) {
+      const page = res.ok ? (res.data ?? []) : [];
+      grouped[type] = page;
+      if (page.length < PAGE_SIZE) exhausted.push(type);
+    }
+
+    setRows((current) => mergeLoadedRows(current, buildCombinedRows(grouped)));
+    setCappedTypes((current) => current.filter((type) => !exhausted.includes(type)));
   }
 
   return (
@@ -194,7 +261,7 @@ export default function AllOperationsPageClient({
 
           <div className="text-right">
             <p className="text-2xl font-extrabold text-white">{visibleLogCount}</p>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Logs</p>
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-500">Logs</p>
             <p className="mt-2 text-sm font-bold text-sky-400">{formatCurrency(grandTotal)}</p>
           </div>
         </div>
@@ -206,10 +273,32 @@ export default function AllOperationsPageClient({
         </div>
       ) : null}
 
-      {capped.length > 0 ? (
+      {cappedTypes.length > 0 ? (
         <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs font-semibold text-amber-400">
-          Showing the most recent 200 {capped.map((type) => typeLabel[type]).join(", ")} entries — narrow the date
-          range to see more.
+          {canLoadMore(filters.sort, cappedTypes) ? (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span>
+                Showing the most recent {PAGE_SIZE}{" "}
+                {cappedTypes.map((type) => typeLabel[type]).join(", ")} entries.
+              </span>
+              <button
+                type="button"
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                className="btn-secondary min-h-11 px-4 text-xs disabled:opacity-60"
+              >
+                {loadingMore ? "Loading…" : "Load more"}
+              </button>
+            </div>
+          ) : (
+            // Spend sorts order the page in JS after the limit, so paging past
+            // the cap would produce a list that is only sorted within a page.
+            <span>
+              Showing the most recent {PAGE_SIZE}{" "}
+              {cappedTypes.map((type) => typeLabel[type]).join(", ")} entries — narrow the date range,
+              or sort by date to load more.
+            </span>
+          )}
         </div>
       ) : null}
 
@@ -340,7 +429,7 @@ export default function AllOperationsPageClient({
             <div className="flex items-center justify-between px-1">
               <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400">{formatDate(date)}</h2>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Day total</span>
+                <span className="text-xs font-extrabold uppercase tracking-widest text-slate-500">Day total</span>
                 <span className="text-xs font-bold text-sky-400">{formatCurrency(dayTotal)}</span>
               </div>
             </div>
@@ -358,7 +447,7 @@ export default function AllOperationsPageClient({
                 >
                   <div className="min-w-0 flex-1 space-y-2">
                     <span
-                      className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest ${getTypeColor(row.type)}`}
+                      className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-xs font-bold uppercase tracking-widest ${getTypeColor(row.type)}`}
                     >
                       <EntryTypeIcon type={row.type} className="w-3 h-3" />
                       {typeLabel[row.type]}
@@ -391,7 +480,7 @@ export default function AllOperationsPageClient({
 
         {visibleLogCount === 0 ? (
           <div className="text-center py-20 bg-white/2 rounded-3xl border border-dashed border-white/5">
-            <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest italic">
+            <p className="text-slate-500 text-xs font-bold uppercase tracking-widest italic">
               No matching logs found.
             </p>
           </div>

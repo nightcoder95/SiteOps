@@ -168,7 +168,7 @@ export function DataExportPanel() {
               <div
                 role="listbox"
                 aria-label="Tables to export"
-                className="absolute z-30 mt-2 w-full overflow-hidden rounded-xl border border-white/[0.08] bg-slate-900/95 shadow-2xl shadow-black/60 backdrop-blur-xl"
+                className="absolute z-[60] mt-2 w-full overflow-hidden rounded-xl border border-white/[0.08] bg-slate-900/95 shadow-2xl shadow-black/60 backdrop-blur-xl"
               >
                 <div className="flex items-center gap-2 border-b border-white/[0.06] px-3 py-2">
                   <Search className="h-4 w-4 shrink-0 text-slate-500" />
@@ -177,7 +177,7 @@ export function DataExportPanel() {
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Search tables"
-                    className="w-full bg-transparent text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none"
+                    className="w-full bg-transparent text-sm text-slate-200 placeholder:text-slate-400 focus:outline-none"
                   />
                   {query && (
                     <button

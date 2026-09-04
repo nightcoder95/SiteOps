@@ -2,6 +2,7 @@ import { logWarn } from "@/lib/logging/log";
 
 import {
   analyticsCacheKey,
+  catalogOverviewCacheKey,
   categoryListCacheKey,
   categoryTreeCacheKey,
   siteCacheKey,
@@ -52,6 +53,20 @@ export async function invalidateCategoryListCache(requestId: string) {
     await r.del(categoryListCacheKey());
   } catch (error) {
     logWarn(requestId, "cache_invalidate_error", { key: categoryListCacheKey(), error: String(error) });
+  }
+}
+
+export async function invalidateCatalogOverviewCache(requestId: string) {
+  const r = redis;
+  if (!r) return;
+
+  try {
+    await r.del(catalogOverviewCacheKey());
+  } catch (error) {
+    logWarn(requestId, "cache_invalidate_error", {
+      key: catalogOverviewCacheKey(),
+      error: String(error),
+    });
   }
 }
 

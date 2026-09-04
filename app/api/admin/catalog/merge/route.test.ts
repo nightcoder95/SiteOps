@@ -4,7 +4,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { POST } from "./route";
 
-const { mockRequireCapability, mockSelect, mockExecute, mockUpdate, mockTransaction } = vi.hoisted(() => ({
+const {
+  mockRequireCapability, mockSelect, mockExecute, mockUpdate, mockTransaction,
+  mockInvalidateOverview, mockRunNonCritical,
+} = vi.hoisted(() => ({
+  mockInvalidateOverview: vi.fn().mockResolvedValue(undefined),
+  mockRunNonCritical: vi.fn(),
   mockRequireCapability: vi.fn(),
   mockSelect: vi.fn(),
   mockExecute: vi.fn(),
@@ -22,10 +27,11 @@ vi.mock("@/lib/db/client", () => ({
 
 vi.mock("@/lib/cache/invalidate", () => ({
   invalidateCategoryTreeCache: vi.fn().mockResolvedValue(undefined),
+  invalidateCatalogOverviewCache: mockInvalidateOverview,
 }));
 
 vi.mock("@/lib/services/nonCritical", () => ({
-  runNonCritical: vi.fn(),
+  runNonCritical: mockRunNonCritical,
 }));
 
 vi.mock("@/lib/utils/requestId", () => ({
@@ -76,6 +82,33 @@ describe("POST /api/admin/catalog/merge", () => {
     expect(body.success).toBe(true);
     expect(mockExecute).toHaveBeenCalledTimes(1);
     expect(mockUpdate).toHaveBeenCalledWith(expect.anything());
+  });
+
+  it("invalidates the catalog overview cache on a successful merge", async () => {
+    mockInvalidateOverview.mockResolvedValue(undefined);
+    mockReads(
+      [
+        { subcategoryId: "src", categoryId: "c1", name: "painting" },
+        { subcategoryId: "tgt", categoryId: "c1", name: "Paint" },
+      ],
+      [{ name: "Materials" }],
+    );
+
+    const res = await POST(postBody({ sourceId: "src", targetId: "tgt" }));
+    expect(res.status).toBe(200);
+    expect(mockRunNonCritical).toHaveBeenCalledWith(
+      expect.any(String),
+      "catalog_overview_cache_invalidation_failed",
+      expect.anything(),
+    );
+    expect(mockInvalidateOverview).toHaveBeenCalledWith("req_test");
+  });
+
+  it("does NOT invalidate the catalog overview cache when the merge 404s", async () => {
+    mockReads([{ subcategoryId: "src", categoryId: "c1", name: "painting" }], []);
+    const res = await POST(postBody({ sourceId: "src", targetId: "tgt" }));
+    expect(res.status).toBe(404);
+    expect(mockInvalidateOverview).not.toHaveBeenCalled();
   });
 
   it("rejects merging an item into itself", async () => {

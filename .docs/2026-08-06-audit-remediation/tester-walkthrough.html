@@ -1,0 +1,933 @@
+<title>SiteOps Test Walkthrough</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+  :root {
+    --paper: #faf8f5;
+    --card: #ffffff;
+    --ink: #1c1f26;
+    --ink-soft: #5a606d;
+    --rule: #e2ddd5;
+    --rule-strong: #cfc8bd;
+    --signal: #a4520a;
+    --signal-wash: #fdf4ea;
+    --pass: #166534;
+    --pass-wash: #eff6ef;
+    --flag: #a81f1f;
+    --flag-wash: #fdf1f1;
+    --shadow: 0 1px 2px rgba(28, 31, 38, .06);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #15171c;
+      --card: #1c1f26;
+      --ink: #ece8e1;
+      --ink-soft: #9aa0ad;
+      --rule: #2d323b;
+      --rule-strong: #3d434e;
+      --signal: #e39152;
+      --signal-wash: #2a2018;
+      --pass: #6fbf85;
+      --pass-wash: #17251b;
+      --flag: #e88b8b;
+      --flag-wash: #291a1a;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper: #15171c;
+    --card: #1c1f26;
+    --ink: #ece8e1;
+    --ink-soft: #9aa0ad;
+    --rule: #2d323b;
+    --rule-strong: #3d434e;
+    --signal: #e39152;
+    --signal-wash: #2a2018;
+    --pass: #6fbf85;
+    --pass-wash: #17251b;
+    --flag: #e88b8b;
+    --flag-wash: #291a1a;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0 20px 96px;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .wrap { max-width: 40rem; margin: 0 auto; }
+
+  /* ---- masthead ---- */
+  header.masthead {
+    padding: 48px 0 28px;
+    border-bottom: 3px solid var(--ink);
+  }
+  .eyebrow {
+    font-family: "Barlow Semi Condensed", ui-sans-serif, sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--signal);
+    margin: 0 0 10px;
+  }
+  h1 {
+    font-family: "Barlow Semi Condensed", ui-sans-serif, sans-serif;
+    font-weight: 700;
+    font-size: clamp(38px, 10vw, 56px);
+    line-height: .98;
+    letter-spacing: -.01em;
+    text-wrap: balance;
+    margin: 0 0 16px;
+  }
+  .standfirst { font-size: 17px; color: var(--ink-soft); margin: 0; max-width: 34rem; }
+
+  /* ---- orientation panel ---- */
+  .orient {
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-left: 4px solid var(--signal);
+    border-radius: 3px;
+    padding: 20px 22px;
+    margin: 28px 0 8px;
+    box-shadow: var(--shadow);
+  }
+  .orient h2 {
+    font-family: "Barlow Semi Condensed", ui-sans-serif, sans-serif;
+    font-size: 20px; font-weight: 700; margin: 0 0 10px; letter-spacing: .01em;
+  }
+  .orient p { margin: 0 0 12px; }
+  .orient p:last-child { margin-bottom: 0; }
+  .orient ul { margin: 0 0 12px; padding-left: 20px; }
+  .orient li { margin-bottom: 6px; }
+
+  /* ---- section headings ---- */
+  h2.section {
+    font-family: "Barlow Semi Condensed", ui-sans-serif, sans-serif;
+    font-size: clamp(26px, 6vw, 32px);
+    font-weight: 700;
+    letter-spacing: -.005em;
+    margin: 52px 0 6px;
+    padding-top: 22px;
+    border-top: 1px solid var(--rule-strong);
+    text-wrap: balance;
+  }
+  .section-note { color: var(--ink-soft); margin: 0 0 24px; font-size: 15px; }
+
+  /* ---- test blocks ---- */
+  .test {
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 18px 20px 20px;
+    margin-bottom: 18px;
+    box-shadow: var(--shadow);
+  }
+  .test.done { opacity: .55; }
+
+  .test-head { display: flex; gap: 12px; align-items: flex-start; }
+  .test-no {
+    font-family: "Barlow Semi Condensed", ui-sans-serif, sans-serif;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--signal);
+    background: var(--signal-wash);
+    border-radius: 2px;
+    padding: 2px 7px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .test-title {
+    font-family: "Barlow Semi Condensed", ui-sans-serif, sans-serif;
+    font-size: 21px; font-weight: 600; line-height: 1.2;
+    margin: 0; flex: 1; text-wrap: balance;
+  }
+  .tick {
+    flex-shrink: 0; width: 26px; height: 26px; margin-top: 0;
+    accent-color: var(--signal); cursor: pointer;
+  }
+
+  .lbl {
+    font-family: "Barlow Semi Condensed", ui-sans-serif, sans-serif;
+    font-weight: 600; font-size: 12px; letter-spacing: .13em;
+    text-transform: uppercase; color: var(--ink-soft);
+    margin: 16px 0 6px;
+  }
+  ol.steps { margin: 0; padding-left: 22px; }
+  ol.steps li { margin-bottom: 7px; }
+  ol.steps li:last-child { margin-bottom: 0; }
+
+  .expect {
+    background: var(--pass-wash);
+    border-left: 3px solid var(--pass);
+    border-radius: 2px;
+    padding: 12px 14px;
+    margin-top: 6px;
+  }
+  .expect p { margin: 0 0 8px; }
+  .expect p:last-child { margin-bottom: 0; }
+  .expect strong { color: var(--pass); }
+
+  .flag {
+    background: var(--flag-wash);
+    border-left: 3px solid var(--flag);
+    border-radius: 2px;
+    padding: 12px 14px;
+    margin-top: 12px;
+  }
+  .flag p { margin: 0; }
+  .flag strong { color: var(--flag); }
+
+  .why { color: var(--ink-soft); font-size: 14.5px; font-style: italic; margin: 12px 0 0; }
+
+  kbd {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: .85em; font-weight: 600;
+    border: 1px solid var(--rule-strong); border-bottom-width: 2px;
+    border-radius: 3px; padding: 1px 6px; white-space: nowrap;
+  }
+  .path { font-weight: 600; white-space: nowrap; }
+
+  /* ---- closing ---- */
+  .closing {
+    border: 1px solid var(--rule-strong);
+    border-radius: 3px;
+    padding: 22px;
+    margin-top: 44px;
+    background: var(--card);
+  }
+  .closing h2 {
+    font-family: "Barlow Semi Condensed", ui-sans-serif, sans-serif;
+    font-size: 24px; font-weight: 700; margin: 0 0 12px;
+  }
+  .closing ul { padding-left: 20px; margin: 0 0 14px; }
+  .closing li { margin-bottom: 8px; }
+  .closing p:last-child { margin-bottom: 0; }
+
+  .progress {
+    position: sticky; top: 0; z-index: 5;
+    background: var(--paper);
+    border-bottom: 1px solid var(--rule);
+    padding: 10px 0;
+    font-family: "Barlow Semi Condensed", ui-sans-serif, sans-serif;
+    font-size: 14px; font-weight: 600; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--ink-soft);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .progress button {
+    font: inherit; text-transform: uppercase; letter-spacing: .08em;
+    background: none; border: 1px solid var(--rule-strong); color: var(--ink-soft);
+    border-radius: 2px; padding: 4px 10px; cursor: pointer;
+  }
+  .progress button:hover { color: var(--ink); border-color: var(--ink-soft); }
+  :focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">SiteOps · Release Check</p>
+    <h1>Test Walkthrough</h1>
+    <p class="standfirst">A screen-by-screen check of everything that changed. No technical knowledge needed — just follow the steps and tell us what looks wrong.</p>
+  </header>
+
+  <div class="progress">
+    <span id="count">0 of 31 checked</span>
+    <button type="button" id="reset">Reset</button>
+  </div>
+
+  <div class="orient">
+    <h2>Before you start</h2>
+    <p>A large batch of fixes went into SiteOps and none of it has been looked at by a person yet. Your job is to use the app normally and flag anything that looks broken, ugly, or confusing.</p>
+    <ul>
+      <li><strong>Use a phone if you can.</strong> Most of this app is used on site, on a phone. A laptop is fine as a backup but some checks are about how it feels on a small screen.</li>
+      <li><strong>You need an Admin login.</strong> Some screens only appear for Admins. If you can't see a screen mentioned here, you may be signed in as a Supervisor — that's worth telling us either way.</li>
+      <li><strong>The app is dark by design.</strong> Dark background, light text, everywhere. That's intentional — not a bug.</li>
+      <li><strong>Use real-looking data, but treat it as real.</strong> This is the live system with real client information. Please don't delete anything you didn't create yourself.</li>
+    </ul>
+    <p>Tick each box as you go — your progress is saved on this device. If something fails, note the number and what you saw.</p>
+  </div>
+
+  <h2 class="section">Getting around</h2>
+  <p class="section-note">The bar at the bottom and the strip at the top of every screen.</p>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">01</span>
+      <h3 class="test-title">The bottom bar works</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 1 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>Sign in and look at the bar fixed to the bottom of the screen.</li>
+      <li>Tap each item in turn: <span class="path">Home</span>, <span class="path">Requests</span>, the big <span class="path">+</span> button in the middle, <span class="path">Transfers</span>, and <span class="path">Admin</span> (or <span class="path">Profile</span>).</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>Each one takes you somewhere and the icon for the screen you're on is <strong>highlighted in blue</strong>.</p>
+      <p>Every icon is a clean drawing. None of them are blank boxes, question marks, or stray letters.</p>
+    </div>
+    <p class="why">All the icons in the app were swapped to a new set, so a missing icon is the most likely thing to have gone wrong.</p>
+  </div>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">02</span>
+      <h3 class="test-title">The buttons at the top are easy to hit</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 2 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>On any screen, look at the top strip: a back arrow on the left, a search icon and a bell on the right.</li>
+      <li>Tap each one with your thumb, not your fingertip. Try it as if you were wearing gloves.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>Each button is <strong>comfortably big</strong> — you shouldn't have to aim carefully or tap twice.</p>
+      <p>If you have unread alerts, the small dot sits <strong>neatly on the corner of the bell</strong>, not floating away from it or overlapping the middle of it.</p>
+    </div>
+    <p class="why">These were made bigger on purpose. The dot had to move to match.</p>
+  </div>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">03</span>
+      <h3 class="test-title">The header doesn't get squashed</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 3 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>Open a screen with a long title — a site name, or a category page.</li>
+      <li>Look closely at the top strip on the narrowest phone you have.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>The title and the buttons sit on <strong>one tidy row</strong>.</p>
+    </div>
+    <div class="flag">
+      <p><strong>Flag it if</strong> anything wraps onto a second line, overlaps, or gets pushed off the edge of the screen.</p>
+    </div>
+  </div>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">04</span>
+      <h3 class="test-title">Back doesn't throw you out of the app</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 4 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>Open a deep screen — a site, then one of its categories.</li>
+      <li>Copy that page's web address.</li>
+      <li>Open a <strong>brand new tab</strong> (or paste the link into a message and open it from there) so you arrive with no history behind you.</li>
+      <li>Press the back arrow at the top left.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>You go <strong>up one level inside the app</strong> — to the site, or to the dashboard.</p>
+    </div>
+    <div class="flag">
+      <p><strong>Flag it if</strong> back leaves SiteOps entirely, lands on a blank page, or takes you to a screen that has nothing to do with where you were.</p>
+    </div>
+    <p class="why">This used to dump people out of the app when they arrived from a shared link or a notification.</p>
+  </div>
+
+  <h2 class="section">Adding a log entry</h2>
+  <p class="section-note">The <span class="path">+</span> button in the middle of the bottom bar. This is the most-used part of the app and the most heavily changed.</p>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">05</span>
+      <h3 class="test-title">Choosing a category</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 5 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>Tap the <span class="path">+</span> button.</li>
+      <li>Look at the list of categories.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>Every category has a <strong>small icon next to it</strong> and the icons all look like they belong to the same set.</p>
+    </div>
+    <div class="flag">
+      <p><strong>Flag it if</strong> you see the word "category" written out as text where a picture should be, or an empty gap.</p>
+    </div>
+  </div>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">06</span>
+      <h3 class="test-title">Error messages actually tell you what's wrong</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 6 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>Start a new log entry of any type.</li>
+      <li>Deliberately leave a required box empty — or type a silly number, like a negative wage.</li>
+      <li>Press Save.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>A message appears naming <strong>the actual problem</strong> — something like "Enter a wage per head" or "Number of people must be at least 1".</p>
+    </div>
+    <div class="flag">
+      <p><strong>Flag it if</strong> you get a vague message like "Something went wrong" or "An error occurred". That is exactly the bug that was supposed to be fixed.</p>
+    </div>
+  </div>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">07</span>
+      <h3 class="test-title">Number boxes bring up the number keypad</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 7 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>On a phone, start a new log entry.</li>
+      <li>Tap into a box that takes a number — quantity, wage, number of people, an amount.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>The phone shows a <strong>number keypad</strong>, not the full letter keyboard.</p>
+    </div>
+    <p class="why">Site staff enter a lot of numbers with one thumb. Do this on every numeric box you can find.</p>
+  </div>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">08</span>
+      <h3 class="test-title">Labels are tappable</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 8 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>In any form, tap the small <strong>text label above a box</strong> — the word "Quantity" itself, not the box.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>The box below it becomes active, ready for you to type.</p>
+    </div>
+  </div>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">09</span>
+      <h3 class="test-title">Save one of each kind of entry</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 9 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>Create and save one entry of <strong>each</strong> type: Labour, Materials, Machinery, an Expense, and an Incident.</li>
+      <li>After each save, find it in the site's list and check the details are what you typed.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>All five save without error, and the numbers and dates match what you entered — <strong>especially the date</strong>.</p>
+    </div>
+    <p class="why">The code behind all five types was rebuilt into one shared system. If one type got wired up wrong, this is where it shows.</p>
+  </div>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">10</span>
+      <h3 class="test-title">Split labour adds up</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 10 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>Add a Labour entry that has both masons and helpers, with different rates.</li>
+      <li>Note the total you'd expect on paper.</li>
+      <li>Save it, then look at the total shown in the list.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>The total matches your arithmetic <strong>exactly</strong> — to the rupee.</p>
+    </div>
+    <p class="why">This sum was previously calculated in five different places in the code. They were merged into one. A mismatch here matters more than almost anything else in this list.</p>
+  </div>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">11</span>
+      <h3 class="test-title">Units are a proper dropdown</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 11 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>Add a Materials entry and open the <strong>Unit</strong> selector.</li>
+      <li>Then go to <span class="path">Transfers</span> in the bottom bar and open the Unit selector there too.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>Both show a <strong>list of real units you pick from</strong> — bags, kg, cubic metres and so on. Both lists offer the same units.</p>
+    </div>
+    <div class="flag">
+      <p><strong>Flag it if</strong> the Transfers screen asks you to type something called a "Unit UUID" into a plain box. That was the old broken version and it should be gone.</p>
+    </div>
+  </div>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">12</span>
+      <h3 class="test-title">Editing an existing entry</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 12 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>Open an entry you created earlier and press Save <strong>without changing anything</strong>.</li>
+      <li>Reopen it.</li>
+      <li>Now change one value, save, and reopen again.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>Nothing changes on the first save. On the second, <strong>only the value you edited</strong> is different — the unit, date and everything else stay put.</p>
+    </div>
+  </div>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">13</span>
+      <h3 class="test-title">Deleting asks first</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 13 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>Delete an entry <strong>you created during this test</strong>.</li>
+      <li>When asked to confirm, first press Cancel. Then try again and confirm.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>The confirmation is a <strong>styled panel that matches the app</strong>. Cancel leaves the entry alone. Confirming removes it, and it stays gone after you reload the page.</p>
+    </div>
+    <div class="flag">
+      <p><strong>Flag it if</strong> you see a plain grey browser pop-up box — the kind with a bare "OK / Cancel" and no styling. Those were all supposed to be replaced.</p>
+    </div>
+  </div>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">14</span>
+      <h3 class="test-title">Closed sites are read-only</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 14 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>Find a site that is archived or completed.</li>
+      <li>Try to add a new entry to it.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>You're stopped, with a message explaining <strong>why</strong> — that the site is closed to new entries.</p>
+    </div>
+    <div class="flag">
+      <p><strong>Flag it if</strong> the entry saves anyway.</p>
+    </div>
+  </div>
+
+  <h2 class="section">Looking at entries</h2>
+  <p class="section-note">Open a site from <span class="path">Home</span>, then open one of its categories.</p>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">15</span>
+      <h3 class="test-title">The list loads and shows the right amounts</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 15 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>Open a busy site and look at its list of entries.</li>
+      <li>Pick a few rows and check the amount shown against the entry itself.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>Rows appear quickly, each showing its date, description and amount. Nothing shows a <strong>blank where a number should be</strong>, and no row says "undefined" or "NaN".</p>
+    </div>
+    <p class="why">The app now fetches only the columns it needs instead of everything. A missed column shows up as an empty space.</p>
+  </div>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">16</span>
+      <h3 class="test-title">"Load more" on a long list</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 16 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>Find a site with a lot of entries of one type — more than a couple of hundred if you can.</li>
+      <li>Scroll to the bottom and press <span class="path">Load more</span>.</li>
+      <li>Press it again. Look carefully at the rows on either side of each join.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>More rows are added below the ones already there. <strong>No row appears twice</strong>, and there's no obvious gap in the dates where entries have been skipped.</p>
+    </div>
+  </div>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">17</span>
+      <h3 class="test-title">Deleting from the list</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 17 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>In the all-entries view, delete a row you created during this test.</li>
+      <li>Watch the screen closely as it happens.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>The row disappears <strong>straight away</strong>, and the rest of the page stays still — no flicker, no full reload, no scroll position jumping.</p>
+    </div>
+  </div>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">18</span>
+      <h3 class="test-title">Totals agree with each other</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 18 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>On a site's main page, note the labour spend total.</li>
+      <li>Open the labour entries list for the same site and add the individual amounts up.</li>
+      <li>Search for the same site and check the figure shown in the search results too.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>All three figures are <strong>the same number</strong>.</p>
+    </div>
+    <p class="why">These three totals used to be worked out separately. If they disagree, that's a real accounting problem and worth reporting immediately.</p>
+  </div>
+
+  <h2 class="section">The catalog</h2>
+  <p class="section-note"><span class="path">Admin</span> → <span class="path">Catalog</span>. This is where work types, material types and units are managed.</p>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">19</span>
+      <h3 class="test-title">The page loads without jumping</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 19 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>Open the Catalog screen and watch the first second carefully.</li>
+      <li>Do the same on <span class="path">Home</span> → <span class="path">Company Tools</span>.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>You briefly see <strong>grey placeholder blocks</strong> shaped like the content, which are then replaced by the real thing in the same position.</p>
+    </div>
+    <div class="flag">
+      <p><strong>Flag it if</strong> you see the word "Loading…" and then everything jumps down or shifts sideways when the content arrives.</p>
+    </div>
+  </div>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">20</span>
+      <h3 class="test-title">Adding, renaming and switching items off</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 20 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>Add a new item with an obvious test name.</li>
+      <li>Rename it.</li>
+      <li>Switch it off, then back on.</li>
+      <li>Move it up or down the list.</li>
+      <li>Reload the page after each step.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>Each change shows <strong>immediately</strong>, without waiting for a spinner, and it's still correct after the reload.</p>
+    </div>
+    <div class="flag">
+      <p><strong>Flag it if</strong> a change looks like it worked but has reverted after you reload. That means it never actually saved.</p>
+    </div>
+  </div>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">21</span>
+      <h3 class="test-title">The duplicate-name warning</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 21 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>Start adding a new item and type a name <strong>very close to one that already exists</strong> — for example "Brickwrk" if "Brickwork" exists.</li>
+      <li>Type it at a normal speed, then stop and wait a moment.</li>
+      <li>Now clear the box completely.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>A hint about the similar name appears <strong>shortly after you stop typing</strong> — not flickering on every letter.</p>
+      <p>It <strong>does not stop you saving</strong> — it's advice, not a block.</p>
+      <p>Clearing the box makes the hint <strong>go away</strong>.</p>
+    </div>
+    <div class="flag">
+      <p><strong>Flag it if</strong> the hint stays on screen after you've emptied the box, or if it names a word you're no longer typing.</p>
+    </div>
+  </div>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">22</span>
+      <h3 class="test-title">Genuine duplicates are still caught</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 22 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>Try to add an item with a name that <strong>already exists exactly</strong>.</li>
+      <li>Press Save.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>You're warned it already exists and offered the choice to <strong>continue anyway or pick the existing one</strong>.</p>
+    </div>
+    <p class="why">The typing hint above was changed. This check makes sure the real safety net behind it still works.</p>
+  </div>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">23</span>
+      <h3 class="test-title">The row menu opens on top of everything</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 23 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>Scroll the catalog list down slightly, so rows sit under the top strip.</li>
+      <li>Open the little "⋯" menu on the <strong>very first visible row</strong>.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>The menu appears <strong>fully on top</strong> and you can read and tap every option.</p>
+    </div>
+    <div class="flag">
+      <p><strong>Flag it if</strong> part of the menu is hidden behind the strip at the top of the screen. This was a real bug that was fixed — it's worth confirming.</p>
+    </div>
+  </div>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">24</span>
+      <h3 class="test-title">Renaming a tool category</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 24 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>Go to <span class="path">Home</span> → <span class="path">Company Tools</span> and rename one of the tool categories.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>A <strong>proper styled panel</strong> opens with the current name already filled in, ready to edit.</p>
+    </div>
+    <div class="flag">
+      <p><strong>Flag it if</strong> a plain browser box appears asking you to type the name. That was the very last one of those in the app and it should be gone.</p>
+    </div>
+  </div>
+
+  <h2 class="section">Admin screens</h2>
+  <p class="section-note">The <span class="path">Admin</span> tab. Several of these were rebuilt to load their data before the page appears.</p>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">25</span>
+      <h3 class="test-title">Admin pages open with data already there</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 25 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>Visit each in turn: <span class="path">Approvals</span>, <span class="path">Users</span>, <span class="path">Expenses</span>, <span class="path">Analytics</span>.</li>
+      <li>Watch what appears in the first moment after each one opens.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>Each page arrives with its <strong>content already filled in</strong>, rather than showing an empty shell and then filling itself.</p>
+    </div>
+  </div>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">26</span>
+      <h3 class="test-title">Approving and declining</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 26 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>On <span class="path">Approvals</span>, approve one item and decline another.</li>
+      <li>Do it for each kind you can find: a resource request, a field request, and a transfer.</li>
+      <li>Reload the page after each action.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>The item updates <strong>the moment you tap</strong>, and it's still in the right state after reloading.</p>
+    </div>
+    <p class="why">This screen was split into three separate pieces. Each piece needs checking on its own.</p>
+  </div>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">27</span>
+      <h3 class="test-title">Approve and decline buttons are big enough</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 27 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>On a phone, look at the approve and decline buttons on the <span class="path">Approvals</span> screen.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>Both are easy to tap and <strong>far enough apart</strong> that you're not going to hit the wrong one by accident.</p>
+    </div>
+  </div>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">28</span>
+      <h3 class="test-title">Supervisors can't reach admin screens</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 28 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>Sign in as a <strong>Supervisor</strong>, not an Admin.</li>
+      <li>Paste an admin web address straight into the address bar — the Users screen, for example.</li>
+      <li>Try the same with the Company Tools screen.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>You're refused — a "not found" page, or sent back to sign in. You should <strong>never see admin content</strong>, not even for a split second.</p>
+    </div>
+    <div class="flag">
+      <p><strong>Flag it immediately</strong> if any admin data appears, even briefly before disappearing. This is the most serious thing on this list.</p>
+    </div>
+  </div>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">29</span>
+      <h3 class="test-title">The export menu sits on top</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 29 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>Go to <span class="path">Admin</span> → <span class="path">Data</span>.</li>
+      <li>Scroll down a little, then open the export dropdown.</li>
+      <li>Download one export and open the file.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>The dropdown appears <strong>fully on top</strong> of everything, not tucked behind the strip at the top.</p>
+      <p>The downloaded file opens in Excel and the columns line up with the right headings.</p>
+    </div>
+  </div>
+
+  <h2 class="section">General look and feel</h2>
+  <p class="section-note">Worth doing last, once you've seen most of the app.</p>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">30</span>
+      <h3 class="test-title">Everything is readable</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 30 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>Go outside, or somewhere bright, and use the app on your phone.</li>
+      <li>Look particularly at the faint grey placeholder text inside empty boxes, and at the small labels on chips and tags.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p>You can read all of it <strong>without squinting or shading the screen</strong>.</p>
+    </div>
+    <p class="why">Some text was made larger and lighter for exactly this reason. Tell us about anything still too faint or too small — it's useful even if it wasn't on the fix list.</p>
+  </div>
+
+  <div class="test">
+    <div class="test-head">
+      <span class="test-no">31</span>
+      <h3 class="test-title">Pop-up panels behave</h3>
+      <input type="checkbox" class="tick" aria-label="Mark test 31 checked">
+    </div>
+    <p class="lbl">Do this</p>
+    <ol class="steps">
+      <li>Open any panel that appears over the page — adding a catalog item, a confirmation, a tool's history.</li>
+      <li>On a computer, press the <kbd>Esc</kbd> key.</li>
+      <li>Open it again and try to scroll the page behind it.</li>
+      <li>Open it again and tap the dark area outside it.</li>
+    </ol>
+    <p class="lbl">What should happen</p>
+    <div class="expect">
+      <p><kbd>Esc</kbd> closes it. The page behind <strong>stays still</strong> while it's open. Tapping outside closes it.</p>
+    </div>
+    <p class="why">These panels previously had no keyboard way out at all.</p>
+  </div>
+
+  <div class="closing">
+    <h2>When you're done</h2>
+    <p>For anything that failed, tell us three things — that's enough for us to find it:</p>
+    <ul>
+      <li><strong>The number</strong> from this list.</li>
+      <li><strong>What you saw</strong> instead of what was expected. A screenshot beats a description every time.</li>
+      <li><strong>Your phone and browser</strong> — "iPhone 13, Safari" is plenty.</li>
+    </ul>
+    <p>Two things worth knowing. First: <strong>you can't break anything by looking</strong> — but this is the live system, so please only delete things you created yourself during the test. Second: <strong>there is no "everything passed" outcome we're hoping for</strong>. Finding problems is the point. If something merely feels clumsy or confusing rather than broken, tell us that too — it counts.</p>
+  </div>
+
+</div>
+
+<script>
+  (function () {
+    var KEY = "siteops-walkthrough-v1";
+    var boxes = Array.prototype.slice.call(document.querySelectorAll(".tick"));
+    var countEl = document.getElementById("count");
+    var saved = {};
+
+    try {
+      saved = JSON.parse(localStorage.getItem(KEY) || "{}") || {};
+    } catch (e) {
+      saved = {};
+    }
+
+    function render() {
+      var done = 0;
+      boxes.forEach(function (box, i) {
+        if (box.checked) done++;
+        box.closest(".test").classList.toggle("done", box.checked);
+      });
+      countEl.textContent = done + " of " + boxes.length + " checked";
+    }
+
+    function persist() {
+      var state = {};
+      boxes.forEach(function (box, i) { state[i] = box.checked; });
+      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+    }
+
+    boxes.forEach(function (box, i) {
+      box.checked = Boolean(saved[i]);
+      box.addEventListener("change", function () { render(); persist(); });
+    });
+
+    document.getElementById("reset").addEventListener("click", function () {
+      boxes.forEach(function (box) { box.checked = false; });
+      render();
+      persist();
+    });
+
+    render();
+  })();
+</script>

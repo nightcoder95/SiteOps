@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte, sql, type SQL } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import {
@@ -16,6 +16,9 @@ import {
   ALL_TYPE_PREVIEW_LIMIT,
   DEFAULT_ENTRIES_LIMIT,
 } from "@/lib/db/queries/operationTotals";
+import { serverDescriptorFor, type EntryTypeServerDescriptor } from "@/lib/entryTypes/server";
+import { stripImmutableEntryFields } from "@/lib/services/entries";
+import type { EntryType, MaterialWorkStage, RowByType } from "@/lib/types/entry";
 
 export {
   calculateLabourTotal,
@@ -299,15 +302,10 @@ export async function mergeExpenseEntry(existingId: string, data: {
   return result[0] ?? null;
 }
 
-export type EntryType =
-  | "labour"
-  | "material"
-  | "machinery"
-  | "expense"
-  | "incident";
-
-// Now a managed catalog list (was a pg enum), so any active value is valid.
-export type MaterialWorkStage = string;
+// Vocabulary moved to lib/types/entry.ts so client modules can import it
+// without rooting their type graph in the Drizzle layer (audit F13).
+// Re-exported here for one release; remove once all imports are updated.
+export type { EntryType, MaterialWorkStage } from "@/lib/types/entry";
 
 export type SiteOperationSummary = Record<EntryType, {
   todayCount: number;
@@ -316,154 +314,52 @@ export type SiteOperationSummary = Record<EntryType, {
   totalSpend: number | null;
 }>;
 
-export async function getEntryById(entryId: string, type: EntryType) {
-  switch (type) {
-    case "labour": {
-      const r = await db
-        .select()
-        .from(labourEntries)
-        .where(eq(labourEntries.labourEntryId, entryId));
-      return r[0] ?? null;
-    }
-    case "material": {
-      const r = await db
-        .select()
-        .from(materialEntries)
-        .where(eq(materialEntries.materialEntryId, entryId));
-      return r[0] ?? null;
-    }
-    case "machinery": {
-      const r = await db
-        .select()
-        .from(machineryEntries)
-        .where(eq(machineryEntries.machineryEntryId, entryId));
-      return r[0] ?? null;
-    }
-    case "expense": {
-      const r = await db
-        .select()
-        .from(expenseEntries)
-        .where(eq(expenseEntries.expenseEntryId, entryId));
-      return r[0] ?? null;
-    }
-    case "incident": {
-      const r = await db
-        .select()
-        .from(incidentReports)
-        .where(eq(incidentReports.incidentReportId, entryId));
-      return r[0] ?? null;
-    }
-    default:
-      return null;
-  }
-}
-
-export async function updateEntryById(
+// The next three functions used to be five-case switches each. They are now
+// descriptor lookups: the table/id-column knowledge lives in
+// lib/entryTypes/server.ts, and the generic <T extends EntryType> signature
+// keeps each caller's row type narrowed exactly as the switches did.
+export async function getEntryById<T extends EntryType>(
   entryId: string,
-  type: EntryType,
-  data: Record<string, unknown>
-) {
-  // Strip fields that must never be changed after creation to prevent
-  // accidental or malicious overwrites of immutable/protected columns.
-  const {
-    siteId: _siteId,
-    createdBy: _createdBy,
-    reportedBy: _reportedBy,
-    labourEntryId: _labourId,
-    materialEntryId: _materialId,
-    machineryEntryId: _machineryId,
-    expenseEntryId: _expenseId,
-    incidentReportId: _incidentId,
-    id: _id,
-    ...safeData
-  } = data;
-
-  switch (type) {
-    case "labour": {
-      const r = await db
-        .update(labourEntries)
-        .set({ ...safeData, updatedAt: new Date() })
-        .where(eq(labourEntries.labourEntryId, entryId))
-        .returning();
-      return r[0] ?? null;
-    }
-    case "material": {
-      const r = await db
-        .update(materialEntries)
-        .set({ ...safeData, updatedAt: new Date() })
-        .where(eq(materialEntries.materialEntryId, entryId))
-        .returning();
-      return r[0] ?? null;
-    }
-    case "machinery": {
-      const r = await db
-        .update(machineryEntries)
-        .set({ ...safeData, updatedAt: new Date() })
-        .where(eq(machineryEntries.machineryEntryId, entryId))
-        .returning();
-      return r[0] ?? null;
-    }
-    case "expense": {
-      const r = await db
-        .update(expenseEntries)
-        .set({ ...safeData, updatedAt: new Date() })
-        .where(eq(expenseEntries.expenseEntryId, entryId))
-        .returning();
-      return r[0] ?? null;
-    }
-    case "incident": {
-      const r = await db
-        .update(incidentReports)
-        .set({ ...safeData, updatedAt: new Date() })
-        .where(eq(incidentReports.incidentReportId, entryId))
-        .returning();
-      return r[0] ?? null;
-    }
-    default:
-      return null;
-  }
+  type: T,
+): Promise<RowByType[T] | null> {
+  const d = serverDescriptorFor(type);
+  // Defence in depth: `type` reaches this function from a URL query string in
+  // app/api/entries/[id]/route.ts. That route validates it first, but an
+  // unvalidated caller must still get the old switch's `default: return null`.
+  if (!d) return null;
+  const r = await db.select().from(d.table).where(eq(d.idColumn, entryId));
+  // The descriptor map guarantees table↔type correspondence; this cast is the
+  // one place that knowledge crosses from data into the type system.
+  return (r[0] as RowByType[T] | undefined) ?? null;
 }
 
-export async function deleteEntryById(entryId: string, type: EntryType) {
-  switch (type) {
-    case "labour": {
-      const r = await db
-        .delete(labourEntries)
-        .where(eq(labourEntries.labourEntryId, entryId))
-        .returning();
-      return r[0] ?? null;
-    }
-    case "material": {
-      const r = await db
-        .delete(materialEntries)
-        .where(eq(materialEntries.materialEntryId, entryId))
-        .returning();
-      return r[0] ?? null;
-    }
-    case "machinery": {
-      const r = await db
-        .delete(machineryEntries)
-        .where(eq(machineryEntries.machineryEntryId, entryId))
-        .returning();
-      return r[0] ?? null;
-    }
-    case "expense": {
-      const r = await db
-        .delete(expenseEntries)
-        .where(eq(expenseEntries.expenseEntryId, entryId))
-        .returning();
-      return r[0] ?? null;
-    }
-    case "incident": {
-      const r = await db
-        .delete(incidentReports)
-        .where(eq(incidentReports.incidentReportId, entryId))
-        .returning();
-      return r[0] ?? null;
-    }
-    default:
-      return null;
-  }
+export async function updateEntryById<T extends EntryType>(
+  entryId: string,
+  type: T,
+  data: Record<string, unknown>,
+): Promise<RowByType[T] | null> {
+  // SECURITY: see stripImmutableEntryFields — mass-assignment control, pinned
+  // by lib/services/entries.test.ts. Do not inline it back into a per-type list.
+  const safeData = stripImmutableEntryFields(data);
+
+  const d = serverDescriptorFor(type);
+  if (!d) return null;
+  const r = await db
+    .update(d.table)
+    .set({ ...safeData, updatedAt: new Date() })
+    .where(eq(d.idColumn, entryId))
+    .returning();
+  return (r[0] as RowByType[T] | undefined) ?? null;
+}
+
+export async function deleteEntryById<T extends EntryType>(
+  entryId: string,
+  type: T,
+): Promise<RowByType[T] | null> {
+  const d = serverDescriptorFor(type);
+  if (!d) return null;
+  const r = await db.delete(d.table).where(eq(d.idColumn, entryId)).returning();
+  return (r[0] as RowByType[T] | undefined) ?? null;
 }
 
 export type EntriesFilters = {
@@ -479,7 +375,113 @@ export type EntriesFilters = {
    * clampLimit() cap (<=200 per type) applies. Ignored for single types.
    */
   fullAll?: boolean;
+  /**
+   * Opaque keyset cursor from a previous page's last row. Ignored for the spend
+   * sorts (see isPaginatedSort) and silently ignored when malformed.
+   */
+  cursor?: string;
 };
+
+// --- Keyset pagination (F15) -----------------------------------------------
+//
+// The list is ordered by (date DESC, created_at DESC) behind a composite index
+// on (site_id, date DESC, created_at DESC), so paging uses a row-value
+// comparison against the last row of the previous page rather than OFFSET,
+// which re-scans every row it skips. `id` is the final tiebreaker: (date,
+// created_at) is not unique, and a page boundary inside a tie would otherwise
+// skip or repeat rows.
+//
+// Incident has no `date` column, so its cursor carries date: null and compares
+// on (created_at, id) alone.
+export type EntriesCursor = {
+  /** The identity id of the last row on the previous page. */
+  id: number;
+};
+
+export function encodeEntriesCursor(cursor: EntriesCursor): string {
+  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
+}
+
+// Cursors arrive from the query string, so they are attacker-controlled. A
+// cursor that is malformed, truncated or hand-forged degrades to "no cursor"
+// (i.e. the first page) — never an exception, never a 500. It carries no
+// authorization either: see entriesCursorPredicate.
+export function decodeEntriesCursor(raw: string | undefined | null): EntriesCursor | null {
+  if (!raw) return null;
+  try {
+    const parsed: unknown = JSON.parse(Buffer.from(raw, "base64url").toString("utf8"));
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null;
+    const { id } = parsed as Record<string, unknown>;
+    if (typeof id !== "number" || !Number.isInteger(id) || id < 1) return null;
+    return { id };
+  } catch {
+    return null;
+  }
+}
+
+// Spend sorting happens in JS (sortSpendRows) AFTER the limit, so it only
+// orders within a page — keyset pagination and post-hoc sorting are
+// incompatible. Pagination is therefore offered only for the two date sorts;
+// the spend sorts keep the 200 cap and its advisory banner.
+export function isPaginatedSort(sort: EntriesFilters["sort"]): boolean {
+  return sort === undefined || sort === "newest" || sort === "oldest";
+}
+
+// Order targets for a list query. `id` is appended as the final tiebreaker so
+// the order is total — which is what makes the keyset predicate below sound.
+// For the four dated types this is (date, created_at, id); incident has no date
+// column, so it is (created_at, id).
+export function entriesOrderTargets(
+  d: EntryTypeServerDescriptor,
+  sort: EntriesFilters["sort"],
+) {
+  const columns = d.dateColumn
+    ? [d.dateColumn, d.createdAtColumn, d.identityColumn]
+    : [d.createdAtColumn, d.identityColumn];
+  return columns.map((column) => (sort === "oldest" ? asc(column) : desc(column)));
+}
+
+// Row-value comparison against the last row of the previous page. Postgres
+// compares tuples left to right, which is exactly the composite order above, so
+// this uses the (site_id, date DESC, created_at DESC) index instead of scanning
+// and discarding the rows an OFFSET would skip.
+//
+// The boundary values are read back from the row itself rather than carried in
+// the cursor. created_at is a microsecond-precision timestamp, but any cursor
+// that travelled through JSON has been through a JS Date and lost everything
+// below the millisecond — comparing against that truncated value re-emits the
+// boundary row (or skips its neighbours). Looking the row up by id keeps the
+// comparison exact.
+//
+// The lookup is scoped to the same siteId as the outer query, so a cursor
+// forged from another site's row simply finds nothing and yields the first page
+// — it can neither widen the result set nor confirm that a foreign id exists.
+//
+// Returns undefined — no predicate, first page — when there is no cursor, when
+// the cursor is malformed, or when the sort is one of the spend sorts.
+export function entriesCursorPredicate(
+  d: EntryTypeServerDescriptor,
+  rawCursor: string | undefined,
+  sort: EntriesFilters["sort"],
+  siteId: string,
+): SQL | undefined {
+  if (!isPaginatedSort(sort)) return undefined;
+  const cursor = decodeEntriesCursor(rawCursor);
+  if (!cursor) return undefined;
+
+  const comparison = sort === "oldest" ? sql`>` : sql`<`;
+  const boundaryScope = sql`${d.identityColumn} = ${cursor.id} and ${d.siteIdColumn} = ${siteId}::uuid`;
+  const rowValue = d.dateColumn
+    ? sql`(${d.dateColumn}, ${d.createdAtColumn}, ${d.identityColumn})`
+    : sql`(${d.createdAtColumn}, ${d.identityColumn})`;
+  const boundary = d.dateColumn
+    ? sql`(select ${d.dateColumn}, ${d.createdAtColumn}, ${d.identityColumn} from ${d.table} where ${boundaryScope})`
+    : sql`(select ${d.createdAtColumn}, ${d.identityColumn} from ${d.table} where ${boundaryScope})`;
+
+  // An unknown id means "first page", not "empty page": without the guard the
+  // subquery is NULL and the comparison filters everything out.
+  return sql`(not exists (select 1 from ${d.table} where ${boundaryScope}) or ${rowValue} ${comparison} ${boundary})`;
+}
 
 function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
@@ -572,128 +574,74 @@ export async function getEntriesBySite(
   const sort = filters?.sort ?? "newest";
   const limit = computeEntriesLimit(type, filters?.limit, filters?.fullAll);
 
-  const dateWhere = (tableDateCol: any) => {
-    if (from && to) return and(gte(tableDateCol, from), lte(tableDateCol, to));
-    if (from) return gte(tableDateCol, from);
-    if (to) return lte(tableDateCol, to);
-    return undefined;
-  };
+  // One fetcher parameterised by descriptor, replacing five near-identical
+  // bodies. Every per-type asymmetry that used to be a separate closure is now
+  // descriptor data:
+  //   - incident has no `date` column, so the date predicate and the sort both
+  //     fall back to created_at (cast to ::date for the predicate, so a
+  //     YYYY-MM-DD upper bound still includes entries logged later that day);
+  //   - incident's category chip matches type OR severity (categoryFilter);
+  //   - incident has no work stage and no spend (workStageColumn/spendOf null).
+  // Generic over T so each caller keeps the row type the five hand-written
+  // fetchers used to give it; the descriptor map is what makes the cast sound.
+  const fetchEntriesOfType = async <T extends EntryType>(
+    entryType: T,
+  ): Promise<RowByType[T][]> => {
+    const d = serverDescriptorFor(entryType);
+    // Always the SQL form: for the four dated types dateExpr is just the `date`
+    // column reference, and for incident it is created_at::date. Using one
+    // uniform SQL target keeps the comparison overloads unambiguous.
+    const dateTarget = d.dateExpr;
 
-  // incident_reports has no `date` column — it filters on the `created_at`
-  // timestamp. Cast to date so a YYYY-MM-DD upper bound still includes
-  // entries logged later that same day.
-  const incidentDateWhere = () => {
-    const col = sql`${incidentReports.createdAt}::date`;
-    if (from && to) return and(gte(col, from), lte(col, to));
-    if (from) return gte(col, from);
-    if (to) return lte(col, to);
-    return undefined;
-  };
+    const datePredicate =
+      from && to
+        ? and(gte(dateTarget, from), lte(dateTarget, to))
+        : from
+          ? gte(dateTarget, from)
+          : to
+            ? lte(dateTarget, to)
+            : undefined;
 
-  const fetchLabour = async () => {
+
     const rows = await db
-      .select()
-      .from(labourEntries)
+      // Projected, not SELECT * — see EntryTypeServerDescriptor.listColumns.
+      .select(d.listColumns)
+      .from(d.table)
       .where(and(
-        eq(labourEntries.siteId, siteId),
-        dateWhere(labourEntries.date),
-        category ? eq(labourEntries.workType, category) : undefined,
-        workStage ? eq(labourEntries.workStage, workStage) : undefined,
+        eq(d.siteIdColumn, siteId),
+        datePredicate,
+        category ? d.categoryFilter(category) : undefined,
+        workStage && d.workStageColumn ? eq(d.workStageColumn, workStage) : undefined,
+        // Keyset continuation. siteId above is still the authoritative scope, so
+        // a cursor from another site cannot widen the result set.
+        entriesCursorPredicate(d, filters?.cursor, sort, siteId),
       ))
-      .orderBy(
-        sort === "oldest" ? asc(labourEntries.date) : desc(labourEntries.date),
-        sort === "oldest" ? asc(labourEntries.createdAt) : desc(labourEntries.createdAt),
-      )
+      .orderBy(...entriesOrderTargets(d, sort))
       .limit(limit);
-    return sortSpendRows(rows, sort, (row) => calculateLabourTotal(row));
-  };
 
-  const fetchMaterial = async () => {
-    const rows = await db
-      .select()
-      .from(materialEntries)
-      .where(and(
-        eq(materialEntries.siteId, siteId),
-        dateWhere(materialEntries.date),
-        category ? eq(materialEntries.materialType, category) : undefined,
-        workStage ? eq(materialEntries.workStage, workStage) : undefined,
-      ))
-      .orderBy(
-        sort === "oldest" ? asc(materialEntries.date) : desc(materialEntries.date),
-        sort === "oldest" ? asc(materialEntries.createdAt) : desc(materialEntries.createdAt),
-      )
-      .limit(limit);
-    return sortSpendRows(rows, sort, (row) => Number(row.cost ?? 0));
+    const spendOf = d.spendOf;
+    const ordered = spendOf ? sortSpendRows(rows, sort, (row) => spendOf(row)) : rows;
+    return ordered as RowByType[T][];
   };
-
-  const fetchMachinery = async () => {
-    const rows = await db
-      .select()
-      .from(machineryEntries)
-      .where(and(
-        eq(machineryEntries.siteId, siteId),
-        dateWhere(machineryEntries.date),
-        category ? eq(machineryEntries.equipmentType, category) : undefined,
-        workStage ? eq(machineryEntries.workStage, workStage) : undefined,
-      ))
-      .orderBy(
-        sort === "oldest" ? asc(machineryEntries.date) : desc(machineryEntries.date),
-        sort === "oldest" ? asc(machineryEntries.createdAt) : desc(machineryEntries.createdAt),
-      )
-      .limit(limit);
-    return sortSpendRows(rows, sort, (row) => calculateMachineryTotal(row));
-  };
-
-  const fetchExpense = async () => {
-    const rows = await db
-      .select()
-      .from(expenseEntries)
-      .where(and(
-        eq(expenseEntries.siteId, siteId),
-        dateWhere(expenseEntries.date),
-        category ? eq(expenseEntries.category, category as "Labour" | "Materials" | "Equipment" | "Misc") : undefined,
-        workStage ? eq(expenseEntries.workStage, workStage) : undefined,
-      ))
-      .orderBy(
-        sort === "oldest" ? asc(expenseEntries.date) : desc(expenseEntries.date),
-        sort === "oldest" ? asc(expenseEntries.createdAt) : desc(expenseEntries.createdAt),
-      )
-      .limit(limit);
-    return sortSpendRows(rows, sort, (row) => Number(row.amount ?? 0));
-  };
-
-  const fetchIncident = async () =>
-    db
-      .select()
-      .from(incidentReports)
-      .where(and(
-        eq(incidentReports.siteId, siteId),
-        incidentDateWhere(),
-        category
-          ? sql`(${incidentReports.incidentType} = ${category} OR ${incidentReports.severity} = ${category})`
-          : undefined,
-      ))
-      .orderBy(sort === "oldest" ? asc(incidentReports.createdAt) : desc(incidentReports.createdAt))
-      .limit(limit);
 
   switch (type) {
     case "labour":
-      return fetchLabour();
+      return fetchEntriesOfType("labour");
     case "material":
-      return fetchMaterial();
+      return fetchEntriesOfType("material");
     case "machinery":
-      return fetchMachinery();
+      return fetchEntriesOfType("machinery");
     case "expense":
-      return fetchExpense();
+      return fetchEntriesOfType("expense");
     case "incident":
-      return fetchIncident();
+      return fetchEntriesOfType("incident");
     case "all": {
       const [labour, material, machinery, expense, incident] = await Promise.all([
-        fetchLabour(),
-        fetchMaterial(),
-        fetchMachinery(),
-        fetchExpense(),
-        fetchIncident(),
+        fetchEntriesOfType("labour"),
+        fetchEntriesOfType("material"),
+        fetchEntriesOfType("machinery"),
+        fetchEntriesOfType("expense"),
+        fetchEntriesOfType("incident"),
       ]);
 
       return {
