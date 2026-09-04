@@ -1,5 +1,6 @@
 "use client";
 
+import { CheckCircle2 } from 'lucide-react';
 import { useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -193,9 +194,7 @@ export function DynamicEntryForm({ categoryId, categoryName, siteId }: Props) {
         disabled={submitting}
         className="btn-primary w-full py-3.5 flex items-center justify-center gap-2"
       >
-        <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>
-          check_circle
-        </span>
+        <CheckCircle2 className="w-[18px] h-[18px]" />
         {submitting ? "Saving…" : "Submit Entry"}
       </button>
     </form>

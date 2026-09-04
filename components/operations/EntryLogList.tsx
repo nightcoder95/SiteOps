@@ -118,7 +118,7 @@ export default function EntryLogList({
             <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400">{formatDate(date)}</h2>
             {(type === "labour" || type === "material" || type === "machinery" || type === "expense") ? (
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Day total</span>
+                <span className="text-xs font-extrabold uppercase tracking-widest text-slate-500">Day total</span>
                 <span className="text-xs font-bold text-sky-400">
                   {formatCurrency(rows.reduce((sum, row) => sum + row.total, 0))}
                 </span>
@@ -148,7 +148,7 @@ export default function EntryLogList({
                   {renderEntrySummary(entry, type)}
                   {(type === "labour" || type === "material" || type === "machinery" || type === "expense") ? (
                     <div className="mt-3 rounded-xl border border-sky-500/10 bg-sky-500/5 px-3 py-2">
-                      <p className="text-[9px] font-extrabold uppercase tracking-widest text-slate-500">Running total</p>
+                      <p className="text-xs font-extrabold uppercase tracking-widest text-slate-500">Running total</p>
                       <p className="text-sm font-extrabold text-sky-400">
                         {formatCurrency(runningTotals.get(runningKey) ?? row.total)}
                       </p>
@@ -183,7 +183,7 @@ export default function EntryLogList({
 
       {entries.length === 0 ? (
         <div className="text-center py-20 bg-white/2 rounded-3xl border border-dashed border-white/5">
-          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest italic">
+          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest italic">
             No matching logs found.
           </p>
         </div>

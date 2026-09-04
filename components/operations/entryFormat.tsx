@@ -1,5 +1,6 @@
-export type { EntryType } from "@/lib/db/queries/entries";
-import type { EntryType } from "@/lib/db/queries/entries";
+export type { EntryType } from "@/lib/types/entry";
+import { clientDescriptorFor } from "@/lib/entryTypes/client";
+import type { EntryType } from "@/lib/types/entry";
 
 export type Entry = Record<string, any>;
 
@@ -63,11 +64,11 @@ export const workStages = [
 ] as const;
 
 export const typeLabel: Record<EntryType, string> = {
-  labour: "Labour",
-  material: "Material",
-  machinery: "Machinery",
-  expense: "Expense",
-  incident: "Incident",
+  labour: clientDescriptorFor("labour").label,
+  material: clientDescriptorFor("material").label,
+  machinery: clientDescriptorFor("machinery").label,
+  expense: clientDescriptorFor("expense").label,
+  incident: clientDescriptorFor("incident").label,
 };
 
 export function formatCurrency(value: number) {
@@ -79,115 +80,27 @@ export function formatCurrency(value: number) {
 }
 
 export function entryId(entry: Entry, type: EntryType) {
-  switch (type) {
-    case "labour":
-      return entry.labourEntryId;
-    case "material":
-      return entry.materialEntryId;
-    case "machinery":
-      return entry.machineryEntryId;
-    case "expense":
-      return entry.expenseEntryId;
-    case "incident":
-      return entry.incidentReportId;
-  }
+  return entry[clientDescriptorFor(type).idField];
 }
 
 export function entryDate(entry: Entry, type: EntryType) {
-  if (type === "incident") {
-    return String(entry.createdAt ?? "").slice(0, 10);
-  }
-  return String(entry.date ?? "");
+  const d = clientDescriptorFor(type);
+  const raw = String(entry[d.dateField] ?? "");
+  // Incidents carry a full timestamp; the other four carry a plain YYYY-MM-DD
+  // date column. Only the timestamp needs slicing.
+  return d.dateField === "createdAt" ? raw.slice(0, 10) : raw;
 }
 
 export function entrySpend(entry: Entry, type: EntryType) {
-  if (type === "labour") {
-    const splitTotal = Number(entry.masonSalaryAmount ?? 0) + Number(entry.helperSalaryAmount ?? 0);
-    if (splitTotal > 0) return splitTotal;
-    const stored = Number(entry.salaryAmount ?? 0);
-    if (stored > 0) return stored;
-    return Number(entry.peopleCount ?? 0) * Number(entry.wagePerHead ?? 0);
-  }
-  if (type === "material") {
-    return Number(entry.cost ?? 0);
-  }
-  if (type === "machinery") {
-    return Number(entry.totalCost ?? 0);
-  }
-  if (type === "expense") {
-    return Number(entry.amount ?? 0);
-  }
-  return 0;
+  return clientDescriptorFor(type).spendOf(entry);
 }
 
-export function sumField(entries: Entry[], field: string) {
-  return entries.reduce((sum, entry) => sum + Number(entry[field] ?? 0), 0);
-}
-
-export function mergeVisualEntries(entries: Entry[], type: EntryType) {
-  const first = entries[0] ?? {};
-  if (entries.length <= 1) return first;
-
-  const total = entries.reduce((sum, entry) => sum + entrySpend(entry, type), 0);
-  const merged = { ...first, _mergedEntryCount: entries.length };
-
-  if (type === "labour") {
-    return {
-      ...merged,
-      peopleCount: sumField(entries, "peopleCount"),
-      wagePerHead: null,
-      salaryAmount: total,
-      masonCount: sumField(entries, "masonCount"),
-      masonSalaryAmount: sumField(entries, "masonSalaryAmount"),
-      helperCount: sumField(entries, "helperCount"),
-      helperSalaryAmount: sumField(entries, "helperSalaryAmount"),
-    };
-  }
-
-  if (type === "material") {
-    return {
-      ...merged,
-      quantity: sumField(entries, "quantity"),
-      cost: total,
-    };
-  }
-
-  if (type === "machinery") {
-    return {
-      ...merged,
-      count: sumField(entries, "count"),
-      hoursActive: sumField(entries, "hoursActive"),
-      totalCost: total,
-    };
-  }
-
-  if (type === "expense") {
-    return {
-      ...merged,
-      amount: total,
-    };
-  }
-
-  return merged;
-}
-
-export function entryCategoryKey(entry: Entry, type: EntryType) {
-  if (type === "labour") return String(entry.workType ?? "Labour");
-  if (type === "material") return `${entry.materialType ?? "Material"}|${entry.workStage ?? "Other"}`;
-  if (type === "machinery") return String(entry.equipmentType ?? "Machinery");
-  if (type === "expense") return String(entry.category ?? "Misc");
-  return String(entry.incidentType ?? "Incident");
-}
-
-// Grid-grouping key for the category-first operation view. Unlike
-// entryCategoryKey, material groups by materialType alone (work-stage is a
-// filter inside the category detail page, not part of the grid identity).
+// Grid-grouping key for the category-first operation view. Material groups by
+// materialType alone — work-stage is a filter inside the category detail page,
+// not part of the grid identity.
 export function gridCategoryKey(entry: Entry, type: EntryType): string {
-  if (type === "labour") return String(entry.workType ?? "Labour");
-  if (type === "material") return String(entry.materialType ?? "Material");
-  if (type === "machinery") return String(entry.equipmentType ?? "Machinery");
-  if (type === "expense") return String(entry.category ?? "Misc");
-  return String(entry.incidentType ?? "Incident");
+  const d = clientDescriptorFor(type);
+  return String(entry[d.categoryField] ?? d.categoryFallback);
 }
 
 export function renderEntrySummary(entry: Entry, type: EntryType) {
@@ -200,7 +113,7 @@ export function renderEntrySummary(entry: Entry, type: EntryType) {
         <div className="flex flex-wrap items-center gap-2">
           <p className="font-bold text-slate-100">{entry.workType ?? "Labour"}</p>
           {entry.workStage ? (
-            <span className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-emerald-400">
+            <span className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-xs font-bold uppercase tracking-widest text-emerald-400">
               {entry.workStage}
             </span>
           ) : null}
@@ -227,7 +140,7 @@ export function renderEntrySummary(entry: Entry, type: EntryType) {
       <div className="space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <p className="font-bold text-slate-100">{entry.materialType ?? "Material"}</p>
-          <span className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-emerald-400">
+          <span className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-xs font-bold uppercase tracking-widest text-emerald-400">
             {entry.workStage ?? "Other"}
           </span>
         </div>
@@ -248,7 +161,7 @@ export function renderEntrySummary(entry: Entry, type: EntryType) {
         <div className="flex flex-wrap items-center gap-2">
           <p className="font-bold text-slate-100">{entry.equipmentType ?? "Machinery"}</p>
           {entry.workStage ? (
-            <span className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-emerald-400">
+            <span className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-xs font-bold uppercase tracking-widest text-emerald-400">
               {entry.workStage}
             </span>
           ) : null}
@@ -267,7 +180,7 @@ export function renderEntrySummary(entry: Entry, type: EntryType) {
         <div className="flex flex-wrap items-center gap-2">
           <p className="font-bold text-slate-100">{entry.description ?? "Expense"}</p>
           {entry.workStage ? (
-            <span className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-emerald-400">
+            <span className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-xs font-bold uppercase tracking-widest text-emerald-400">
               {entry.workStage}
             </span>
           ) : null}

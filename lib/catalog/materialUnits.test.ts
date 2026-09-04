@@ -4,7 +4,7 @@ import {
   computeMaterialUnitRule,
   dedupeUnitOptionsByName,
   displayUnitName,
-} from "./materialUnits";
+} from "./units";
 
 describe("computeMaterialUnitRule", () => {
   it("uses the mapped units when a material type has an allow-list", () => {

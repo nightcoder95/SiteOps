@@ -1,7 +1,7 @@
 import { requireSiteAccess } from "@/lib/auth/guards";
 import { checkOwnership } from "@/lib/auth/ownership";
 import { getSiteById } from "@/lib/db/queries/sites";
-import { getEntriesBySite } from "@/lib/db/queries/entries";
+import { encodeEntriesCursor, getEntriesBySite } from "@/lib/db/queries/entries";
 import { ERROR_CODES } from "@/lib/errors/codes";
 import { errorResponse, successResponse } from "@/lib/errors/response";
 import { withApiRoute } from "@/lib/http/withApi";
@@ -45,6 +45,16 @@ export const GET = withApiRoute<RouteCtx>(async ({ request, requestId }, context
   const sort = searchParams.get("sort") ?? undefined;
   const limitRaw = searchParams.get("limit");
   const limit = limitRaw ? Number(limitRaw) : undefined;
+  // Keyset continuation: `after` is the identity id of the last row the client
+  // already has. It is a UI continuation token, not a user-entered value, so a
+  // malformed one falls back to the first page rather than a 400. The cursor
+  // grants nothing — the query is still scoped to siteId, which was ownership-
+  // checked above.
+  const afterRaw = Number(searchParams.get("after"));
+  const cursor =
+    Number.isInteger(afterRaw) && afterRaw > 0
+      ? encodeEntriesCursor({ id: afterRaw })
+      : undefined;
 
   if (!type || !(allowedTypes as readonly string[]).includes(type)) {
     return errorResponse(
@@ -63,6 +73,7 @@ export const GET = withApiRoute<RouteCtx>(async ({ request, requestId }, context
     category,
     workStage: workStage as any,
     sort: sort as any,
+    cursor,
   });
   return successResponse(data, 200, requestId);
 });

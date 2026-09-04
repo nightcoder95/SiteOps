@@ -1,5 +1,6 @@
 "use client";
 
+import { MapPinPlus } from 'lucide-react';
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -88,7 +89,7 @@ export function SitesNewPageClient({ role, supervisors }: Props) {
 
         <div className="flex flex-col gap-2">
           <label htmlFor="budget" className={labelClass}>Budget (₹) *</label>
-          <input id="budget" type="number" min="0" step="0.01" value={budget} onChange={(e) => setBudget(e.target.value)} required className={inputClass} />
+          <input id="budget" type="number" inputMode="decimal" min="0" step="0.01" value={budget} onChange={(e) => setBudget(e.target.value)} required className={inputClass} />
         </div>
 
         <div className="flex flex-col gap-2">
@@ -115,7 +116,7 @@ export function SitesNewPageClient({ role, supervisors }: Props) {
           disabled={submitting}
           className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded bg-primary text-xs font-semibold uppercase text-on-primary hover:bg-sky-400 disabled:opacity-60"
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>add_location</span>
+          <MapPinPlus className="w-[18px] h-[18px]" />
           {submitting ? "Creating…" : "Create Site"}
         </button>
       </form>

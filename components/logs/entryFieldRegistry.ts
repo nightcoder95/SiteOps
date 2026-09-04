@@ -1,3 +1,6 @@
+import { ENTRY_FIELD_CONSTRAINTS } from "@/lib/entryTypes/constraints";
+import type { EntryType } from "@/lib/types/entry";
+
 export type FieldKind =
   | "date"
   | "number"
@@ -26,21 +29,34 @@ export type EntryField = {
   min?: number;
   max?: number;
   step?: number;
+  // Mobile keyboard hint. Derived from `step` when omitted: whole-number fields
+  // get the numeric pad, money/quantity fields get the decimal pad. Set
+  // explicitly only when the derivation is wrong for a specific field.
+  inputMode?: "numeric" | "decimal";
 };
+
+export function numericInputModeFor(field: EntryField): "numeric" | "decimal" | undefined {
+  if (field.kind !== "number") return undefined;
+  if (field.inputMode) return field.inputMode;
+  return field.step === 1 ? "numeric" : "decimal";
+}
 
 export const fallbackFields: EntryField[] = [
   { name: "date", label: "Date", kind: "date", required: true },
   { name: "name", label: "Name", kind: "text", required: true },
-  { name: "quantity", label: "Quantity", kind: "number", required: true, min: 0 },
+  { name: "quantity", label: "Quantity", kind: "number", required: true, ...ENTRY_FIELD_CONSTRAINTS.quantity },
   { name: "remarks", label: "Remarks", kind: "textarea" },
 ];
 
-const REGISTRY: Record<string, EntryField[]> = {
+// Exported, type-safe per-type map. The client entry-type descriptor
+// (lib/entryTypes/client.ts) reads its formFields from here, so the form
+// shape has one home.
+export const REGISTRY_BY_TYPE = {
   labour: [
     { name: "date", label: "Date", kind: "date", required: true },
     { name: "workType", label: "Work Type", kind: "subcategory", required: true, subcategoryHint: "labour" },
-    { name: "peopleCount", label: "People Count", kind: "number", required: true, min: 1, max: 10000, step: 1 },
-    { name: "wagePerHead", label: "Per Head Salary", kind: "number", required: true, min: 0.01, step: 0.01 },
+    { name: "peopleCount", label: "People Count", kind: "number", required: true, ...ENTRY_FIELD_CONSTRAINTS.peopleCount },
+    { name: "wagePerHead", label: "Per Head Salary", kind: "number", required: true, ...ENTRY_FIELD_CONSTRAINTS.wagePerHead },
     {
       name: "workStage",
       label: "Work Stage",
@@ -55,7 +71,7 @@ const REGISTRY: Record<string, EntryField[]> = {
   material: [
     { name: "date", label: "Date", kind: "date", required: true },
     { name: "materialType", label: "Material Type", kind: "subcategory", required: true, subcategoryHint: "material" },
-    { name: "quantity", label: "Quantity", kind: "number", required: true, min: 0, step: 0.01 },
+    { name: "quantity", label: "Quantity", kind: "number", required: true, ...ENTRY_FIELD_CONSTRAINTS.quantity },
     { name: "unit", label: "Unit", kind: "unit", required: true },
     {
       name: "workStage",
@@ -65,15 +81,15 @@ const REGISTRY: Record<string, EntryField[]> = {
       catalogCategoryName: "Work Stage",
       noun: "Work Stage",
     },
-    { name: "cost", label: "Total Cost", kind: "number", required: false, min: 0.01, step: 0.01 },
+    { name: "cost", label: "Total Cost", kind: "number", required: false, ...ENTRY_FIELD_CONSTRAINTS.cost },
     { name: "remarks", label: "Remarks", kind: "textarea" },
   ],
   machinery: [
     { name: "date", label: "Date", kind: "date", required: true },
     { name: "equipmentType", label: "Equipment Type", kind: "subcategory", required: true, subcategoryHint: "machinery" },
-    { name: "count", label: "Count", kind: "number", required: true, min: 1, step: 1 },
-    { name: "hoursActive", label: "Hours Active", kind: "number", required: true, min: 0.1, max: 24, step: 0.1 },
-    { name: "totalCost", label: "Total Cost", kind: "number", required: true, min: 0.01, step: 0.01 },
+    { name: "count", label: "Count", kind: "number", required: true, ...ENTRY_FIELD_CONSTRAINTS.count },
+    { name: "hoursActive", label: "Hours Active", kind: "number", required: true, ...ENTRY_FIELD_CONSTRAINTS.hoursActive },
+    { name: "totalCost", label: "Total Cost", kind: "number", required: true, ...ENTRY_FIELD_CONSTRAINTS.totalCost },
     {
       name: "workStage",
       label: "Work Stage",
@@ -105,7 +121,7 @@ const REGISTRY: Record<string, EntryField[]> = {
       catalogCategoryName: "Work Stage",
       noun: "Work Stage",
     },
-    { name: "amount", label: "Amount", kind: "number", required: true, min: 0, step: 0.01 },
+    { name: "amount", label: "Amount", kind: "number", required: true, ...ENTRY_FIELD_CONSTRAINTS.amount },
   ],
   incident: [
     {
@@ -124,9 +140,13 @@ const REGISTRY: Record<string, EntryField[]> = {
       noun: "Severity",
     },
     { name: "description", label: "Description", kind: "textarea", required: true },
-    { name: "durationEstimate", label: "Duration (minutes)", kind: "number", min: 1, step: 1 },
+    { name: "durationEstimate", label: "Duration (minutes)", kind: "number", ...ENTRY_FIELD_CONSTRAINTS.durationEstimate },
   ],
-};
+} satisfies Record<EntryType, EntryField[]>;
+
+// Kept for the alias/dynamic path: a category name that is not one of the five
+// known types resolves to fallbackFields.
+const REGISTRY: Record<string, EntryField[]> = REGISTRY_BY_TYPE;
 
 const CATEGORY_ALIASES: Record<string, string> = {
   materials: "material",

@@ -26,7 +26,6 @@
     "postcss": ">=8.5.10"
   },
   "dependencies": {
-    "@posthog/next": "^0.4.97",
     "@serwist/next": "^9.5.7",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.50.2",

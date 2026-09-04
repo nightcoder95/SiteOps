@@ -1,15 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { confirmDialog } from "@/lib/ui/confirm";
 import { notifyError } from "@/lib/ui/toast";
 import { motion } from "motion/react";
-import { ChevronRight, Plus, Trash2, Loader2, AlertCircle } from "lucide-react";
+import { AlertCircle, AlertTriangle, ChevronRight, Loader2, Plus, Shapes, Trash2 } from 'lucide-react';
 
 import { ModalShell } from "@/components/ui/motion";
 import { EntryTypeIcon, entryTypeFromName } from "@/components/constants/EntryTypeIcon";
 import { requestJson } from "@/lib/http/client";
+import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 
 export type CategoryOption = {
   categoryId: string;
@@ -60,6 +61,20 @@ export function CategoryPicker({ initialCategories = [], onSelect, role, siteId 
   const [similarity, setSimilarity] = useState<SimilarityResponse | null>(null);
 
   const canCreate = useMemo(() => name.trim().length > 0, [name]);
+
+  // Similarity is advisory — it shows a hint and never blocks submit — so the
+  // settled name is what matters. Checking every keystroke sent one POST per
+  // character through withApi and the rate limiter. 180 ms matches the global
+  // search debounce.
+  const debouncedName = useDebouncedValue(name, 180);
+  useEffect(() => {
+    // Empty is handled inside checkSimilarity, which clears the hint — an early
+    // return here would strand the previous name's hint on screen.
+    void checkSimilarity(debouncedName);
+    // checkSimilarity only reads the argument; re-running on identity changes
+    // would defeat the debounce.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedName]);
 
   async function checkSimilarity(next: string) {
     const trimmed = next.trim();
@@ -202,7 +217,7 @@ export function CategoryPicker({ initialCategories = [], onSelect, role, siteId 
                   return mappedType ? (
                     <EntryTypeIcon type={mappedType} className="w-8 h-8" />
                   ) : (
-                    <span className="material-symbols-outlined text-[24px]">{c.icon ?? "category"}</span>
+                    <Shapes className="w-6 h-6" />
                   );
                 })()}
               </div>
@@ -253,14 +268,12 @@ export function CategoryPicker({ initialCategories = [], onSelect, role, siteId 
           <h3 className="text-xl font-extrabold tracking-tight text-white uppercase">Add Category</h3>
 
           <div className="space-y-1.5">
-            <label className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Name</label>
+            <label htmlFor="category-name" className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Name</label>
             <input
+              id="category-name"
               type="text"
               value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                void checkSimilarity(e.target.value);
-              }}
+              onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Concrete Pouring"
               className="input-standard"
             />
@@ -281,12 +294,14 @@ export function CategoryPicker({ initialCategories = [], onSelect, role, siteId 
               <div key={idx} className="grid grid-cols-12 gap-2 rounded-xl border border-white/5 bg-white/5 p-2">
                 <input
                   type="text"
+                  aria-label={`Custom field ${idx + 1} label`}
                   placeholder="Label"
                   value={field.label}
                   onChange={(e) => setFields((prev) => prev.map((item, i) => i === idx ? { ...item, label: e.target.value } : item))}
                   className="col-span-6 input-standard py-2"
                 />
                 <select
+                  aria-label={`Custom field ${idx + 1} type`}
                   value={field.fieldType}
                   onChange={(e) => setFields((prev) => prev.map((item, i) => i === idx ? { ...item, fieldType: e.target.value as "Text" | "Number" } : item))}
                   className="col-span-3 input-standard py-2 appearance-none"
@@ -296,6 +311,7 @@ export function CategoryPicker({ initialCategories = [], onSelect, role, siteId 
                 </select>
                 <input
                   type="text"
+                  aria-label={`Custom field ${idx + 1} unit`}
                   placeholder="Unit"
                   value={field.unit}
                   onChange={(e) => setFields((prev) => prev.map((item, i) => i === idx ? { ...item, unit: e.target.value } : item))}
@@ -306,8 +322,9 @@ export function CategoryPicker({ initialCategories = [], onSelect, role, siteId 
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Remarks</label>
+            <label htmlFor="category-remarks" className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">Remarks</label>
             <textarea
+              id="category-remarks"
               value={remarks}
               onChange={(e) => setRemarks(e.target.value)}
               rows={2}
@@ -333,8 +350,9 @@ export function CategoryPicker({ initialCategories = [], onSelect, role, siteId 
           ) : null}
 
           {similarity?.requiresReview && !confirmOverride?.length ? (
-            <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest">
-              ⚠ Similar category detected — will require admin review.
+            <p className="flex items-center gap-1.5 text-[10px] font-bold text-amber-400 uppercase tracking-widest">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              Similar category detected — will require admin review.
             </p>
           ) : null}
 

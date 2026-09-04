@@ -1,12 +1,13 @@
 import { z } from "zod";
 
 import { requireSiteAccess } from "@/lib/auth/guards";
+import { checkSimilarNames } from "@/lib/catalog/review";
 import { db } from "@/lib/db/client";
 import { categories } from "@/lib/db/schema";
 import { errorResponse, successResponse } from "@/lib/errors/response";
 import { parseJsonBody, validateBody } from "@/lib/http/request";
 import { withApi } from "@/lib/http/withApi";
-import { rankSimilarityCandidates } from "@/lib/utils/stringSimilarity";
+
 
 const payloadSchema = z
   .object({
@@ -26,13 +27,5 @@ export const POST = withApi(async ({ request, requestId }) => {
   if (!validation.ok) return validation.response;
 
   const all = await db.select({ id: categories.categoryId, name: categories.name }).from(categories);
-  const ranked = rankSimilarityCandidates(validation.data.name, all);
-  return successResponse(
-    {
-      ...ranked,
-      requiresReview: ranked.topScore >= 0.7,
-    },
-    200,
-    requestId,
-  );
+  return successResponse(checkSimilarNames(validation.data.name, all), 200, requestId);
 });

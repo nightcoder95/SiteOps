@@ -1,5 +1,5 @@
 import { requireSiteAccess } from "@/lib/auth/guards";
-import { checkOwnership } from "@/lib/auth/ownership";
+import { assertSiteWritable } from "@/lib/auth/siteWritable";
 import { invalidateAdminAnalyticsCache } from "@/lib/cache/invalidate";
 import { db } from "@/lib/db/client";
 import { createNotification, getAllAdmins } from "@/lib/db/queries/notifications";
@@ -43,18 +43,13 @@ export const POST = withApi(async ({ request, requestId }) => {
     canonicalSeverity = severityCheck.value;
   }
 
-  const site = await db.query.sites.findFirst({
-    where: (t, { eq }) => eq(t.siteId, siteId),
-    columns: { supervisorId: true, name: true, archivedAt: true },
+  const writable = await assertSiteWritable({
+    request,
+    siteId,
+    requestId,
+    forbiddenMessage: "You can only report incidents for sites you supervise",
   });
-
-  if (!site || site.archivedAt) {
-    return errorResponse(ERROR_CODES.NOT_FOUND, "Site not found", 404, undefined, requestId);
-  }
-
-  if (!checkOwnership(auth.session.user, site.supervisorId)) {
-    return errorResponse(ERROR_CODES.FORBIDDEN, "You can only report incidents for sites you supervise", 403, undefined, requestId);
-  }
+  if (!writable.ok) return writable.response;
 
   try {
     const incident = await insertIncidentReport({
@@ -63,7 +58,7 @@ export const POST = withApi(async ({ request, requestId }) => {
       severity: canonicalSeverity,
       description,
       durationEstimate: durationEstimate ?? null,
-      reportedBy: auth.session.user.id,
+      reportedBy: writable.session.user.id,
     });
 
     const admins = await getAllAdmins();
@@ -75,7 +70,7 @@ export const POST = withApi(async ({ request, requestId }) => {
           createNotification(
             admin.id,
             "incident",
-            `Incident at ${site.name}`,
+            `Incident at ${writable.site.name}`,
             description,
             `/app/sites/${siteId}`,
           ),

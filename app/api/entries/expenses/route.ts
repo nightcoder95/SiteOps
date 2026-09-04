@@ -1,7 +1,6 @@
 import { requireSiteAccess } from "@/lib/auth/guards";
-import { checkOwnership } from "@/lib/auth/ownership";
+import { assertSiteWritable } from "@/lib/auth/siteWritable";
 import { invalidateAdminAnalyticsCache } from "@/lib/cache/invalidate";
-import { db } from "@/lib/db/client";
 import { insertExpenseEntry } from "@/lib/db/queries/entries";
 import { getSiteTrackedSpend } from "@/lib/db/queries/sites";
 import { createNotification, getAllAdmins } from "@/lib/db/queries/notifications";
@@ -63,18 +62,13 @@ export const POST = withApi(async ({ request, requestId }) => {
     canonicalWorkStage = workStageCheck.value;
   }
 
-  const site = await db.query.sites.findFirst({
-    where: (t, { eq }) => eq(t.siteId, siteId),
-    columns: { supervisorId: true, budget: true, name: true, archivedAt: true },
+  const writable = await assertSiteWritable({
+    request,
+    siteId,
+    requestId,
+    forbiddenMessage: "You can only log entries for sites you supervise",
   });
-
-  if (!site || site.archivedAt) {
-    return errorResponse(ERROR_CODES.NOT_FOUND, "Site not found", 404, undefined, requestId);
-  }
-
-  if (!checkOwnership(auth.session.user, site.supervisorId)) {
-    return errorResponse(ERROR_CODES.FORBIDDEN, "You can only log entries for sites you supervise", 403, undefined, requestId);
-  }
+  if (!writable.ok) return writable.response;
 
   try {
     const entry = await insertExpenseEntry({
@@ -84,15 +78,15 @@ export const POST = withApi(async ({ request, requestId }) => {
       amount: String(amount),
       category,
       workStage: canonicalWorkStage,
-      createdBy: auth.session.user.id,
+      createdBy: writable.session.user.id,
     });
 
     const totalSpend = await getSiteTrackedSpend(siteId);
-    if (site.budget && Number(totalSpend) / Number(site.budget) >= 0.8) {
+    if (writable.site.budget && Number(totalSpend) / Number(writable.site.budget) >= 0.8) {
       runNonCritical(
         requestId,
         "budget_threshold_notification_failed",
-        notifyBudgetThreshold(siteId, site.supervisorId, totalSpend, String(site.budget)),
+        notifyBudgetThreshold(siteId, writable.site.supervisorId, totalSpend, String(writable.site.budget)),
         { siteId },
       );
     }

@@ -91,6 +91,7 @@ export function ToolAddModal({
           Opening stock
           <input
             type="number"
+            inputMode="numeric"
             min={0}
             value={opening}
             onChange={(e) => setOpening(e.target.value)}

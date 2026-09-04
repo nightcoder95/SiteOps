@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { dedupeUnitOptionsByName, displayUnitName } from "@/lib/db/queries/materialUnits";
+import { dedupeUnitOptionsByName, displayUnitName } from "@/lib/catalog/units";
 import { useApiResult } from "@/lib/http/useApiQuery";
 import { notifyError } from "@/lib/ui/toast";
 

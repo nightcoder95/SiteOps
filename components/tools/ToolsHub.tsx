@@ -108,7 +108,7 @@ export function ToolsHub() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search tools by name..."
-                className="h-8 w-full rounded-lg border border-white/5 bg-white/5 pl-9 pr-3 text-xs text-white placeholder-slate-500 outline-none transition-all focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/40"
+                className="h-8 w-full rounded-lg border border-white/5 bg-white/5 pl-9 pr-3 text-xs text-white placeholder-slate-400 outline-none transition-all focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/40"
               />
             </div>
           )}

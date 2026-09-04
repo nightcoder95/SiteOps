@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DELETE } from "./route";
 
-const { mockRequireCapability, mockSelect, mockDelete } = vi.hoisted(() => ({
+const {
+  mockRequireCapability, mockSelect, mockDelete, mockInvalidateOverview, mockRunNonCritical,
+} = vi.hoisted(() => ({
+  mockInvalidateOverview: vi.fn().mockResolvedValue(undefined),
+  mockRunNonCritical: vi.fn(),
   mockRequireCapability: vi.fn(),
   mockSelect: vi.fn(),
   mockDelete: vi.fn(),
@@ -19,10 +23,11 @@ vi.mock("@/lib/db/client", () => ({
 
 vi.mock("@/lib/cache/invalidate", () => ({
   invalidateCategoryTreeCache: vi.fn().mockResolvedValue(undefined),
+  invalidateCatalogOverviewCache: mockInvalidateOverview,
 }));
 
 vi.mock("@/lib/services/nonCritical", () => ({
-  runNonCritical: vi.fn(),
+  runNonCritical: mockRunNonCritical,
 }));
 
 vi.mock("@/lib/utils/requestId", () => ({
@@ -110,6 +115,28 @@ describe("DELETE subcategory usage guard", () => {
     expect(res.status).toBe(409);
     expect(body.error.message).toMatch(/deactivate/i);
     expect(mockDelete).not.toHaveBeenCalled();
+  });
+
+  it("invalidates the catalog overview cache on a successful delete", async () => {
+    mockInvalidateOverview.mockResolvedValue(undefined);
+    mockReads([{ categoryId: "c1", name: "Cement" }], [{ name: "Materials" }], [{ n: 0 }]);
+
+    const res = await DELETE(deleteReq(), ctx);
+    expect(res.status).toBe(200);
+    expect(mockRunNonCritical).toHaveBeenCalledWith(
+      expect.any(String),
+      "catalog_overview_cache_invalidation_failed",
+      expect.anything(),
+    );
+    expect(mockInvalidateOverview).toHaveBeenCalledWith("req_test");
+  });
+
+  it("does NOT invalidate the catalog overview cache when the delete is blocked", async () => {
+    mockReads([{ categoryId: "c1", name: "Cement" }], [{ name: "Materials" }], [{ n: 3 }]);
+
+    const res = await DELETE(deleteReq(), ctx);
+    expect(res.status).toBe(409);
+    expect(mockInvalidateOverview).not.toHaveBeenCalled();
   });
 
   it("deletes a multi-table category item when every source reports zero usage", async () => {

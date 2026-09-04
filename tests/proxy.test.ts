@@ -140,6 +140,22 @@ describe("middleware — inbound x-siteops-* header stripping (defense-in-depth)
     expect(mockGetClaims).not.toHaveBeenCalled(); // proves the early public-prefix exit was taken
   });
 
+  it("skips all auth work for the CSP report sink, which browsers post without credentials", async () => {
+    // The sink must be reachable from the sign-in page and from a session that
+    // has expired, so it cannot sit behind the JWT verify.
+    const res = await middleware(forgedRequest("/api/csp-report"));
+    expect(mockGetClaims).not.toHaveBeenCalled();
+  });
+
+  it("still strips a forged identity header on the CSP report sink", async () => {
+    // Public does not mean unguarded: the strip-before-exit invariant applies to
+    // every new public prefix, or the sink becomes an identity-injection hole.
+    const res = await middleware(forgedRequest("/api/csp-report"));
+    expect(forwardedHeader(res, "x-siteops-user-id")).toBeNull();
+    expect(forwardedHeader(res, "x-siteops-user-role")).toBeNull();
+    expect(forwardedHeader(res, "x-siteops-user-email")).toBeNull();
+  });
+
   it("strips forged identity headers on an OPTIONS preflight", async () => {
     const req = new NextRequest(new URL("https://app.test/api/entries"), {
       method: "OPTIONS",

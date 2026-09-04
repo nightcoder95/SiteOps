@@ -15,6 +15,7 @@ import {
   updateMachineryEntrySchema,
   updateMaterialEntrySchema,
 } from "@/lib/validation/schemas";
+import { ENTRY_FIELD_CONSTRAINTS } from "@/lib/entryTypes/constraints";
 
 const validSiteId = "550e8400-e29b-41d4-a716-446655440000";
 const validTypeId = "550e8400-e29b-41d4-a716-446655440001";
@@ -428,4 +429,59 @@ describe("entryDateSchema", () => {
   it("rejects future dates", () => {
     expect(entryDateSchema.safeParse(tomorrow).success).toBe(false);
   });
+});
+
+// F18: the zod schemas and the form field registry must enforce the same
+// numeric bounds. Both now read ENTRY_FIELD_CONSTRAINTS; these cases prove the
+// server side actually honours it, so a constant change cannot quietly loosen
+// validation while only moving the browser's `max` attribute.
+describe("numeric bounds come from ENTRY_FIELD_CONSTRAINTS", () => {
+  const base = {
+    labour: {
+      siteId: validSiteId, date: validEntryDate, workType: "Steel work",
+      workTypeMode: "custom" as const, workTypeCustomId: validTypeId,
+      peopleCount: 2, wagePerHead: 500,
+    },
+    material: {
+      siteId: validSiteId, date: validEntryDate, materialType: "Cement",
+      materialTypeMode: "custom" as const, materialTypeCustomId: validTypeId,
+      unit: "bag", unitId: validUnitId, quantity: 5, workStage: "Roof Level",
+    },
+    machinery: {
+      siteId: validSiteId, date: validEntryDate, equipmentType: "JCB",
+      equipmentTypeMode: "custom" as const, equipmentTypeCustomId: validTypeId,
+      count: 1, hoursActive: 2, totalCost: 1000,
+    },
+    expense: {
+      siteId: validSiteId, date: validEntryDate, category: "Misc",
+      description: "x", amount: 100,
+    },
+    incident: {
+      siteId: validSiteId, incidentType: "Safety", description: "x",
+    },
+  };
+
+  const cases = [
+    ["labour", "peopleCount", labourEntrySchema, base.labour],
+    ["labour", "wagePerHead", labourEntrySchema, base.labour],
+    ["material", "quantity", materialEntrySchema, base.material],
+    ["machinery", "count", machineryEntrySchema, base.machinery],
+    ["machinery", "hoursActive", machineryEntrySchema, base.machinery],
+    ["machinery", "totalCost", machineryEntrySchema, base.machinery],
+    ["expense", "amount", expenseEntrySchema, base.expense],
+    ["incident", "durationEstimate", incidentEntrySchema, base.incident],
+  ] as const;
+
+  for (const [type, field, schema, payload] of cases) {
+    it(`${type}.${field} accepts its max and rejects just above it`, () => {
+      const { max } = ENTRY_FIELD_CONSTRAINTS[field];
+      expect(schema.safeParse({ ...payload, [field]: max }).success, `${field} = max`).toBe(true);
+      expect(schema.safeParse({ ...payload, [field]: max + 1 }).success, `${field} > max`).toBe(false);
+    });
+
+    it(`${type}.${field} rejects zero and negatives`, () => {
+      expect(schema.safeParse({ ...payload, [field]: 0 }).success, `${field} = 0`).toBe(false);
+      expect(schema.safeParse({ ...payload, [field]: -1 }).success, `${field} < 0`).toBe(false);
+    });
+  }
 });

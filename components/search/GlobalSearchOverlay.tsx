@@ -165,7 +165,7 @@ export function GlobalSearchOverlay({ open, onClose }: Props) {
               }}
               maxLength={100}
               placeholder="Search remarks across all sites…"
-              className="flex-1 bg-transparent outline-none text-base text-white placeholder:text-slate-600"
+              className="flex-1 bg-transparent outline-none text-base text-white placeholder:text-slate-400"
               aria-label="Search query"
               autoComplete="off"
               role="combobox"

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { RenameModal } from "@/components/catalog/RenameModal";
 import { RowActionsMenu, type RowAction } from "@/components/catalog/RowActionsMenu";
 import { useToolCategories, useToolMutations, type ToolCategoryDTO } from "@/lib/client/tools";
 import { notifyError } from "@/lib/ui/toast";
@@ -14,6 +15,7 @@ export function ToolCategoryManager() {
   const { createCategory, updateCategory } = useToolMutations();
   const [showInactive, setShowInactive] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<ToolCategoryDTO | null>(null);
   const [name, setName] = useState("");
   const [prefix, setPrefix] = useState("");
 
@@ -44,9 +46,25 @@ export function ToolCategoryManager() {
   }
 
   function rename(cat: ToolCategoryDTO) {
-    const next = window.prompt(`Rename "${cat.name}" to:`, cat.name)?.trim();
-    if (!next || next === cat.name) return;
-    void patch(cat, { name: next }, `Renamed to "${next}"`);
+    setRenaming(cat);
+  }
+
+  // Returns true so RenameModal closes only on a successful PATCH; on failure
+  // the modal stays open with the user's text intact. Deliberately not `patch()`
+  // — that helper cannot report success/failure back to the modal.
+  async function submitRename(nextName: string): Promise<boolean> {
+    const cat = renaming;
+    if (!cat) return true;
+    setBusyId(cat.categoryId);
+    const res = await updateCategory(cat.categoryId, { name: nextName });
+    setBusyId(null);
+    if (!res.ok) {
+      notifyError(res);
+      return false;
+    }
+    toast.success(`Renamed to "${nextName}"`);
+    await mutate();
+    return true;
   }
 
   // Single source of truth for a row's actions, shared by the desktop table and
@@ -182,6 +200,14 @@ export function ToolCategoryManager() {
           </div>
         </>
       )}
+
+      <RenameModal
+        open={renaming !== null}
+        noun="Tool Category"
+        currentName={renaming?.name ?? ""}
+        onClose={() => setRenaming(null)}
+        onSubmit={submitRename}
+      />
     </div>
   );
 }

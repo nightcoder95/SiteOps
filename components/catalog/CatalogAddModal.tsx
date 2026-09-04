@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 
 import { ModalShell } from "@/components/ui/motion";
 import { addCtaLabel } from "@/lib/catalog/addCta";
+import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 
 export type CatalogSimilarityCandidate = {
   id: string;
@@ -58,18 +59,34 @@ export function CatalogAddModal({ noun, disabled, withRemark, solid, onCheckSimi
     reset();
   }
 
-  async function handleNameChange(next: string) {
+  // Typing is local; the similarity POST waits for the name to settle. The prop
+  // has always been documented as debounced, but the call used to run straight
+  // out of onChange — one request per keystroke, inherited by every consumer of
+  // this modal. 180 ms matches the global search debounce.
+  function handleNameChange(next: string) {
     setName(next);
     setConfirmOverride(null);
+  }
+
+  const debouncedName = useDebouncedValue(name, 180);
+  useEffect(() => {
     if (!onCheckSimilarity) return;
-    const trimmed = next.trim();
+    const trimmed = debouncedName.trim();
+    // Clearing the field clears the hint rather than leaving the previous
+    // name's verdict on screen.
     if (!trimmed) {
       setRequiresReview(false);
       return;
     }
-    const result = await onCheckSimilarity(trimmed);
-    setRequiresReview(Boolean(result?.requiresReview));
-  }
+    let cancelled = false;
+    void onCheckSimilarity(trimmed).then((result) => {
+      // A reply that arrives after the name moved on must not overwrite the
+      // newer verdict.
+      if (!cancelled) setRequiresReview(Boolean(result?.requiresReview));
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedName]);
 
   async function handleCreate() {
     const trimmed = name.trim();
@@ -118,7 +135,7 @@ export function CatalogAddModal({ noun, disabled, withRemark, solid, onCheckSimi
           <input
             type="text"
             value={name}
-            onChange={(e) => void handleNameChange(e.target.value)}
+            onChange={(e) => handleNameChange(e.target.value)}
             placeholder={`${noun} name`}
             className="h-11 w-full rounded-xl border border-outline px-3"
           />

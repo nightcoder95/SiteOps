@@ -136,7 +136,7 @@ function ToolsTable() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search tools by name..."
-            className="h-8.5 w-full rounded-lg border border-white/10 bg-slate-900 pl-9 pr-3 text-xs text-white outline-none placeholder-slate-500 focus:border-blue-500"
+            className="h-8.5 w-full rounded-lg border border-white/10 bg-slate-900 pl-9 pr-3 text-xs text-white outline-none placeholder-slate-400 focus:border-blue-500"
           />
         </div>
         <div className="flex items-center gap-2">

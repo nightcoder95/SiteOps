@@ -6,6 +6,7 @@ import { ArrowRightLeft, MapPin, Truck, Package, Users, ChevronDown, AlertCircle
 import { toast } from 'sonner';
 import { notifyError } from '@/lib/ui/toast';
 
+import { UnitSelect, type UnitOption } from '@/components/logs/UnitSelect';
 import { requestJson } from '@/lib/http/client';
 import { useCatalogNames } from '@/lib/catalog/useCatalogNames';
 import { filterToAllowedCanonical } from '@/lib/catalog/selectors';
@@ -42,7 +43,7 @@ export function TransferForm({ sites, defaultFromSiteId, onSuccess }: Props) {
   const [resourceType, setResourceType] = useState<ResourceType>('Materials');
   const [workTypeEnum, setWorkTypeEnum] = useState<string>('');
   const [materialTypeEnum, setMaterialTypeEnum] = useState<string>('');
-  const [unitCustomId, setUnitCustomId] = useState('');
+  const [unit, setUnit] = useState<UnitOption | null>(null);
   const [quantity, setQuantity] = useState('');
   const [remarks, setRemarks] = useState('');
 
@@ -82,8 +83,8 @@ export function TransferForm({ sites, defaultFromSiteId, onSuccess }: Props) {
       return;
     }
 
-    if (resourceType === 'Materials' && !unitCustomId) {
-      toast.error('Unit ID is required for material transfers');
+    if (resourceType === 'Materials' && !unit) {
+      toast.error('Select a unit for material transfers');
       return;
     }
 
@@ -101,8 +102,10 @@ export function TransferForm({ sites, defaultFromSiteId, onSuccess }: Props) {
     } else {
       payload.materialTypeMode = 'default_enum';
       payload.materialTypeEnum = materialTypeEnum;
-      payload.unitMode = 'custom';
-      payload.unitCustomId = unitCustomId;
+      // The guard above returns before this branch when no unit is picked.
+      payload.unitMode = unit!.mode;
+      if (unit!.mode === 'master') payload.unitMasterId = unit!.unitId;
+      else payload.unitCustomId = unit!.unitId;
     }
 
     setIsLoading(true);
@@ -134,11 +137,11 @@ export function TransferForm({ sites, defaultFromSiteId, onSuccess }: Props) {
         <section className="card-standard p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
             <div className="space-y-2">
-              <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-1.5 ml-1">
+              <label htmlFor="transfer-from-site" className="text-[11px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-1.5 ml-1">
                 From (Source)
               </label>
               <div className="relative">
-                <select required value={fromSiteId} onChange={(e) => setFromSiteId(e.target.value)} className="input-standard pl-10 appearance-none bg-slate-900">
+                <select id="transfer-from-site" required value={fromSiteId} onChange={(e) => setFromSiteId(e.target.value)} className="input-standard pl-10 appearance-none bg-slate-900">
                   <option value="" className="bg-slate-900">Select Origin</option>
                   {sites.map((s) => <option key={s.siteId} value={s.siteId} className="bg-slate-900">{s.name}</option>)}
                 </select>
@@ -152,11 +155,11 @@ export function TransferForm({ sites, defaultFromSiteId, onSuccess }: Props) {
             </div>
 
             <div className="space-y-2">
-              <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-1.5 ml-1">
+              <label htmlFor="transfer-to-site" className="text-[11px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-1.5 ml-1">
                 To (Destination)
               </label>
               <div className="relative">
-                <select required value={toSiteId} onChange={(e) => setToSiteId(e.target.value)} className="input-standard pl-10 appearance-none bg-slate-900">
+                <select id="transfer-to-site" required value={toSiteId} onChange={(e) => setToSiteId(e.target.value)} className="input-standard pl-10 appearance-none bg-slate-900">
                   <option value="" className="bg-slate-900">Select Destination</option>
                   {sites.filter((s) => s.siteId !== fromSiteId).map((s) => <option key={s.siteId} value={s.siteId} className="bg-slate-900">{s.name}</option>)}
                 </select>
@@ -169,8 +172,10 @@ export function TransferForm({ sites, defaultFromSiteId, onSuccess }: Props) {
           <hr className="border-white/5" />
 
           <div className="space-y-3">
-            <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500 ml-1">Resource Type</label>
-            <div className="grid grid-cols-2 gap-3">
+            {/* This labels a pair of toggle buttons, not a form control, so it
+                is a group label rather than a <label htmlFor>. */}
+            <p id="transfer-resource-type" className="text-[11px] font-bold uppercase tracking-widest text-slate-500 ml-1">Resource Type</p>
+            <div role="group" aria-labelledby="transfer-resource-type" className="grid grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => setResourceType('Materials')}
@@ -194,8 +199,8 @@ export function TransferForm({ sites, defaultFromSiteId, onSuccess }: Props) {
 
           {resourceType === 'Labour' ? (
             <div className="space-y-2">
-              <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500 ml-1">Work Type</label>
-              <select value={workTypeEnum} onChange={(e) => setWorkTypeEnum(e.target.value)} disabled={labourLoading} className="input-standard appearance-none bg-slate-900">
+              <label htmlFor="transfer-work-type" className="text-[11px] font-bold uppercase tracking-widest text-slate-500 ml-1">Work Type</label>
+              <select id="transfer-work-type" value={workTypeEnum} onChange={(e) => setWorkTypeEnum(e.target.value)} disabled={labourLoading} className="input-standard appearance-none bg-slate-900">
                 <option value="" className="bg-slate-900">
                   {labourLoading ? 'Loading…' : labourWorkTypes.length ? 'Select…' : 'No work types available'}
                 </option>
@@ -205,29 +210,27 @@ export function TransferForm({ sites, defaultFromSiteId, onSuccess }: Props) {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500 ml-1">Material Type</label>
-                <select value={materialTypeEnum} onChange={(e) => setMaterialTypeEnum(e.target.value)} disabled={materialLoading} className="input-standard appearance-none bg-slate-900">
+                <label htmlFor="transfer-material-type" className="text-[11px] font-bold uppercase tracking-widest text-slate-500 ml-1">Material Type</label>
+                <select id="transfer-material-type" value={materialTypeEnum} onChange={(e) => setMaterialTypeEnum(e.target.value)} disabled={materialLoading} className="input-standard appearance-none bg-slate-900">
                   <option value="" className="bg-slate-900">
                     {materialLoading ? 'Loading…' : materialTypes.length ? 'Select…' : 'No material types available'}
                   </option>
                   {materialTypes.map((v) => <option key={v} value={v} className="bg-slate-900">{v}</option>)}
                 </select>
               </div>
-              <div className="space-y-2">
-                <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500 ml-1">Unit ID</label>
-                <input value={unitCustomId} onChange={(e) => setUnitCustomId(e.target.value)} className="input-standard" placeholder="Unit UUID" required />
-              </div>
+              {/* UnitSelect renders its own label — no wrapper <label> here. */}
+              <UnitSelect label="Unit" value={unit} onChange={setUnit} required />
             </div>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-2 md:col-span-1">
-              <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500 ml-1">Quantity</label>
-              <input type="number" min="0" step="0.01" required value={quantity} onChange={(e) => setQuantity(e.target.value)} className="input-standard" />
+              <label htmlFor="transfer-quantity" className="text-[11px] font-bold uppercase tracking-widest text-slate-500 ml-1">Quantity</label>
+              <input id="transfer-quantity" type="number" inputMode="decimal" min="0" step="0.01" required value={quantity} onChange={(e) => setQuantity(e.target.value)} className="input-standard" />
             </div>
             <div className="space-y-2 md:col-span-2">
-              <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500 ml-1">Transfer Remarks</label>
-              <input type="text" value={remarks} onChange={(e) => setRemarks(e.target.value)} className="input-standard" placeholder="Add loading/transport details..." />
+              <label htmlFor="transfer-remarks" className="text-[11px] font-bold uppercase tracking-widest text-slate-500 ml-1">Transfer Remarks</label>
+              <input id="transfer-remarks" type="text" value={remarks} onChange={(e) => setRemarks(e.target.value)} className="input-standard" placeholder="Add loading/transport details..." />
             </div>
           </div>
         </section>

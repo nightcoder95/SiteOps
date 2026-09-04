@@ -1,5 +1,6 @@
 "use client";
 
+import { Trash2 } from 'lucide-react';
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { confirmDialog } from "@/lib/ui/confirm";
@@ -222,7 +223,7 @@ export function SubcategoryCombobox({
             aria-label={`Delete ${itemNounLower}`}
             className="shrink-0 flex items-center justify-center w-10 h-10 rounded-xl border border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all disabled:opacity-40"
           >
-            <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>delete</span>
+            <Trash2 className="w-[18px] h-[18px]" />
           </button>
         )}
       </div>

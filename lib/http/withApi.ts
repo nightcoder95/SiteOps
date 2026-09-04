@@ -1,5 +1,8 @@
 import type { NextRequest } from "next/server";
 
+import { requireCapability } from "@/lib/auth/guards";
+import type { Capability } from "@/lib/auth/capabilities";
+import type { Session } from "@/lib/auth/session";
 import { ERROR_CODES } from "@/lib/errors/codes";
 import { errorResponse } from "@/lib/errors/response";
 import { logError, logInfo } from "@/lib/logging/log";
@@ -85,4 +88,56 @@ export function withApi(handler: ApiHandler) {
 export function withApiRoute<TCtx>(handler: ApiHandlerWithCtx<TCtx>) {
   return async (request: NextRequest, ctx: TCtx): Promise<Response> =>
     runHandler(request, ctx, handler);
+}
+
+type AuthedHandlerContext = ApiHandlerContext & { session: Session };
+
+type AuthedOptions = { unauthorizedMessage?: string };
+
+// Folds the 3-line auth-narrowing guard repeated in 59 route files into the
+// wrapper, so handlers receive a guaranteed session. Composed ON TOP of
+// withApi — rate limiting, request ids and logging are unchanged and still
+// apply to rejected requests.
+//
+// Only requireCapability is wrapped. Routes using requireSiteAccess/requireAuth/
+// requireAdmin are deliberately out of scope: re-pointing them at a capability
+// check would silently change who can call them.
+export function withAuthedApi(
+  capability: Capability,
+  handler: (args: AuthedHandlerContext) => Promise<Response>,
+  options?: AuthedOptions,
+) {
+  return withApi(async ({ request, requestId }) => {
+    const auth = await requireCapability(request, capability);
+    if (!("session" in auth)) {
+      return errorResponse(
+        auth.error,
+        options?.unauthorizedMessage ?? "Authentication required",
+        auth.status,
+        undefined,
+        requestId,
+      );
+    }
+    return handler({ request, requestId, session: auth.session });
+  });
+}
+
+export function withAuthedApiRoute<TCtx>(
+  capability: Capability,
+  handler: (args: AuthedHandlerContext, ctx: TCtx) => Promise<Response>,
+  options?: AuthedOptions,
+) {
+  return withApiRoute<TCtx>(async ({ request, requestId }, ctx) => {
+    const auth = await requireCapability(request, capability);
+    if (!("session" in auth)) {
+      return errorResponse(
+        auth.error,
+        options?.unauthorizedMessage ?? "Authentication required",
+        auth.status,
+        undefined,
+        requestId,
+      );
+    }
+    return handler({ request, requestId, session: auth.session }, ctx);
+  });
 }

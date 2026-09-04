@@ -108,3 +108,43 @@ export function sumSpendTypeSummary(
     { totalCount: 0, totalSpend: 0 },
   );
 }
+
+// --- Load more past the per-type cap (F15) ----------------------------------
+//
+// Each type is fetched with its own limit, so the combined view can be capped on
+// one type and complete on another. Paging therefore continues per type, from
+// the last row already loaded for that type.
+
+// Pagination is keyset-based, and the spend sorts are applied in JS after the
+// per-page limit — so a boundary row says nothing about what comes next under
+// those sorts. They keep the 200 cap and its advisory banner instead.
+export function canLoadMore(sort: AllOperationsSort, capped: SpendType[]): boolean {
+  if (sort !== "newest" && sort !== "oldest") return false;
+  return capped.length > 0;
+}
+
+// The identity id of the last loaded row per capped type — the `after` value the
+// entries API turns into a keyset cursor. Rows arrive in server order within a
+// type, so the last one is the boundary. A type with nothing loaded (or a row
+// carrying no numeric id) is omitted rather than paged from a guessed cursor.
+export function boundaryIdsFor(
+  rows: CombinedRow[],
+  capped: SpendType[],
+): Partial<Record<SpendType, number>> {
+  const out: Partial<Record<SpendType, number>> = {};
+  for (const type of capped) {
+    const ofType = rows.filter((row) => row.type === type);
+    const id = ofType[ofType.length - 1]?.entry?.id;
+    if (typeof id === "number" && Number.isFinite(id)) out[type] = id;
+  }
+  return out;
+}
+
+// Appends a page, dropping anything already loaded. The dedupe is not cosmetic:
+// the grand total is a sum over `rows`, so a duplicated row inflates the money
+// on screen. Keyed by type+id because ids are per-table, not global.
+export function mergeLoadedRows(existing: CombinedRow[], incoming: CombinedRow[]): CombinedRow[] {
+  const seen = new Set(existing.map((row) => `${row.type}:${row.id}`));
+  const added = incoming.filter((row) => !seen.has(`${row.type}:${row.id}`));
+  return added.length > 0 ? [...existing, ...added] : existing;
+}

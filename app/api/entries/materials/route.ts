@@ -1,20 +1,20 @@
 import { eq } from "drizzle-orm";
 
 import { requireSiteAccess } from "@/lib/auth/guards";
-import { checkOwnership } from "@/lib/auth/ownership";
+import { assertSiteWritable } from "@/lib/auth/siteWritable";
 import { invalidateAdminAnalyticsCache } from "@/lib/cache/invalidate";
 import { db } from "@/lib/db/client";
 import {
   insertMaterialEntry,
 } from "@/lib/db/queries/entries";
 import { materialUnitRuleFor } from "@/lib/db/queries/materialUnitRule";
-import { displayUnitName } from "@/lib/db/queries/materialUnits";
 import { unitMaster } from "@/lib/db/schema";
 import { ERROR_CODES } from "@/lib/errors/codes";
 import { handleDbError } from "@/lib/errors/db";
 import { errorResponse, successResponse } from "@/lib/errors/response";
 import { parseJsonBody, validateBody } from "@/lib/http/request";
 import { withApi } from "@/lib/http/withApi";
+import { resolveMaterialUnit } from "@/lib/services/entries";
 import { runNonCritical } from "@/lib/services/nonCritical";
 import { assertInCatalogList } from "@/lib/validation/catalogList";
 import { materialEntrySchema } from "@/lib/validation/schemas";
@@ -49,51 +49,38 @@ export const POST = withApi(async ({ request, requestId }) => {
         : "Custom";
   const unitRule = await materialUnitRuleFor(materialType);
 
-  const site = await db.query.sites.findFirst({
-    where: (t, { eq }) => eq(t.siteId, siteId),
-    columns: { supervisorId: true, archivedAt: true },
+  const writable = await assertSiteWritable({
+    request,
+    siteId,
+    requestId,
+    forbiddenMessage: "You can only log entries for sites you supervise",
   });
-
-  if (!site || site.archivedAt) {
-    return errorResponse(ERROR_CODES.NOT_FOUND, "Site not found", 404, undefined, requestId);
-  }
-
-  if (!checkOwnership(auth.session.user, site.supervisorId)) {
-    return errorResponse(ERROR_CODES.FORBIDDEN, "You can only log entries for sites you supervise", 403, undefined, requestId);
-  }
+  if (!writable.ok) return writable.response;
 
   try {
     const activeUnits = await db
       .select({ unitId: unitMaster.unitId, label: unitMaster.label })
       .from(unitMaster)
       .where(eq(unitMaster.isActive, true));
+    // resolveMaterialUnit normalises the submitted name itself, so pass the raw
+    // label through rather than double-normalising here.
     let submittedUnitName = "";
     if ("unitMasterId" in validation.data && validation.data.unitMasterId) {
       const submittedUnitMasterId = validation.data.unitMasterId;
-      submittedUnitName = displayUnitName(
-        activeUnits.find((unit) => unit.unitId === submittedUnitMasterId)?.label ?? "",
-      );
+      submittedUnitName =
+        activeUnits.find((unit) => unit.unitId === submittedUnitMasterId)?.label ?? "";
     } else if ("unit" in validation.data && validation.data.unit) {
-      submittedUnitName = displayUnitName(validation.data.unit);
+      submittedUnitName = validation.data.unit;
     }
-    const resolvedUnitName =
-      unitRule.allowedNames.length === 1
-        ? unitRule.preferredName
-        : unitRule.allowedNames.includes(submittedUnitName)
-          ? submittedUnitName
-          : null;
-    const resolvedUnit = resolvedUnitName
-      ? activeUnits.find((unit) => displayUnitName(unit.label) === resolvedUnitName)
-      : null;
 
-    if (!resolvedUnitName || !resolvedUnit) {
-      return errorResponse(
-        ERROR_CODES.VALIDATION_ERROR,
-        `${materialType} must use ${unitRule.allowedNames.join(" or ")} as the unit`,
-        400,
-        undefined,
-        requestId,
-      );
+    const resolved = resolveMaterialUnit({
+      materialType,
+      rule: unitRule,
+      submittedUnitName,
+      activeUnits,
+    });
+    if (!resolved.ok) {
+      return errorResponse(ERROR_CODES.VALIDATION_ERROR, resolved.message, 400, undefined, requestId);
     }
 
     const entry = await insertMaterialEntry({
@@ -107,13 +94,13 @@ export const POST = withApi(async ({ request, requestId }) => {
         "materialTypeCustomId" in validation.data ? validation.data.materialTypeCustomId : null,
       quantity: String(quantity),
       unitMode: "master",
-      unitMasterId: resolvedUnit.unitId,
+      unitMasterId: resolved.unitId,
       unitCustomId: null,
-      unit: resolvedUnitName,
+      unit: resolved.unitName,
       workStage: canonicalWorkStage,
       cost: cost != null ? String(cost) : null,
       remarks: remarks || null,
-      createdBy: auth.session.user.id,
+      createdBy: writable.session.user.id,
     });
 
     runNonCritical(

@@ -1,7 +1,6 @@
 import { requireSiteAccess } from "@/lib/auth/guards";
-import { checkOwnership } from "@/lib/auth/ownership";
+import { assertSiteWritable } from "@/lib/auth/siteWritable";
 import { invalidateAdminAnalyticsCache } from "@/lib/cache/invalidate";
-import { db } from "@/lib/db/client";
 import { insertLabourEntry } from "@/lib/db/queries/entries";
 import { ERROR_CODES } from "@/lib/errors/codes";
 import { handleDbError } from "@/lib/errors/db";
@@ -50,18 +49,13 @@ export const POST = withApi(async ({ request, requestId }) => {
     canonicalWorkStage = workStageCheck.value;
   }
 
-  const site = await db.query.sites.findFirst({
-    where: (t, { eq }) => eq(t.siteId, siteId),
-    columns: { supervisorId: true, archivedAt: true },
+  const writable = await assertSiteWritable({
+    request,
+    siteId,
+    requestId,
+    forbiddenMessage: "You can only log entries for sites you supervise",
   });
-
-  if (!site || site.archivedAt) {
-    return errorResponse(ERROR_CODES.NOT_FOUND, "Site not found", 404, undefined, requestId);
-  }
-
-  if (!checkOwnership(auth.session.user, site.supervisorId)) {
-    return errorResponse(ERROR_CODES.FORBIDDEN, "You can only log entries for sites you supervise", 403, undefined, requestId);
-  }
+  if (!writable.ok) return writable.response;
 
   try {
     const entry = await insertLabourEntry({
@@ -86,7 +80,7 @@ export const POST = withApi(async ({ request, requestId }) => {
           : null,
       remarks: remarks || null,
       workStage: canonicalWorkStage,
-      createdBy: auth.session.user.id,
+      createdBy: writable.session.user.id,
     });
 
     runNonCritical(

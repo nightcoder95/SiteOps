@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { requireCapability } from "@/lib/auth/guards";
 import { usageSourcesForCategory } from "@/lib/catalog/usageSources";
-import { invalidateCategoryTreeCache } from "@/lib/cache/invalidate";
+import { invalidateCatalogOverviewCache, invalidateCategoryTreeCache } from "@/lib/cache/invalidate";
 import { db } from "@/lib/db/client";
 import { categories, subcategories } from "@/lib/db/schema";
 import { ERROR_CODES } from "@/lib/errors/codes";
@@ -89,6 +89,11 @@ export const POST = withApi(async ({ request, requestId }) => {
       requestId,
       "category_tree_cache_invalidation_failed",
       invalidateCategoryTreeCache(source.categoryId, requestId),
+    );
+    runNonCritical(
+      requestId,
+      "catalog_overview_cache_invalidation_failed",
+      invalidateCatalogOverviewCache(requestId),
     );
 
     return successResponse({ sourceId, targetId }, 200, requestId);
