@@ -3,7 +3,7 @@ import { expect, it } from "vitest";
 import { labourEntries, materialEntries } from "@/lib/db/schema";
 import { describeDb, seedSite, withRollback } from "@/lib/db/testing";
 
-import { getStageAggregates } from "./stageSummary";
+import { getStageAggregates, getStageComposition } from "./stageSummary";
 
 describeDb("getStageAggregates", () => {
   it("groups spend and dates by stage, keeping untagged rows as a null stage", async () => {
@@ -119,6 +119,80 @@ describeDb("getStageAggregates", () => {
   it("rejects a siteId that is not a uuid", async () => {
     await withRollback(async (tx) => {
       await expect(getStageAggregates(tx, "not-a-uuid")).rejects.toThrow();
+    });
+  });
+});
+
+describeDb("getStageComposition", () => {
+  it("groups material by type and labour by work type", async () => {
+    await withRollback(async (tx) => {
+      const { userId, siteId } = await seedSite(tx);
+      await tx.insert(materialEntries).values([
+        { siteId, date: "2026-08-01", materialType: "Cement", quantity: "100",
+          unit: "Bag", workStage: "Basement Level", cost: "50000", createdBy: userId },
+        { siteId, date: "2026-08-02", materialType: "Cement", quantity: "175",
+          unit: "Bag", workStage: "Basement Level", cost: "38000", createdBy: userId },
+        { siteId, date: "2026-08-03", materialType: "Metal", quantity: "10",
+          unit: "CFT", workStage: "Basement Level", cost: "97950", createdBy: userId },
+      ]);
+      await tx.insert(labourEntries).values([
+        { siteId, date: "2026-08-01", workType: "Steel work", peopleCount: 3,
+          wagePerHead: "1000", workStage: "Basement Level", createdBy: userId },
+      ]);
+
+      const rows = await getStageComposition(tx, siteId, "Basement Level");
+
+      expect(rows.find((r) => r.name === "Cement")).toMatchObject({
+        entryType: "material", entryCount: 2, quantity: 275, unit: "Bag", spend: 88000,
+      });
+      expect(rows.find((r) => r.name === "Steel work")).toMatchObject({
+        entryType: "labour", entryCount: 1, headCount: 3, spend: 3000,
+      });
+    });
+  });
+
+  it("selects only the skipped bucket when the stage is null", async () => {
+    await withRollback(async (tx) => {
+      const { userId, siteId } = await seedSite(tx);
+      await tx.insert(labourEntries).values([
+        { siteId, date: "2026-02-01", workType: "Piling", peopleCount: 1,
+          wagePerHead: "40000", workStage: null, createdBy: userId,
+          createdAt: new Date("2026-07-01T00:00:00Z") },
+        { siteId, date: "2026-08-01", workType: "Helper", peopleCount: 1,
+          wagePerHead: "500", workStage: null, createdBy: userId,
+          createdAt: new Date("2026-08-01T00:00:00Z") },
+        { siteId, date: "2026-08-02", workType: "Mason", peopleCount: 1,
+          wagePerHead: "700", workStage: "Roof Level", createdBy: userId },
+      ]);
+
+      expect((await getStageComposition(tx, siteId, null)).map((r) => r.name))
+        .toEqual(["Helper"]);
+      expect((await getStageComposition(tx, siteId, null, { legacy: true })).map((r) => r.name))
+        .toEqual(["Piling"]);
+    });
+  });
+
+  it("does not leak another site's entries", async () => {
+    await withRollback(async (tx) => {
+      const a = await seedSite(tx);
+      const b = await seedSite(tx);
+      await tx.insert(labourEntries).values({
+        siteId: b.siteId, date: "2026-08-01", workType: "Mason", peopleCount: 9,
+        wagePerHead: "1000", workStage: "Roof Level", createdBy: b.userId,
+      });
+      expect(await getStageComposition(tx, a.siteId, "Roof Level")).toEqual([]);
+    });
+  });
+
+  it("treats a stage name containing SQL metacharacters as a literal", async () => {
+    await withRollback(async (tx) => {
+      const { userId, siteId } = await seedSite(tx);
+      await tx.insert(labourEntries).values({
+        siteId, date: "2026-08-01", workType: "Mason", peopleCount: 1,
+        wagePerHead: "700", workStage: "Roof Level", createdBy: userId,
+      });
+      // If this were interpolated rather than bound, the OR would match everything.
+      expect(await getStageComposition(tx, siteId, "' OR 1=1 --")).toEqual([]);
     });
   });
 });

@@ -89,3 +89,82 @@ export async function getStageAggregates(
     spend: Number(r.spend ?? 0),
   }));
 }
+
+export type StageCompositionRow = {
+  entryType: "labour" | "material";
+  name: string;
+  entryCount: number;
+  quantity: number | null;
+  unit: string | null;
+  headCount: number | null;
+  spend: number;
+};
+
+type RawCompositionRow = {
+  entry_type: "labour" | "material";
+  name: string;
+  entry_count: number | string;
+  quantity: number | string | null;
+  unit: string | null;
+  head_count: number | string | null;
+  spend: number | string | null;
+};
+
+// Path sentinels for the two untagged buckets, mirroring the keys
+// buildStageSummary assigns. A null cannot travel in a URL segment.
+export const LEGACY_STAGE_KEY = "__legacy__";
+export const UNTAGGED_STAGE_KEY = "__untagged__";
+
+// Composition of one stage. `stage` is null for the untagged buckets, which need
+// `is not distinct from` rather than `=` — NULL = NULL is NULL in SQL, so a
+// plain equality would silently return nothing for those rows.
+//
+// The stage value is bound as a parameter, never interpolated, so a catalog name
+// containing quotes is matched literally rather than parsed.
+export async function getStageComposition(
+  executor: StageExecutor,
+  siteId: string,
+  stage: string | null,
+  options: { legacy?: boolean } = {},
+): Promise<StageCompositionRow[]> {
+  // Untagged is split by the column launch date, so the drill-down must apply
+  // the same cut or an expanded bucket would show the other bucket's entries.
+  const legacyFilter =
+    stage !== null
+      ? sql`true`
+      : options.legacy
+        ? sql`created_at < ${`${WORK_STAGE_LAUNCH_DATE} 00:00:00`}::timestamp`
+        : sql`created_at >= ${`${WORK_STAGE_LAUNCH_DATE} 00:00:00`}::timestamp`;
+
+  const result = await executor.execute(sql`
+    select 'material' as entry_type, material_type as name, count(*)::int as entry_count,
+           coalesce(sum(quantity),0)::float8 as quantity, max(unit) as unit,
+           null::int as head_count, coalesce(sum(coalesce(cost,0)),0)::float8 as spend
+      from material_entries
+     where site_id = ${siteId}::uuid
+       and work_stage is not distinct from ${stage}
+       and ${legacyFilter}
+     group by material_type
+    union all
+    select 'labour', work_type, count(*)::int,
+           null::float8, null,
+           coalesce(sum(coalesce(people_count,0)),0)::int,
+           coalesce(${labourSpendSumExpr}, 0)::float8
+      from labour_entries
+     where site_id = ${siteId}::uuid
+       and work_stage is not distinct from ${stage}
+       and ${legacyFilter}
+     group by work_type
+     order by 7 desc
+  `);
+
+  return rowsOf<RawCompositionRow>(result).map((r) => ({
+    entryType: r.entry_type,
+    name: r.name,
+    entryCount: Number(r.entry_count),
+    quantity: r.quantity == null ? null : Number(r.quantity),
+    unit: r.unit,
+    headCount: r.head_count == null ? null : Number(r.head_count),
+    spend: Number(r.spend ?? 0),
+  }));
+}

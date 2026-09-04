@@ -274,6 +274,22 @@ export default function SiteDetailPageClient({
         </div>
       </Link>
 
+      <Link
+        href={`/app/sites/${siteId}/stages`}
+        className="card-standard group flex items-center justify-between gap-4 p-5 border-2 border-amber-500/25 bg-amber-500/5 hover:bg-amber-500/10 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500/70"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-11 h-11 shrink-0 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+            <Layers className="w-6 h-6" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-extrabold uppercase tracking-widest text-white">Work Stages</p>
+            <p className="text-xs text-slate-500 font-semibold truncate">What each phase cost</p>
+          </div>
+        </div>
+        <ChevronRight className="w-5 h-5 shrink-0 text-slate-500 group-hover:text-amber-400 transition-colors" />
+      </Link>
+
       <section className="grid gap-4 md:grid-cols-2">
         {operationMeta.map((operation) => {
           const summary = initialSummary[operation.type];
