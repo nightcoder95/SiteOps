@@ -41,12 +41,15 @@ const base = {
   hoursActive: 4,
   count: 1,
   totalCost: 5000,
+  workStage: "Basement Level",
 };
 
 describe("POST machinery — no consolidation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRequireSiteAccess.mockResolvedValue({ session: { user: { id: "u1", role: "supervisor" } } });
+    // base now carries a workStage, so the route reaches the catalog check.
+    mockAssertCatalog.mockResolvedValue({ ok: true, value: "Basement Level" });
     mockFindSite.mockResolvedValue({ supervisorId: "u1", archivedAt: null });
     mockCheckOwnership.mockReturnValue(true);
     mockInsertMachinery.mockImplementation(async (d: any) => ({ machineryEntryId: "mc-new", ...d }));
@@ -75,12 +78,12 @@ describe("POST machinery — no consolidation", () => {
     );
   });
 
-  it("stores workStage: null and skips the catalog check when omitted", async () => {
-    const res = await POST(req(base));
-    expect(res.status).toBe(201);
-    expect(mockAssertCatalog).not.toHaveBeenCalled();
-    expect(mockInsertMachinery).toHaveBeenCalledWith(
-      expect.objectContaining({ workStage: null }),
-    );
+  it("rejects a create that omits workStage", async () => {
+    // Work Stage became mandatory with the phase-costing work. The form is not
+    // a security boundary, so the route must reject a direct POST too.
+    const { workStage: _omitted, ...withoutStage } = base;
+    const res = await POST(req(withoutStage));
+    expect(res.status).toBe(400);
+    expect(mockInsertMachinery).not.toHaveBeenCalled();
   });
 });
