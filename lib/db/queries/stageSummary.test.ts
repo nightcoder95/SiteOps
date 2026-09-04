@@ -62,6 +62,41 @@ describeDb("getStageAggregates", () => {
     });
   });
 
+  it("splits untagged rows by whether the entry predates the work_stage column", async () => {
+    await withRollback(async (tx) => {
+      const { userId, siteId } = await seedSite(tx);
+      await tx.insert(labourEntries).values([
+        // created_at is defaulted to now(), so force it explicitly.
+        { siteId, date: "2026-02-01", workType: "Piling", peopleCount: 1,
+          wagePerHead: "1000", workStage: null, createdBy: userId,
+          createdAt: new Date("2026-07-01T00:00:00Z") },
+        { siteId, date: "2026-08-01", workType: "Helper", peopleCount: 1,
+          wagePerHead: "500", workStage: null, createdBy: userId,
+          createdAt: new Date("2026-08-01T00:00:00Z") },
+      ]);
+
+      const rows = await getStageAggregates(tx, siteId);
+      const legacy = rows.find((r) => r.stage === null && r.legacy);
+      const skipped = rows.find((r) => r.stage === null && !r.legacy);
+
+      expect(legacy).toMatchObject({ entryCount: 1, spend: 1000 });
+      expect(skipped).toMatchObject({ entryCount: 1, spend: 500 });
+    });
+  });
+
+  it("never marks a tagged row legacy, however old it is", async () => {
+    await withRollback(async (tx) => {
+      const { userId, siteId } = await seedSite(tx);
+      await tx.insert(labourEntries).values({
+        siteId, date: "2026-01-01", workType: "Mason", peopleCount: 1,
+        wagePerHead: "700", workStage: "Basement Level", createdBy: userId,
+        createdAt: new Date("2026-01-01T00:00:00Z"),
+      });
+      const rows = await getStageAggregates(tx, siteId);
+      expect(rows.every((r) => r.legacy === false)).toBe(true);
+    });
+  });
+
   it("returns nothing for a site with no entries", async () => {
     await withRollback(async (tx) => {
       const { siteId } = await seedSite(tx);
