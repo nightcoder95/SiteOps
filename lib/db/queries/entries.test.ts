@@ -25,11 +25,13 @@ describe("entry cost helpers", () => {
     expect(calculateLabourTotal({ peopleCount: 10, wagePerHead: "1000.00" })).toBe(10000);
   });
 
-  it("calculates split labour total from Mason and Helper salary amounts", () => {
+  it("calculates split labour total from each role's head count × per-person wage", () => {
     expect(calculateLabourTotal({
+      masonCount: 2,
       masonSalaryAmount: "2600.00",
+      helperCount: 3,
       helperSalaryAmount: "900.00",
-    })).toBe(3500);
+    })).toBe(7900);
   });
 
   it("returns zero labour total when all salary fields are missing", () => {
@@ -62,6 +64,44 @@ describe("entry cost helpers", () => {
       machinery: [{ totalCost: "3000.00" }],
       expense: [{ amount: "4000.00" }],
     })).toBe(10000);
+  });
+});
+
+const { mergeRoleWage } = await import("./entries");
+
+// Same-day consolidation folds a second entry into the first. The counts add,
+// but the salary is a per-person wage: adding two wages would raise everyone's
+// pay. What has to survive the merge is the money.
+describe("mergeRoleWage", () => {
+  const money = (count: number, wage: string) => count * Number(wage);
+
+  it("keeps the total money when both sides share a wage", () => {
+    const merged = mergeRoleWage(2, "1300.00", 3, "1300.00");
+    expect(Number(merged)).toBe(1300);
+    expect(money(5, merged)).toBe(money(2, "1300.00") + money(3, "1300.00"));
+  });
+
+  it("weights the merged wage by head count when the two differ", () => {
+    const merged = mergeRoleWage(1, "1000.00", 3, "2000.00");
+    expect(Number(merged)).toBe(1750);
+    expect(money(4, merged)).toBe(1000 + 6000);
+  });
+
+  it("adopts the incoming wage when the existing row has no people in that role", () => {
+    expect(Number(mergeRoleWage(0, null, 2, "1100.00"))).toBe(1100);
+    expect(Number(mergeRoleWage(2, "1100.00", 0, null))).toBe(1100);
+  });
+
+  it("keeps a recorded wage rather than zeroing it when neither side has people", () => {
+    expect(Number(mergeRoleWage(0, "1300.00", 0, null))).toBe(1300);
+    expect(Number(mergeRoleWage(0, null, 0, null))).toBe(0);
+  });
+
+  it("stays within a rupee of the true total when the average does not divide evenly", () => {
+    // decimal(12,2) cannot hold 1000/3, so the merged wage rounds. The drift is
+    // bounded by half a paisa per head.
+    const merged = mergeRoleWage(1, "1000.00", 2, "0.00");
+    expect(Math.abs(money(3, merged) - 1000)).toBeLessThan(0.02);
   });
 });
 

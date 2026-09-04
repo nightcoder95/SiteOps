@@ -98,11 +98,14 @@ export async function searchRemarks(params: {
         SELECT 'labour'::text AS source, le.labour_entry_id::text AS entry_id,
                le.site_id::text AS site_id, s.name AS site_name, le.date::text AS date,
                le.remarks AS note, similarity(le.remarks, ${q}) AS sim,
-               -- Mirrors calculateLabourTotal: split mason/helper wins, else the
-               -- stored salary, else people * per-head wage.
+               -- Mirrors calculateLabourTotal: split mason/helper wins (each role
+               -- costs count × per-person wage), else the stored salary, else
+               -- people * per-head wage.
                CASE
-                 WHEN COALESCE(le.mason_salary_amount, 0) + COALESCE(le.helper_salary_amount, 0) > 0
-                   THEN COALESCE(le.mason_salary_amount, 0) + COALESCE(le.helper_salary_amount, 0)
+                 WHEN COALESCE(le.mason_count, 0) * COALESCE(le.mason_salary_amount, 0)
+                    + COALESCE(le.helper_count, 0) * COALESCE(le.helper_salary_amount, 0) > 0
+                   THEN COALESCE(le.mason_count, 0) * COALESCE(le.mason_salary_amount, 0)
+                      + COALESCE(le.helper_count, 0) * COALESCE(le.helper_salary_amount, 0)
                  WHEN COALESCE(le.salary_amount, 0) > 0 THEN le.salary_amount
                  ELSE le.people_count * COALESCE(le.wage_per_head, 0)
                END AS amount

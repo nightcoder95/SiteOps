@@ -13,7 +13,8 @@ import type { MaterialUnitRule } from "@/lib/catalog/units";
 import { pickCategoryIdByName, type CategoryRowLike } from "@/lib/catalog/selectors";
 import { isSplitLabourWorkType } from "@/lib/validation/schemas";
 import { entrySuccessDestination } from "@/components/operations/categoryView";
-import type { Entry } from "@/components/operations/entryFormat";
+import { formatCurrency, type Entry } from "@/components/operations/entryFormat";
+import { labourSpend } from "@/lib/services/labourSpend";
 
 import {
   resolveEntryFields,
@@ -487,6 +488,22 @@ function SplitLabourFields({
   update: (name: string, val: FieldValue) => void;
   error?: string;
 }) {
+  const roles = [
+    ["Mason", "masonCount", "masonSalaryAmount"],
+    ["Helper", "helperCount", "helperSalaryAmount"],
+  ] as const;
+  // The salary field is a PER-PERSON wage, so the role costs count × wage. The
+  // running totals come from labourSpend — the same function the saved entry is
+  // read back through — so the form can never quote a figure the list disagrees
+  // with.
+  const num = (name: string) => Number(values[name] || 0);
+  const entryTotal = labourSpend({
+    masonCount: num("masonCount"),
+    masonSalaryAmount: num("masonSalaryAmount"),
+    helperCount: num("helperCount"),
+    helperSalaryAmount: num("helperSalaryAmount"),
+  });
+
   return (
     <div className="grid gap-4 md:grid-cols-2">
       {error ? (
@@ -498,10 +515,7 @@ function SplitLabourFields({
         // the error node has been rendered.
         <span id="field-masonCount" className="hidden" aria-hidden="true" />
       )}
-      {[
-        ["Mason", "masonCount", "masonSalaryAmount"],
-        ["Helper", "helperCount", "helperSalaryAmount"],
-      ].map(([label, countName, amountName]) => (
+      {roles.map(([label, countName, amountName]) => (
         <section key={label} className="space-y-3 rounded-xl border border-white/10 bg-white/[0.03] p-4">
           <p className="text-[10px] font-extrabold uppercase tracking-widest text-sky-400">{label}</p>
           <div className="space-y-2">
@@ -518,7 +532,9 @@ function SplitLabourFields({
             />
           </div>
           <div className="space-y-2">
-            <label htmlFor={`split-${amountName}`} className={labelClass}>Salary Amount</label>
+            <label htmlFor={`split-${amountName}`} className={labelClass}>
+              Salary Amount (per person)
+            </label>
             <input
               id={`split-${amountName}`}
               type="number"
@@ -530,8 +546,20 @@ function SplitLabourFields({
               className={inputClass}
             />
           </div>
+          <p className="text-xs font-semibold text-slate-400">
+            {num(countName)} x {formatCurrency(num(amountName))} ={" "}
+            <span className="text-slate-200">
+              {formatCurrency(num(countName) * num(amountName))}
+            </span>
+          </p>
         </section>
       ))}
+      <p className="md:col-span-2 flex items-center justify-between rounded-xl border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-sm font-bold text-slate-200">
+        <span className="text-[10px] font-extrabold uppercase tracking-widest text-sky-400">
+          Entry total
+        </span>
+        <span className="text-sky-400">{formatCurrency(entryTotal)}</span>
+      </p>
     </div>
   );
 }

@@ -75,9 +75,32 @@ describe("validateEntryValues", () => {
       validateEntryValues({
         ...base,
         splitLabour: true,
-        values: { ...base.values, peopleCount: "", wagePerHead: "", masonCount: "3" },
+        values: {
+          ...base.values,
+          peopleCount: "", wagePerHead: "", masonCount: "3", masonSalaryAmount: "1300",
+        },
       }),
     ).toBeNull();
+  });
+
+  // A role costs count × per-person salary, so one without the other is free
+  // labour or a wage nobody earns. Caught inline rather than as a 400 toast.
+  it("requires a split role's count and salary to be filled in together", () => {
+    expect(
+      validateEntryValues({
+        ...base,
+        splitLabour: true,
+        values: { ...base.values, peopleCount: "", wagePerHead: "", masonCount: "3" },
+      }),
+    ).toEqual({ field: "masonCount", message: "Mason salary is required when a Mason count is entered" });
+
+    expect(
+      validateEntryValues({
+        ...base,
+        splitLabour: true,
+        values: { ...base.values, peopleCount: "", wagePerHead: "", helperSalaryAmount: "1100" },
+      }),
+    ).toEqual({ field: "masonCount", message: "Helper count is required when a Helper salary is entered" });
   });
 
   it("requires at least one mason or helper value when split labour is active", () => {

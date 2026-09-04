@@ -1,6 +1,11 @@
 // The one TS home for "what did this labour row cost?".
 // Precedence: mason+helper split → stored salaryAmount → peopleCount × wagePerHead.
 //
+// mason/helperSalaryAmount are PER-PERSON wages, exactly like wagePerHead on the
+// ordinary path — so a role costs count × wage. Summing the two wage columns
+// without their counts under-reported every split entry (2 masons at ₹1,300 plus
+// 2 helpers at ₹1,100 read as ₹2,400 instead of ₹4,800).
+//
 // It lives here, outside lib/db/queries/, so callers that must not root their
 // import graph in the Drizzle layer (entryFormat, the client entry-type
 // descriptor) have a clean path to it. `calculateLabourTotal` in
@@ -15,7 +20,9 @@ export type LabourSpendInput = {
   peopleCount?: number | null;
   wagePerHead?: string | number | null;
   salaryAmount?: string | number | null;
+  masonCount?: number | null;
   masonSalaryAmount?: string | number | null;
+  helperCount?: number | null;
   helperSalaryAmount?: string | number | null;
 };
 
@@ -35,8 +42,8 @@ export function labourSpend(
   }
 
   const splitTotal =
-    finiteNumber(rowOrPeople.masonSalaryAmount) +
-    finiteNumber(rowOrPeople.helperSalaryAmount);
+    finiteNumber(rowOrPeople.masonCount) * finiteNumber(rowOrPeople.masonSalaryAmount) +
+    finiteNumber(rowOrPeople.helperCount) * finiteNumber(rowOrPeople.helperSalaryAmount);
   if (splitTotal > 0) return splitTotal;
 
   const stored = finiteNumber(rowOrPeople.salaryAmount);

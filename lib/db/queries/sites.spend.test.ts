@@ -21,7 +21,7 @@ describeDb("siteTrackedSpend", () => {
       await tx.insert(labourEntries).values([
         { siteId, createdBy: userId, date: "2026-06-22", workType: "A", peopleCount: 2, wagePerHead: "500.00" },
         { siteId, createdBy: userId, date: "2026-06-22", workType: "A", peopleCount: 1, salaryAmount: "1200.00" },
-        { siteId, createdBy: userId, date: "2026-06-22", workType: "A", peopleCount: 0, masonSalaryAmount: "300.00", helperSalaryAmount: "200.00" },
+        { siteId, createdBy: userId, date: "2026-06-22", workType: "A", peopleCount: 0, masonCount: 2, masonSalaryAmount: "300.00", helperCount: 3, helperSalaryAmount: "200.00" },
       ]);
       await tx.insert(materialEntries).values([
         { siteId, createdBy: userId, date: "2026-06-22", materialType: "M", quantity: "1", cost: "300.50" },
@@ -44,8 +44,8 @@ describeDb("siteTrackedSpend", () => {
       const actual = Number(await siteTrackedSpend(tx, siteId));
 
       expect(actual).toBeCloseTo(expected, 2);
-      // labour (2*500 + 1200 + (300+200)) + material 300.50 + machinery 750 + expense 40
-      expect(actual).toBeCloseTo(3790.5, 2);
+      // labour (2*500 + 1200 + (2*300 + 3*200)) + material 300.50 + machinery 750 + expense 40
+      expect(actual).toBeCloseTo(4490.5, 2);
     });
   });
 
@@ -63,22 +63,27 @@ describeDb("siteTrackedSpend", () => {
 describeDb("labour spend SQL/TS parity", () => {
   const DATE = "2026-06-23";
 
-  // A: split wins over both the stored salary and people × wage
+  // A: split wins over both the stored salary and people × wage, and each role
+  //    costs count × per-person wage
   // B: no split -> stored salary wins over people × wage
   // C: nothing stored -> people × wage
   // D: split columns explicitly 0 -> must fall through to the stored salary,
   //    NOT report 0. This is exactly where a naive `> 0` SQL check and a naive
   //    TS truthiness check diverge.
   // E: nothing to compute from -> 0
+  // F: a per-person wage with no head count -> 0, in SQL as well as in TS. The
+  //    multiplication has to be inside the WHEN guard too, or SQL reports the
+  //    bare wage here while TS reports 0.
   const rowsFor = (siteId: string, userId: string) => [
-    { siteId, createdBy: userId, date: DATE, workType: "A", peopleCount: 10, wagePerHead: "1000.00", salaryAmount: "999.00", masonSalaryAmount: "5000.00", helperSalaryAmount: "3000.00" },
+    { siteId, createdBy: userId, date: DATE, workType: "A", peopleCount: 10, wagePerHead: "1000.00", salaryAmount: "999.00", masonCount: 2, masonSalaryAmount: "5000.00", helperCount: 3, helperSalaryAmount: "3000.00" },
     { siteId, createdBy: userId, date: DATE, workType: "B", peopleCount: 10, wagePerHead: "1000.00", salaryAmount: "12345.00" },
     { siteId, createdBy: userId, date: DATE, workType: "C", peopleCount: 4, wagePerHead: "600.00" },
-    { siteId, createdBy: userId, date: DATE, workType: "D", peopleCount: 0, masonSalaryAmount: "0.00", helperSalaryAmount: "0.00", salaryAmount: "7000.00" },
+    { siteId, createdBy: userId, date: DATE, workType: "D", peopleCount: 0, masonCount: 0, masonSalaryAmount: "0.00", helperCount: 0, helperSalaryAmount: "0.00", salaryAmount: "7000.00" },
     { siteId, createdBy: userId, date: DATE, workType: "E", peopleCount: 0 },
+    { siteId, createdBy: userId, date: DATE, workType: "F", peopleCount: 0, masonCount: 0, masonSalaryAmount: "1500.00" },
   ];
 
-  const EXPECTED = 8000 + 12345 + 2400 + 7000 + 0;
+  const EXPECTED = 19000 + 12345 + 2400 + 7000 + 0 + 0;
 
   it("siteOperationSummary's labour spend equals sum(labourSpend(row))", async () => {
     await withRollback(async (tx) => {

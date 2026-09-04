@@ -1,3 +1,5 @@
+import { labourSplitPairingIssues } from "@/lib/validation/schemas";
+
 import type { EntryField } from "./entryFieldRegistry";
 
 export type ValidationFailure = { field: string; message: string };
@@ -47,6 +49,13 @@ export function validateEntryValues(input: ValidateInput): ValidationFailure | n
       // Anchored to masonCount so the form can scroll to the split grid.
       return { field: "masonCount", message: "Mason or Helper values are required" };
     }
+    // A role costs count × per-person salary, so one without the other costs
+    // nothing. The API rejects it too; catching it here keeps the error inline
+    // instead of arriving as a toast after a round trip.
+    const [pairing] = labourSplitPairingIssues({
+      masonCount, masonSalaryAmount, helperCount, helperSalaryAmount,
+    });
+    if (pairing) return { field: "masonCount", message: pairing.message };
   }
 
   return null;

@@ -200,6 +200,28 @@ function addDecimal(left: string | number | null | undefined, right: string | nu
   return String(Number(left ?? 0) + Number(right ?? 0));
 }
 
+// Merging a split-labour role. The counts add, but the salary is a PER-PERSON
+// wage — adding two wages would double what each worker earns (2 masons at
+// ₹1,300 merged with 3 at ₹1,300 would become 5 masons at ₹2,600). What must be
+// preserved is the money, so the merged wage is the count-weighted average.
+// The column is decimal(12,2), so an average that does not divide evenly drifts
+// by less than a rupee per head against the two rows it replaces.
+export function mergeRoleWage(
+  leftCount: number,
+  leftWage: string | number | null | undefined,
+  rightCount: number,
+  rightWage: string | number | null | undefined,
+) {
+  const count = leftCount + rightCount;
+  if (count <= 0) {
+    // No heads on either side: nothing to average over. Keep whichever wage was
+    // recorded so an edit that adds the count back finds it intact.
+    return String(Number(leftWage ?? 0) || Number(rightWage ?? 0) || 0);
+  }
+  const money = leftCount * Number(leftWage ?? 0) + rightCount * Number(rightWage ?? 0);
+  return (money / count).toFixed(2);
+}
+
 export async function mergeLabourEntry(existingId: string, data: {
   peopleCount?: number;
   salaryAmount?: string | null;
@@ -212,15 +234,24 @@ export async function mergeLabourEntry(existingId: string, data: {
   const existing = await getEntryById(existingId, "labour") as typeof labourEntries.$inferSelect | null;
   if (!existing) return null;
 
+  const masonCount = Number(existing.masonCount ?? 0) + Number(data.masonCount ?? 0);
+  const helperCount = Number(existing.helperCount ?? 0) + Number(data.helperCount ?? 0);
+
   const result = await db
     .update(labourEntries)
     .set({
       peopleCount: Number(existing.peopleCount ?? 0) + Number(data.peopleCount ?? 0),
       salaryAmount: addDecimal(existing.salaryAmount, data.salaryAmount),
-      masonCount: Number(existing.masonCount ?? 0) + Number(data.masonCount ?? 0),
-      masonSalaryAmount: addDecimal(existing.masonSalaryAmount, data.masonSalaryAmount),
-      helperCount: Number(existing.helperCount ?? 0) + Number(data.helperCount ?? 0),
-      helperSalaryAmount: addDecimal(existing.helperSalaryAmount, data.helperSalaryAmount),
+      masonCount,
+      masonSalaryAmount: mergeRoleWage(
+        Number(existing.masonCount ?? 0), existing.masonSalaryAmount,
+        Number(data.masonCount ?? 0), data.masonSalaryAmount,
+      ),
+      helperCount,
+      helperSalaryAmount: mergeRoleWage(
+        Number(existing.helperCount ?? 0), existing.helperSalaryAmount,
+        Number(data.helperCount ?? 0), data.helperSalaryAmount,
+      ),
       remarks: existing.remarks || data.remarks || null,
       updatedAt: new Date(),
     })
@@ -506,8 +537,9 @@ type SummaryExecutor = { execute: (query: ReturnType<typeof sql>) => Promise<unk
 
 // Per-site daily counts and spend computed entirely in SQL. Previously this pulled
 // every one of the day's rows across five tables into JS just to count and sum
-// them. The labour spend CASE mirrors calculateLabourTotal (mason+helper split →
-// stored salary → people_count * wage_per_head); incident has no spend. Incidents
+// them. The labour spend CASE mirrors calculateLabourTotal (mason+helper split,
+// each role count × per-person wage → stored salary → people_count *
+// wage_per_head); incident has no spend. Incidents
 // filter on created_at::date (no `date` column).
 export async function siteOperationSummary(
   executor: SummaryExecutor,
@@ -516,9 +548,12 @@ export async function siteOperationSummary(
 ): Promise<SiteOperationSummary> {
   // Single roundtrip: today (date-filtered) + all-time cumulative per operation.
   // Kept as one query to respect the connection-pool guard (no N+1 fan-out).
+  // mason/helper amounts are per-person wages, so each role costs count × wage.
+  // The multiplication must appear in the WHEN guard as well as the THEN, or a
+  // wage with no head count would take this branch and report the bare wage.
   const labourSpendExpr = sql`sum(case
-        when coalesce(mason_salary_amount,0)+coalesce(helper_salary_amount,0)>0
-          then coalesce(mason_salary_amount,0)+coalesce(helper_salary_amount,0)
+        when coalesce(mason_count,0)*coalesce(mason_salary_amount,0)+coalesce(helper_count,0)*coalesce(helper_salary_amount,0)>0
+          then coalesce(mason_count,0)*coalesce(mason_salary_amount,0)+coalesce(helper_count,0)*coalesce(helper_salary_amount,0)
         when coalesce(salary_amount,0)>0 then salary_amount
         else coalesce(people_count,0)*coalesce(wage_per_head,0)
       end)`;

@@ -41,16 +41,19 @@ type Executor = { execute: (query: ReturnType<typeof sql>) => Promise<unknown> }
 
 // Per-site tracked spend computed entirely in SQL — previously this pulled every
 // entry row for the site into JS just to sum them (unbounded transfer). The labour
-// branch mirrors calculateLabourTotal: prefer the mason+helper split, else the
-// stored salary, else people_count * wage_per_head. NULL numerics coalesce to 0.
+// branch mirrors calculateLabourTotal: prefer the mason+helper split (each role
+// costs count × per-person wage), else the stored salary, else
+// people_count * wage_per_head. NULL numerics coalesce to 0.
 export async function siteTrackedSpend(executor: Executor, siteId: string): Promise<string> {
   const rows = (await executor.execute(sql`
     select
       coalesce((
         select sum(
           case
-            when coalesce(mason_salary_amount,0) + coalesce(helper_salary_amount,0) > 0
-              then coalesce(mason_salary_amount,0) + coalesce(helper_salary_amount,0)
+            when coalesce(mason_count,0) * coalesce(mason_salary_amount,0)
+               + coalesce(helper_count,0) * coalesce(helper_salary_amount,0) > 0
+              then coalesce(mason_count,0) * coalesce(mason_salary_amount,0)
+                 + coalesce(helper_count,0) * coalesce(helper_salary_amount,0)
             when coalesce(salary_amount,0) > 0 then salary_amount
             else coalesce(people_count,0) * coalesce(wage_per_head,0)
           end

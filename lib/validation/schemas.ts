@@ -123,7 +123,40 @@ const labourSplitCostShape = z.object({
     value.masonSalaryAmount > 0 ||
     value.helperSalaryAmount > 0,
   { message: "Mason or Helper values are required" },
-);
+).superRefine((value, ctx) => {
+  for (const issue of labourSplitPairingIssues(value)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue.message, path: [issue.field] });
+  }
+});
+
+// The salary amount is a PER-PERSON wage, so a role's cost is count × wage. A
+// wage with no head count therefore costs nothing and a head count with no wage
+// is free labour — either one silently loses money from the site total, so both
+// are rejected at the edge rather than stored and mis-read later.
+//
+// Exported because the PATCH schema has every field optional: the route merges
+// the body over the stored row and runs the same check on the result.
+export function labourSplitPairingIssues(value: {
+  masonCount?: number | null;
+  masonSalaryAmount?: number | null;
+  helperCount?: number | null;
+  helperSalaryAmount?: number | null;
+}): Array<{ field: string; message: string }> {
+  const issues: Array<{ field: string; message: string }> = [];
+  for (const [role, countField, amountField] of [
+    ["Mason", "masonCount", "masonSalaryAmount"],
+    ["Helper", "helperCount", "helperSalaryAmount"],
+  ] as const) {
+    const count = Number(value[countField] ?? 0);
+    const amount = Number(value[amountField] ?? 0);
+    if (amount > 0 && count <= 0) {
+      issues.push({ field: countField, message: `${role} count is required when a ${role} salary is entered` });
+    } else if (count > 0 && amount <= 0) {
+      issues.push({ field: amountField, message: `${role} salary is required when a ${role} count is entered` });
+    }
+  }
+  return issues;
+}
 
 export const labourEntrySchema = labourCommonCreateShape
   .and(z.union([labourLegacyShape, labourDefaultMode, labourCustomMode]))

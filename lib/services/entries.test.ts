@@ -60,11 +60,66 @@ describe("evaluateLabourSplit", () => {
   });
 
   it("zeroes head-count fields when applying a split update", () => {
-    const res = evaluateLabourSplit(labourRow("Plastering"), { masonCount: 2, helperCount: 1 });
+    const res = evaluateLabourSplit(labourRow("Plastering"), {
+      masonCount: 2, masonSalaryAmount: 1300, helperCount: 1, helperSalaryAmount: 1100,
+    });
     expect(res.ok).toBe(true);
     if (res.ok) {
       expect(res.patch).toMatchObject({ peopleCount: 0, wagePerHead: "0", salaryAmount: null });
     }
+  });
+
+  // The salary is a per-person wage, so count and salary have to move together.
+  // The PATCH schema cannot express this — every field there is optional — so
+  // the rule is checked against the patch merged over the stored row.
+  it("rejects a split update that leaves a role with a salary but no head count", () => {
+    const res = evaluateLabourSplit(labourRow("Plastering"), {
+      masonCount: 0, masonSalaryAmount: 1300,
+    });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.message).toMatch(/Mason count is required/);
+  });
+
+  it("rejects a count-only patch when the stored row has no salary for that role", () => {
+    const row = { workType: "Plastering", masonCount: 0, masonSalaryAmount: null } as unknown as LabourEntryRow;
+    const res = evaluateLabourSplit(row, { masonCount: 3 });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.message).toMatch(/Mason salary is required/);
+  });
+
+  it("accepts a count-only patch when the stored row already carries that role's salary", () => {
+    const row = { workType: "Plastering", masonCount: 2, masonSalaryAmount: "1300.00" } as unknown as LabourEntryRow;
+    const res = evaluateLabourSplit(row, { masonCount: 3 });
+    expect(res.ok).toBe(true);
+  });
+
+  // labourSpend PREFERS the stored salaryAmount over peopleCount × wagePerHead,
+  // so an edit to either input that left salaryAmount alone kept the old total.
+  it("recomputes salaryAmount when an ordinary labour edit changes peopleCount", () => {
+    const row = {
+      workType: "Steel work", peopleCount: 2, wagePerHead: "500.00", salaryAmount: "1000.00",
+    } as unknown as LabourEntryRow;
+    const res = evaluateLabourSplit(row, { peopleCount: 5 });
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.patch.salaryAmount).toBe("2500");
+  });
+
+  it("recomputes salaryAmount when an ordinary labour edit changes wagePerHead", () => {
+    const row = {
+      workType: "Steel work", peopleCount: 2, wagePerHead: "500.00", salaryAmount: "1000.00",
+    } as unknown as LabourEntryRow;
+    const res = evaluateLabourSplit(row, { wagePerHead: 600 });
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.patch.salaryAmount).toBe("1200");
+  });
+
+  it("leaves an explicitly supplied salaryAmount alone", () => {
+    const row = {
+      workType: "Steel work", peopleCount: 2, wagePerHead: "500.00", salaryAmount: "1000.00",
+    } as unknown as LabourEntryRow;
+    const res = evaluateLabourSplit(row, { peopleCount: 5, wagePerHead: 500, salaryAmount: 9999 });
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.patch.salaryAmount).toBeUndefined();
   });
 
   it("clears split fields when switching to a non-split work type", () => {

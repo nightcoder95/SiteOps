@@ -91,6 +91,9 @@ describe("server entry-type descriptors", () => {
     expect(serverDescriptorFor("incident").spendOf).toBeNull();
     expect(serverDescriptorFor("labour").spendOf?.({ peopleCount: 4, wagePerHead: "600" })).toBe(2400);
     expect(serverDescriptorFor("labour").spendOf?.({ salaryAmount: "12345" })).toBe(12345);
+    expect(serverDescriptorFor("labour").spendOf?.({
+      masonCount: 2, masonSalaryAmount: "1300", helperCount: 2, helperSalaryAmount: "1100",
+    })).toBe(4800);
     expect(serverDescriptorFor("material").spendOf?.({ cost: "250.50" })).toBe(250.5);
     expect(serverDescriptorFor("machinery").spendOf?.({ totalCost: "1000" })).toBe(1000);
     expect(serverDescriptorFor("expense").spendOf?.({ amount: "42" })).toBe(42);

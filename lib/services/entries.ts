@@ -2,7 +2,7 @@ import { serverDescriptorFor } from "@/lib/entryTypes/server";
 import type { EntryType } from "@/lib/types/entry";
 import { displayUnitName, type MaterialUnitRule } from "@/lib/catalog/units";
 import type { LabourEntryRow } from "@/lib/types/entry";
-import { isSplitLabourWorkType } from "@/lib/validation/schemas";
+import { isSplitLabourWorkType, labourSplitPairingIssues } from "@/lib/validation/schemas";
 
 // Decimal (string-backed) columns per entry type that the client sends as
 // numbers. Pair with coerceDecimals() to stringify them before persisting.
@@ -45,6 +45,14 @@ export type LabourSplitResult =
 // (Plastering/Brickwork). Given the existing row + the requested update, returns
 // the extra columns to normalize, or a validation error. Pure (no DB) so it is
 // unit-testable without HTTP.
+//
+// It also owns two invariants the PATCH schema cannot express on its own,
+// because every field there is optional and the rules span existing + patch:
+//   - split: count and per-person salary must be positive together, since a
+//     role costs count × salary and either one alone silently costs nothing;
+//   - ordinary: salaryAmount is a denormalized peopleCount × wagePerHead that
+//     labourSpend PREFERS over the two columns it is derived from, so an edit
+//     to either input must recompute it or the entry keeps its old total.
 export function evaluateLabourSplit(
   existing: LabourEntryRow,
   updateData: Record<string, unknown>,
@@ -71,6 +79,17 @@ export function evaluateLabourSplit(
 
   const patch: Record<string, unknown> = {};
   if (targetUsesSplit && hasSplitUpdate) {
+    // Validate the merged result, not the patch: a body that changes only
+    // masonCount still has to agree with the salary already on the row.
+    const merged = {
+      masonCount: numberFrom(updateData, existing, "masonCount"),
+      masonSalaryAmount: numberFrom(updateData, existing, "masonSalaryAmount"),
+      helperCount: numberFrom(updateData, existing, "helperCount"),
+      helperSalaryAmount: numberFrom(updateData, existing, "helperSalaryAmount"),
+    };
+    const [pairing] = labourSplitPairingIssues(merged);
+    if (pairing) return { ok: false, message: pairing.message };
+
     patch.peopleCount = 0;
     patch.wagePerHead = "0";
     patch.salaryAmount = null;
@@ -83,7 +102,34 @@ export function evaluateLabourSplit(
     patch.helperCount = null;
     patch.helperSalaryAmount = null;
   }
+
+  // Ordinary labour: keep the denormalized salaryAmount in step with its
+  // inputs. Only when the client did not send an explicit salaryAmount of its
+  // own — the create route lets one through, so an edit must not override it.
+  if (
+    !targetUsesSplit &&
+    !("salaryAmount" in updateData) &&
+    ("peopleCount" in updateData || "wagePerHead" in updateData)
+  ) {
+    const people = numberFrom(updateData, existing, "peopleCount");
+    const wage = numberFrom(updateData, existing, "wagePerHead");
+    patch.salaryAmount = String(people * wage);
+  }
+
   return { ok: true, patch };
+}
+
+// Reads a field from the patch when the request carries it, else from the
+// stored row — decimal columns arrive as strings from Drizzle and as numbers
+// from the client, so both are coerced.
+function numberFrom(
+  updateData: Record<string, unknown>,
+  existing: LabourEntryRow,
+  field: keyof LabourEntryRow & string,
+) {
+  const raw = field in updateData ? updateData[field] : existing[field];
+  const next = Number(raw ?? 0);
+  return Number.isFinite(next) ? next : 0;
 }
 
 export type UnitCandidate = { unitId: string; label: string };

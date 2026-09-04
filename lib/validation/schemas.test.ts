@@ -293,6 +293,36 @@ describe("operation consolidation schema additions", () => {
     expect(result.success).toBe(false);
   });
 
+  // A role costs count × per-person salary, so a lone count or a lone salary
+  // contributes nothing to the site total — it must never reach the database.
+  it("rejects a split role that has a salary but no head count", () => {
+    const result = labourEntrySchema.safeParse({
+      siteId: validSiteId,
+      date: validEntryDate,
+      workType: "Brickwork",
+      masonCount: 0,
+      masonSalaryAmount: 1300,
+      helperCount: 0,
+      helperSalaryAmount: 0,
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a split role that has a head count but no salary", () => {
+    const result = labourEntrySchema.safeParse({
+      siteId: validSiteId,
+      date: validEntryDate,
+      workType: "Brickwork",
+      masonCount: 2,
+      masonSalaryAmount: 1300,
+      helperCount: 2,
+      helperSalaryAmount: 0,
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   it("rejects split labour payload for non-split work types", () => {
     const result = labourEntrySchema.safeParse({
       siteId: validSiteId,

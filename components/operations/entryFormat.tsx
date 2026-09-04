@@ -120,8 +120,17 @@ export function renderEntrySummary(entry: Entry, type: EntryType) {
         </div>
         {hasSplitRoles ? (
           <div className="space-y-0.5 text-xs text-slate-500">
-            <p>Mason: {entry.masonCount ?? 0} people, {formatCurrency(Number(entry.masonSalaryAmount ?? 0))}</p>
-            <p>Helper: {entry.helperCount ?? 0} people, {formatCurrency(Number(entry.helperSalaryAmount ?? 0))}</p>
+            {([["Mason", entry.masonCount, entry.masonSalaryAmount], ["Helper", entry.helperCount, entry.helperSalaryAmount]] as const).map(
+              ([role, count, wage]) => (
+                // Spell out the multiplication — the per-person wage on its own
+                // reads as the role's total and hid a costing bug for months.
+                // Mirrors the ordinary line's `{n} people x {wage}` idiom below.
+                <p key={role}>
+                  {role}: {Number(count ?? 0)} people x {formatCurrency(Number(wage ?? 0))} ={" "}
+                  {formatCurrency(Number(count ?? 0) * Number(wage ?? 0))}
+                </p>
+              ),
+            )}
           </div>
         ) : (
           <p className="text-xs text-slate-500">
