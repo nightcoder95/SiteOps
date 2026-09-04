@@ -1,5 +1,9 @@
 import { ENTRY_FIELD_CONSTRAINTS } from "@/lib/entryTypes/constraints";
 import type { EntryType } from "@/lib/types/entry";
+import {
+  isWorkStageRequired,
+  type WorkStageRequirementInput,
+} from "@/lib/entryTypes/workStageRequirement";
 
 export type FieldKind =
   | "date"
@@ -61,8 +65,7 @@ export const REGISTRY_BY_TYPE = {
       name: "workStage",
       label: "Work Stage",
       kind: "subcategory",
-      required: false,
-      clearable: true,
+      required: true,
       catalogCategoryName: "Work Stage",
       noun: "Work Stage",
     },
@@ -94,8 +97,7 @@ export const REGISTRY_BY_TYPE = {
       name: "workStage",
       label: "Work Stage",
       kind: "subcategory",
-      required: false,
-      clearable: true,
+      required: true,
       catalogCategoryName: "Work Stage",
       noun: "Work Stage",
     },
@@ -116,8 +118,7 @@ export const REGISTRY_BY_TYPE = {
       name: "workStage",
       label: "Work Stage",
       kind: "subcategory",
-      required: false,
-      clearable: true,
+      required: true,
       catalogCategoryName: "Work Stage",
       noun: "Work Stage",
     },
@@ -183,4 +184,16 @@ export function entryEndpointFor(kind: EntryKind | "dynamic"): string {
     case "incident": return "/api/entries/incidents";
     case "dynamic": return "/api/entries/dynamic";
   }
+}
+
+// Work Stage is required on new entries, but entries logged before the field
+// existed cannot be forced to invent one. Returns a NEW array — REGISTRY is
+// module-level and shared across every render in the process, so mutating it
+// would leak one entry's exemption into unrelated forms.
+export function applyWorkStageRequirement(
+  fields: EntryField[],
+  input: WorkStageRequirementInput,
+): EntryField[] {
+  if (isWorkStageRequired(input)) return fields;
+  return fields.map((f) => (f.name === "workStage" ? { ...f, required: false } : f));
 }

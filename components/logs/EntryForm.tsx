@@ -17,6 +17,7 @@ import { formatCurrency, type Entry } from "@/components/operations/entryFormat"
 import { labourSpend } from "@/lib/services/labourSpend";
 
 import {
+  applyWorkStageRequirement,
   resolveEntryFields,
   resolveEntryKind,
   entryEndpointFor,
@@ -34,6 +35,9 @@ type Props = {
   role: "Admin" | "Supervisor";
   entryId?: string;
   initialValues?: Record<string, unknown>;
+  // Drives the legacy Work Stage exemption — entries predating the field
+  // (2026-07-25) must stay editable without inventing a building phase.
+  entryCreatedAt?: string | null;
   onSuccess?: () => void;
 };
 
@@ -74,10 +78,16 @@ export function EntryForm({
   role,
   entryId,
   initialValues,
+  entryCreatedAt,
   onSuccess,
 }: Props) {
   const router = useRouter();
-  const fields = resolveEntryFields(categoryName);
+  const fields = applyWorkStageRequirement(resolveEntryFields(categoryName), {
+    // `isEdit` is declared below; use entryId directly rather than reordering.
+    isEdit: Boolean(entryId),
+    existingWorkStage: initialValues?.workStage as string | null | undefined,
+    entryCreatedAt,
+  });
   const kind = resolveEntryKind(categoryName);
   const isEdit = Boolean(entryId);
 

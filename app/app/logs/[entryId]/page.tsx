@@ -76,6 +76,9 @@ export default async function LogsEntryPage({
         role={session.user.role as "Admin" | "Supervisor"}
         entryId={entryId}
         initialValues={initialValues}
+        entryCreatedAt={
+          (entry as any).createdAt ? String((entry as any).createdAt) : null
+        }
       />
     </div>
   );
