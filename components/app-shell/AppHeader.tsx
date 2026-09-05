@@ -9,6 +9,8 @@ import { useApiQuery } from '@/lib/http/useApiQuery';
 import { UNREAD_BADGE_KEY } from '@/lib/http/notificationsKeys';
 import { GlobalSearchOverlay } from '@/components/search/GlobalSearchOverlay';
 import { logicalParent } from '@/lib/nav/logicalParent';
+import { parentIsBehind, readStack } from '@/lib/nav/navStack';
+import { useNavStack } from '@/lib/nav/useNavStack';
 
 type Props = {
   // Use the canonical Role type rather than a duplicated literal union. The
@@ -26,6 +28,9 @@ export function AppHeader({ role, initialUnread = 0 }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const isDashboard = pathname === '/app/dashboard';
+
+  // Records the route stack the chevron reads below.
+  useNavStack(pathname);
 
   // Unread badge via the shared SWR cache. `fallbackData` renders the
   // server-seeded count immediately; SWR revalidates on mount/focus and after a
@@ -63,16 +68,22 @@ export function AppHeader({ role, initialUnread = 0 }: Props) {
           {!isDashboard ? (
             <button
               onClick={() => {
-                // In-app navigation: honour the user's real history. A
-                // deep-linked arrival (push notification, shared URL, PWA
-                // shortcut) has none, and router.back() would leave the app —
-                // so fall back to the route's logical parent.
+                // The chevron means "up one level", not "back". Its destination
+                // is always the route's logical parent, so the arrow reads the
+                // same on every screen no matter how the user arrived — and it
+                // can never walk out of the app the way honouring raw history
+                // could (a tab that had visited another site first reports
+                // history.length > 1 even on a deep-linked arrival).
                 //
-                // history.length > 1 is a heuristic, not a guarantee (a fresh
-                // tab reports 1; a reused one reports more). Its failure mode is
-                // benign: one extra, still-correct back navigation.
-                if (typeof window !== 'undefined' && window.history.length > 1) router.back();
-                else router.push(logicalParent(pathname));
+                // Going up is still done with back() when the entry behind us
+                // really is that parent, because only back() restores the
+                // parent list's scroll position. Same destination either way.
+                const parent = logicalParent(pathname);
+                if (typeof window !== 'undefined' && parentIsBehind(readStack(window.sessionStorage), parent)) {
+                  router.back();
+                } else {
+                  router.push(parent);
+                }
               }}
               className="p-3 -ml-3 rounded-xl hover:bg-white/5 transition-colors"
               aria-label="Go back"

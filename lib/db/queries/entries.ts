@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, gte, lte, sql, type SQL } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
+import { labourSpendSumExpr } from "@/lib/db/queries/labourSpendSql";
 import {
   expenseEntries,
   incidentReports,
@@ -551,18 +552,12 @@ export async function siteOperationSummary(
   // mason/helper amounts are per-person wages, so each role costs count × wage.
   // The multiplication must appear in the WHEN guard as well as the THEN, or a
   // wage with no head count would take this branch and report the bare wage.
-  const labourSpendExpr = sql`sum(case
-        when coalesce(mason_count,0)*coalesce(mason_salary_amount,0)+coalesce(helper_count,0)*coalesce(helper_salary_amount,0)>0
-          then coalesce(mason_count,0)*coalesce(mason_salary_amount,0)+coalesce(helper_count,0)*coalesce(helper_salary_amount,0)
-        when coalesce(salary_amount,0)>0 then salary_amount
-        else coalesce(people_count,0)*coalesce(wage_per_head,0)
-      end)`;
   const rows = (await executor.execute(sql`
     select
       (select count(*)::int from labour_entries where site_id=${siteId}::uuid and date=${date}) as labour_count,
-      coalesce((select ${labourSpendExpr} from labour_entries where site_id=${siteId}::uuid and date=${date}),0) as labour_spend,
+      coalesce((select ${labourSpendSumExpr} from labour_entries where site_id=${siteId}::uuid and date=${date}),0) as labour_spend,
       (select count(*)::int from labour_entries where site_id=${siteId}::uuid) as labour_total_count,
-      coalesce((select ${labourSpendExpr} from labour_entries where site_id=${siteId}::uuid),0) as labour_total_spend,
+      coalesce((select ${labourSpendSumExpr} from labour_entries where site_id=${siteId}::uuid),0) as labour_total_spend,
       (select count(*)::int from material_entries where site_id=${siteId}::uuid and date=${date}) as material_count,
       coalesce((select sum(coalesce(cost,0)) from material_entries where site_id=${siteId}::uuid and date=${date}),0) as material_spend,
       (select count(*)::int from material_entries where site_id=${siteId}::uuid) as material_total_count,

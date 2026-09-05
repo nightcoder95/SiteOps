@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { SearchHitRow } from '@/components/search/SearchHitRow';
-import { popOverlayEntry, pushOverlayEntry } from '@/components/search/overlayHistory';
+import { useBackDismiss } from '@/lib/nav/useBackDismiss';
 import { hitHref, useGlobalSearch } from '@/components/search/useGlobalSearch';
 import type { SearchHit, SearchSource } from '@/components/search/useGlobalSearch';
 
@@ -61,24 +61,10 @@ export function GlobalSearchOverlay({ open, onClose }: Props) {
   // teardown below leaves the router's new history entry alone.
   const navigatingRef = useRef(false);
 
-  // Intercept browser back button / popstate events to close search overlay.
-  useEffect(() => {
-    if (!open) return undefined;
-
-    navigatingRef.current = false;
-    pushOverlayEntry(window.history);
-
-    function handlePopState() {
-      onClose();
-    }
-
-    window.addEventListener("popstate", handlePopState);
-
-    return () => {
-      window.removeEventListener("popstate", handlePopState);
-      popOverlayEntry(window.history, { navigating: navigatingRef.current });
-    };
-  }, [open, onClose]);
+  // Browser back / the phone back gesture closes the overlay rather than
+  // navigating the page away. navigatingRef opts teardown out of popping the
+  // sentinel when the close was itself a navigation to a hit.
+  useBackDismiss(open, onClose, { navigatingRef });
 
   const handleSelect = (hit: SearchHit) => {
     navigatingRef.current = true;

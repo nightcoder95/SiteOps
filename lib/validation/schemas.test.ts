@@ -74,6 +74,7 @@ describe("labour schemas", () => {
       wagePerHead: 650.5,
       workTypeMode: "default_enum",
       workTypeEnum: "Brick work",
+      workStage: "Roof Level",
     });
 
     expect(result.success).toBe(true);
@@ -87,6 +88,7 @@ describe("labour schemas", () => {
       wagePerHead: 1.11,
       workTypeMode: "default_enum",
       workTypeEnum: "Brick work",
+      workStage: "Roof Level",
     });
 
     expect(result.success).toBe(true);
@@ -274,6 +276,7 @@ describe("operation consolidation schema additions", () => {
       masonSalaryAmount: 2600,
       helperCount: 1,
       helperSalaryAmount: 900,
+      workStage: "Roof Level",
     });
 
     expect(result.success).toBe(true);
@@ -357,6 +360,7 @@ describe("operation consolidation schema additions", () => {
       count: 1,
       hoursActive: 4,
       totalCost: 10000,
+      workStage: "Roof Level",
     });
 
     expect(result.success).toBe(true);
@@ -416,24 +420,31 @@ describe("global work stage on labour/machinery/expense", () => {
     category: "Miscellaneous",
   };
 
-  it("accepts labour create with and without workStage", () => {
+  it("requires workStage on labour create", () => {
     expect(labourEntrySchema.safeParse({ ...validLabourPayload, workStage: "Basement Level" }).success).toBe(true);
-    expect(labourEntrySchema.safeParse(validLabourPayload).success).toBe(true);
+    expect(labourEntrySchema.safeParse(validLabourPayload).success).toBe(false);
   });
 
-  it("accepts machinery create with and without workStage", () => {
+  it("requires workStage on machinery create", () => {
     expect(machineryEntrySchema.safeParse({ ...validMachineryPayload, workStage: "Basement Level" }).success).toBe(true);
-    expect(machineryEntrySchema.safeParse(validMachineryPayload).success).toBe(true);
+    expect(machineryEntrySchema.safeParse(validMachineryPayload).success).toBe(false);
   });
 
-  it("accepts expense create with and without workStage", () => {
+  it("requires workStage on expense create", () => {
     expect(expenseEntrySchema.safeParse({ ...validExpensePayload, workStage: "Basement Level" }).success).toBe(true);
-    expect(expenseEntrySchema.safeParse(validExpensePayload).success).toBe(true);
+    expect(expenseEntrySchema.safeParse(validExpensePayload).success).toBe(false);
   });
 
-  it("update schemas accept workStage as null, a valid string, or omitted", () => {
+  it("update schemas reject an explicit null workStage, so an entry cannot be un-tagged", () => {
     for (const schema of [updateLabourEntrySchema, updateMachineryEntrySchema, updateExpenseEntrySchema]) {
-      expect(schema.safeParse({ workStage: null }).success).toBe(true);
+      expect(schema.safeParse({ workStage: null }).success).toBe(false);
+    }
+  });
+
+  it("update schemas still accept workStage set or omitted", () => {
+    // Omitted matters: legacy untagged entries are PATCHed without the field,
+    // and the route only catalog-checks fields present in the body.
+    for (const schema of [updateLabourEntrySchema, updateMachineryEntrySchema, updateExpenseEntrySchema]) {
       expect(schema.safeParse({ workStage: "Roof Level" }).success).toBe(true);
       expect(schema.safeParse({}).success).toBe(true);
     }
@@ -470,7 +481,7 @@ describe("numeric bounds come from ENTRY_FIELD_CONSTRAINTS", () => {
     labour: {
       siteId: validSiteId, date: validEntryDate, workType: "Steel work",
       workTypeMode: "custom" as const, workTypeCustomId: validTypeId,
-      peopleCount: 2, wagePerHead: 500,
+      peopleCount: 2, wagePerHead: 500, workStage: "Roof Level",
     },
     material: {
       siteId: validSiteId, date: validEntryDate, materialType: "Cement",
@@ -480,11 +491,11 @@ describe("numeric bounds come from ENTRY_FIELD_CONSTRAINTS", () => {
     machinery: {
       siteId: validSiteId, date: validEntryDate, equipmentType: "JCB",
       equipmentTypeMode: "custom" as const, equipmentTypeCustomId: validTypeId,
-      count: 1, hoursActive: 2, totalCost: 1000,
+      count: 1, hoursActive: 2, totalCost: 1000, workStage: "Roof Level",
     },
     expense: {
       siteId: validSiteId, date: validEntryDate, category: "Misc",
-      description: "x", amount: 100,
+      description: "x", amount: 100, workStage: "Roof Level",
     },
     incident: {
       siteId: validSiteId, incidentType: "Safety", description: "x",
@@ -515,3 +526,4 @@ describe("numeric bounds come from ENTRY_FIELD_CONSTRAINTS", () => {
     });
   }
 });
+

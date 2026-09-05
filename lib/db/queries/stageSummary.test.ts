@@ -1,0 +1,198 @@
+import { expect, it } from "vitest";
+
+import { labourEntries, materialEntries } from "@/lib/db/schema";
+import { describeDb, seedSite, withRollback } from "@/lib/db/testing";
+
+import { getStageAggregates, getStageComposition } from "./stageSummary";
+
+describeDb("getStageAggregates", () => {
+  it("groups spend and dates by stage, keeping untagged rows as a null stage", async () => {
+    await withRollback(async (tx) => {
+      const { userId, siteId } = await seedSite(tx);
+
+      await tx.insert(labourEntries).values([
+        { siteId, date: "2026-08-01", workType: "Mason", peopleCount: 2,
+          wagePerHead: "700", workStage: "Basement Level", createdBy: userId },
+        { siteId, date: "2026-08-05", workType: "Helper", peopleCount: 1,
+          wagePerHead: "500", workStage: "Basement Level", createdBy: userId },
+        { siteId, date: "2026-02-01", workType: "Piling", peopleCount: 1,
+          wagePerHead: "40000", workStage: null, createdBy: userId },
+      ]);
+      await tx.insert(materialEntries).values([
+        { siteId, date: "2026-08-03", materialType: "Cement", quantity: "50",
+          unit: "Bag", workStage: "Basement Level", cost: "20000", createdBy: userId },
+      ]);
+
+      const rows = await getStageAggregates(tx, siteId);
+
+      const labourBasement = rows.find(
+        (r) => r.entryType === "labour" && r.stage === "Basement Level",
+      );
+      expect(labourBasement).toMatchObject({
+        entryCount: 2,
+        firstDate: "2026-08-01",
+        lastDate: "2026-08-05",
+        spend: 1900, // 2×700 + 1×500
+      });
+
+      const labourUntagged = rows.find(
+        (r) => r.entryType === "labour" && r.stage === null,
+      );
+      expect(labourUntagged).toMatchObject({ entryCount: 1, spend: 40000 });
+
+      const material = rows.find((r) => r.entryType === "material");
+      expect(material).toMatchObject({ stage: "Basement Level", entryCount: 1, spend: 20000 });
+    });
+  });
+
+  it("applies the mason/helper split precedence, not a naive sum", async () => {
+    await withRollback(async (tx) => {
+      const { userId, siteId } = await seedSite(tx);
+      await tx.insert(labourEntries).values([
+        // 2 masons @1300 + 2 helpers @1100 = 4800. A naive column sum reads 2400.
+        // salaryAmount is also set, to prove split wins the precedence.
+        { siteId, date: "2026-08-01", workType: "Mason", peopleCount: 4,
+          wagePerHead: "0", salaryAmount: "9999", masonCount: 2, masonSalaryAmount: "1300",
+          helperCount: 2, helperSalaryAmount: "1100",
+          workStage: "Basement Level", createdBy: userId },
+      ]);
+
+      const rows = await getStageAggregates(tx, siteId);
+      expect(rows.find((r) => r.entryType === "labour")!.spend).toBe(4800);
+    });
+  });
+
+  it("splits untagged rows by whether the entry predates the work_stage column", async () => {
+    await withRollback(async (tx) => {
+      const { userId, siteId } = await seedSite(tx);
+      await tx.insert(labourEntries).values([
+        // created_at is defaulted to now(), so force it explicitly.
+        { siteId, date: "2026-02-01", workType: "Piling", peopleCount: 1,
+          wagePerHead: "1000", workStage: null, createdBy: userId,
+          createdAt: new Date("2026-07-01T00:00:00Z") },
+        { siteId, date: "2026-08-01", workType: "Helper", peopleCount: 1,
+          wagePerHead: "500", workStage: null, createdBy: userId,
+          createdAt: new Date("2026-08-01T00:00:00Z") },
+      ]);
+
+      const rows = await getStageAggregates(tx, siteId);
+      const legacy = rows.find((r) => r.stage === null && r.legacy);
+      const skipped = rows.find((r) => r.stage === null && !r.legacy);
+
+      expect(legacy).toMatchObject({ entryCount: 1, spend: 1000 });
+      expect(skipped).toMatchObject({ entryCount: 1, spend: 500 });
+    });
+  });
+
+  it("never marks a tagged row legacy, however old it is", async () => {
+    await withRollback(async (tx) => {
+      const { userId, siteId } = await seedSite(tx);
+      await tx.insert(labourEntries).values({
+        siteId, date: "2026-01-01", workType: "Mason", peopleCount: 1,
+        wagePerHead: "700", workStage: "Basement Level", createdBy: userId,
+        createdAt: new Date("2026-01-01T00:00:00Z"),
+      });
+      const rows = await getStageAggregates(tx, siteId);
+      expect(rows.every((r) => r.legacy === false)).toBe(true);
+    });
+  });
+
+  it("returns nothing for a site with no entries", async () => {
+    await withRollback(async (tx) => {
+      const { siteId } = await seedSite(tx);
+      expect(await getStageAggregates(tx, siteId)).toEqual([]);
+    });
+  });
+
+  it("does not leak another site's entries", async () => {
+    await withRollback(async (tx) => {
+      const a = await seedSite(tx);
+      const b = await seedSite(tx);
+      await tx.insert(labourEntries).values({
+        siteId: b.siteId, date: "2026-08-01", workType: "Mason", peopleCount: 9,
+        wagePerHead: "1000", workStage: "Roof Level", createdBy: b.userId,
+      });
+      expect(await getStageAggregates(tx, a.siteId)).toEqual([]);
+    });
+  });
+
+  it("rejects a siteId that is not a uuid", async () => {
+    await withRollback(async (tx) => {
+      await expect(getStageAggregates(tx, "not-a-uuid")).rejects.toThrow();
+    });
+  });
+});
+
+describeDb("getStageComposition", () => {
+  it("groups material by type and labour by work type", async () => {
+    await withRollback(async (tx) => {
+      const { userId, siteId } = await seedSite(tx);
+      await tx.insert(materialEntries).values([
+        { siteId, date: "2026-08-01", materialType: "Cement", quantity: "100",
+          unit: "Bag", workStage: "Basement Level", cost: "50000", createdBy: userId },
+        { siteId, date: "2026-08-02", materialType: "Cement", quantity: "175",
+          unit: "Bag", workStage: "Basement Level", cost: "38000", createdBy: userId },
+        { siteId, date: "2026-08-03", materialType: "Metal", quantity: "10",
+          unit: "CFT", workStage: "Basement Level", cost: "97950", createdBy: userId },
+      ]);
+      await tx.insert(labourEntries).values([
+        { siteId, date: "2026-08-01", workType: "Steel work", peopleCount: 3,
+          wagePerHead: "1000", workStage: "Basement Level", createdBy: userId },
+      ]);
+
+      const rows = await getStageComposition(tx, siteId, "Basement Level");
+
+      expect(rows.find((r) => r.name === "Cement")).toMatchObject({
+        entryType: "material", entryCount: 2, quantity: 275, unit: "Bag", spend: 88000,
+      });
+      expect(rows.find((r) => r.name === "Steel work")).toMatchObject({
+        entryType: "labour", entryCount: 1, headCount: 3, spend: 3000,
+      });
+    });
+  });
+
+  it("selects only the skipped bucket when the stage is null", async () => {
+    await withRollback(async (tx) => {
+      const { userId, siteId } = await seedSite(tx);
+      await tx.insert(labourEntries).values([
+        { siteId, date: "2026-02-01", workType: "Piling", peopleCount: 1,
+          wagePerHead: "40000", workStage: null, createdBy: userId,
+          createdAt: new Date("2026-07-01T00:00:00Z") },
+        { siteId, date: "2026-08-01", workType: "Helper", peopleCount: 1,
+          wagePerHead: "500", workStage: null, createdBy: userId,
+          createdAt: new Date("2026-08-01T00:00:00Z") },
+        { siteId, date: "2026-08-02", workType: "Mason", peopleCount: 1,
+          wagePerHead: "700", workStage: "Roof Level", createdBy: userId },
+      ]);
+
+      expect((await getStageComposition(tx, siteId, null)).map((r) => r.name))
+        .toEqual(["Helper"]);
+      expect((await getStageComposition(tx, siteId, null, { legacy: true })).map((r) => r.name))
+        .toEqual(["Piling"]);
+    });
+  });
+
+  it("does not leak another site's entries", async () => {
+    await withRollback(async (tx) => {
+      const a = await seedSite(tx);
+      const b = await seedSite(tx);
+      await tx.insert(labourEntries).values({
+        siteId: b.siteId, date: "2026-08-01", workType: "Mason", peopleCount: 9,
+        wagePerHead: "1000", workStage: "Roof Level", createdBy: b.userId,
+      });
+      expect(await getStageComposition(tx, a.siteId, "Roof Level")).toEqual([]);
+    });
+  });
+
+  it("treats a stage name containing SQL metacharacters as a literal", async () => {
+    await withRollback(async (tx) => {
+      const { userId, siteId } = await seedSite(tx);
+      await tx.insert(labourEntries).values({
+        siteId, date: "2026-08-01", workType: "Mason", peopleCount: 1,
+        wagePerHead: "700", workStage: "Roof Level", createdBy: userId,
+      });
+      // If this were interpolated rather than bound, the OR would match everything.
+      expect(await getStageComposition(tx, siteId, "' OR 1=1 --")).toEqual([]);
+    });
+  });
+});

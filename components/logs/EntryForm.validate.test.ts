@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { EntryField } from "./entryFieldRegistry";
+import { applyWorkStageRequirement, resolveEntryFields, type EntryField } from "./entryFieldRegistry";
 import { validateEntryValues } from "./EntryForm.validate";
 
 const dateField: EntryField = { name: "date", label: "Date", kind: "date", required: true };
@@ -123,6 +123,47 @@ describe("validateEntryValues", () => {
         ...base,
         splitLabour: true,
         values: { ...base.values, peopleCount: "", wagePerHead: "", helperCount: "2", helperSalaryAmount: "900" },
+      }),
+    ).toBeNull();
+  });
+});
+
+describe("work stage validation", () => {
+  const base = { siteId: "site-1", isEdit: false, splitLabour: false };
+
+  it("blocks create when Work Stage is empty", () => {
+    expect(
+      validateEntryValues({
+        ...base,
+        fields: resolveEntryFields("labour"),
+        values: {
+          date: "2026-09-05",
+          workType: { subcategoryId: "w1", name: "Mason", categoryId: "c1" },
+          peopleCount: 2,
+          wagePerHead: 700,
+          workStage: null,
+        },
+      }),
+    ).toEqual({ field: "workStage", message: "Work Stage is required" });
+  });
+
+  it("permits saving a legacy untagged entry", () => {
+    expect(
+      validateEntryValues({
+        ...base,
+        isEdit: true,
+        fields: applyWorkStageRequirement(resolveEntryFields("labour"), {
+          isEdit: true,
+          existingWorkStage: null,
+          entryCreatedAt: "2026-07-01T00:00:00Z",
+        }),
+        values: {
+          date: "2026-02-04",
+          workType: { subcategoryId: "w1", name: "Piling", categoryId: "c1" },
+          peopleCount: 1,
+          wagePerHead: 40000,
+          workStage: null,
+        },
       }),
     ).toBeNull();
   });

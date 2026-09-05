@@ -2,7 +2,7 @@
 
 import { CheckCircle2, Save, Trash2 } from 'lucide-react';
 import { useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useNavRouter } from '@/lib/nav/useNavRouter';
 import { toast } from "sonner";
 import { confirmDialog } from "@/lib/ui/confirm";
 import { notifyError, notifyGenericError } from "@/lib/ui/toast";
@@ -17,6 +17,7 @@ import { formatCurrency, type Entry } from "@/components/operations/entryFormat"
 import { labourSpend } from "@/lib/services/labourSpend";
 
 import {
+  applyWorkStageRequirement,
   resolveEntryFields,
   resolveEntryKind,
   entryEndpointFor,
@@ -34,6 +35,9 @@ type Props = {
   role: "Admin" | "Supervisor";
   entryId?: string;
   initialValues?: Record<string, unknown>;
+  // Drives the legacy Work Stage exemption — entries predating the field
+  // (2026-07-25) must stay editable without inventing a building phase.
+  entryCreatedAt?: string | null;
   onSuccess?: () => void;
 };
 
@@ -74,10 +78,16 @@ export function EntryForm({
   role,
   entryId,
   initialValues,
+  entryCreatedAt,
   onSuccess,
 }: Props) {
-  const router = useRouter();
-  const fields = resolveEntryFields(categoryName);
+  const router = useNavRouter();
+  const fields = applyWorkStageRequirement(resolveEntryFields(categoryName), {
+    // `isEdit` is declared below; use entryId directly rather than reordering.
+    isEdit: Boolean(entryId),
+    existingWorkStage: initialValues?.workStage as string | null | undefined,
+    entryCreatedAt,
+  });
   const kind = resolveEntryKind(categoryName);
   const isEdit = Boolean(entryId);
 
@@ -255,9 +265,9 @@ export function EntryForm({
     if (onSuccess) { onSuccess(); return; }
     const spend = kind === "material" || kind === "expense" || kind === "labour" || kind === "machinery";
     if (spend && res.data) {
-      router.push(entrySuccessDestination(res.data as Entry, kind, siteId ?? ""));
+      router.replace(entrySuccessDestination(res.data as Entry, kind, siteId ?? ""));
     } else {
-      router.push(successDestination());
+      router.replace(successDestination());
     }
   }
 
@@ -280,7 +290,7 @@ export function EntryForm({
       return;
     }
     toast.success("Entry deleted");
-    router.push(successDestination());
+    router.replace(successDestination());
   }
 
   return (

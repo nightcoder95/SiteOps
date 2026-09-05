@@ -2,7 +2,7 @@
 
 import { MapPinPlus } from 'lucide-react';
 import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useNavRouter } from '@/lib/nav/useNavRouter';
 import { toast } from "sonner";
 import { notifyError } from "@/lib/ui/toast";
 
@@ -23,7 +23,7 @@ const inputClass =
   "h-11 w-full rounded border border-outline bg-surface-container-lowest px-3 text-sm text-on-surface focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary";
 
 export function SitesNewPageClient({ role, supervisors }: Props) {
-  const router = useRouter();
+  const router = useNavRouter();
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [budget, setBudget] = useState("");
@@ -64,7 +64,7 @@ export function SitesNewPageClient({ role, supervisors }: Props) {
       return;
     }
     toast.success("Site created");
-    router.push(`/app/sites/${res.data.siteId}`);
+    router.replace(`/app/sites/${res.data.siteId}`);
   }
 
   return (

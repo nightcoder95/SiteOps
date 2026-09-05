@@ -47,6 +47,7 @@ const base = {
   category: "Materials",
   description: "cement",
   amount: 100,
+  workStage: "Basement Level",
 };
 
 describe("POST expense — no consolidation", () => {
@@ -86,12 +87,12 @@ describe("POST expense — no consolidation", () => {
     );
   });
 
-  it("stores workStage: null and skips the workStage catalog check when omitted", async () => {
-    const res = await POST(req(base));
-    expect(res.status).toBe(201);
-    expect(mockAssertCatalog).not.toHaveBeenCalledWith("Work Stage", expect.anything());
-    expect(mockInsertExpense).toHaveBeenCalledWith(
-      expect.objectContaining({ workStage: null }),
-    );
+  it("rejects a create that omits workStage", async () => {
+    // Work Stage became mandatory with the phase-costing work. The form is not
+    // a security boundary, so the route must reject a direct POST too.
+    const { workStage: _omitted, ...withoutStage } = base;
+    const res = await POST(req(withoutStage));
+    expect(res.status).toBe(400);
+    expect(mockInsertExpense).not.toHaveBeenCalled();
   });
 });

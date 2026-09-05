@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useNavRouter } from '@/lib/nav/useNavRouter';
 import { ArrowLeft, Search } from "lucide-react";
 
 import { EntryTypeIcon } from "@/components/constants/EntryTypeIcon";
@@ -47,7 +47,7 @@ export default function CategoryDetailPageClient({
   initialFilters,
   highlightId = null,
 }: Props) {
-  const router = useRouter();
+  const router = useNavRouter();
   const [filters, setFilters] = useState(initialFilters);
   const [openDateField, setOpenDateField] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -77,12 +77,12 @@ export default function CategoryDetailPageClient({
     if (filters.workStage) params.set("workStage", filters.workStage);
     if (filters.sort) params.set("sort", filters.sort);
     const query = params.toString();
-    router.push(query ? `${basePath}?${query}` : basePath);
+    router.replace(query ? `${basePath}?${query}` : basePath);
   }
 
   function clearFilters() {
     setFilters({ from: "", to: "", workStage: "", sort: "newest" });
-    router.push(basePath);
+    router.replace(basePath);
   }
 
   return (

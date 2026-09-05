@@ -30,14 +30,21 @@ describe("logicalParent", () => {
     expect(logicalParent("/app/requests/resource")).toBe("/app/dashboard");
   });
 
-  it("sends a site page and the new-site form back to the site list", () => {
-    expect(logicalParent("/app/sites/abc-123")).toBe("/app/sites");
-    expect(logicalParent("/app/sites/new")).toBe("/app/sites");
+  // The site list IS the dashboard: /app/sites was removed and left a
+  // notFound() stub behind, so sending the chevron there was a guaranteed 404.
+  // logicalParent.routes.test.ts derives this from the filesystem.
+  it("sends a site page and the new-site form back to the dashboard, not the removed /app/sites", () => {
+    expect(logicalParent("/app/sites/abc-123")).toBe("/app/dashboard");
+    expect(logicalParent("/app/sites/new")).toBe("/app/dashboard");
   });
 
   it("sends an operations page to its site, NOT to a non-existent /operations route", () => {
     expect(logicalParent("/app/sites/abc-123/operations/labour")).toBe("/app/sites/abc-123");
     expect(logicalParent("/app/sites/abc-123/operations/all")).toBe("/app/sites/abc-123");
+  });
+
+  it("sends the stage summary back to its site, not to the dashboard", () => {
+    expect(logicalParent("/app/sites/abc-123/stages")).toBe("/app/sites/abc-123");
   });
 
   it("sends a category detail page to its operations page", () => {
@@ -66,7 +73,11 @@ describe("logicalParent", () => {
   });
 
   it("tolerates a trailing slash and repeated slashes", () => {
-    expect(logicalParent("/app/sites/abc-123/")).toBe("/app/sites");
-    expect(logicalParent("//app//sites//abc-123")).toBe("/app/sites");
+    // Asserted on an operations route on purpose: its parent is distinctive, so
+    // a parse that mishandled the empty segments would fall through to the
+    // dashboard and fail here. A site route would return the dashboard either
+    // way and prove nothing.
+    expect(logicalParent("/app/sites/abc-123/operations/labour/")).toBe("/app/sites/abc-123");
+    expect(logicalParent("//app//sites//abc-123//operations//labour")).toBe("/app/sites/abc-123");
   });
 });

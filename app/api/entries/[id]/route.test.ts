@@ -71,28 +71,25 @@ describe("PATCH entries — workStage catalog checks", () => {
     expect(mockUpdateEntryById).toHaveBeenCalledWith("some-id", "labour", expect.objectContaining({ workStage: "Roof Level" }));
   });
 
-  it("PATCH labour with workStage: null skips the catalog check (un-tag)", async () => {
-    mockGetEntryById.mockResolvedValue({ siteId: "s1", createdBy: "u1", workType: "Mason" });
-    const res = await PATCH(reqType("labour", { workStage: null }), ctx);
-    expect(res.status).toBe(200);
-    expect(mockAssertCatalog).not.toHaveBeenCalled();
-    expect(mockUpdateEntryById).toHaveBeenCalledWith("some-id", "labour", expect.objectContaining({ workStage: null }));
+  it("rejects a PATCH that un-tags an entry", async () => {
+    // Un-tagging was allowed until Work Stage became mandatory. The form no
+    // longer offers a clear affordance; the route must refuse it outright too.
+    for (const type of ["labour", "machinery", "expense"] as const) {
+      mockGetEntryById.mockResolvedValue({ siteId: "s1", createdBy: "u1", workType: "Mason" });
+      const res = await PATCH(reqType(type, { workStage: null }), ctx);
+      expect(res.status, `${type} un-tag should be rejected`).toBe(400);
+    }
+    expect(mockUpdateEntryById).not.toHaveBeenCalled();
   });
 
-  it("PATCH machinery with workStage: null skips the catalog check (un-tag)", async () => {
-    mockGetEntryById.mockResolvedValue({ siteId: "s1", createdBy: "u1" });
-    const res = await PATCH(reqType("machinery", { workStage: null }), ctx);
+  it("allows a PATCH on a legacy entry that omits workStage", async () => {
+    // The route only catalog-checks fields present in the body, so an entry
+    // predating the Work Stage column stays editable. If this breaks,
+    // supervisors cannot correct old wages without inventing a phase.
+    mockGetEntryById.mockResolvedValue({ siteId: "s1", createdBy: "u1", workType: "Mason", workStage: null });
+    const res = await PATCH(reqType("labour", { wagePerHead: 800 }), ctx);
     expect(res.status).toBe(200);
-    expect(mockAssertCatalog).not.toHaveBeenCalled();
-    expect(mockUpdateEntryById).toHaveBeenCalledWith("some-id", "machinery", expect.objectContaining({ workStage: null }));
-  });
-
-  it("PATCH expense with workStage: null skips the catalog check (un-tag)", async () => {
-    mockGetEntryById.mockResolvedValue({ siteId: "s1", createdBy: "u1" });
-    const res = await PATCH(reqType("expense", { workStage: null }), ctx);
-    expect(res.status).toBe(200);
-    expect(mockAssertCatalog).not.toHaveBeenCalled();
-    expect(mockUpdateEntryById).toHaveBeenCalledWith("some-id", "expense", expect.objectContaining({ workStage: null }));
+    expect(mockAssertCatalog).not.toHaveBeenCalledWith("Work Stage", expect.anything());
   });
 });
 

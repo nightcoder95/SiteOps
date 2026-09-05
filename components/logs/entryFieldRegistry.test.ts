@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  applyWorkStageRequirement,
   entryEndpointFor,
   fallbackFields,
   numericInputModeFor,
@@ -75,12 +76,14 @@ describe("resolveEntryFields", () => {
     }
   });
 
-  it("gives labour/machinery/expense an optional, clearable Work Stage field", () => {
+  it("gives labour/machinery/expense a required, non-clearable Work Stage field", () => {
+    // Was optional+clearable until the phase-costing work; an optional stage let
+    // ~42% of post-launch entries go untagged, which broke per-stage totals.
     for (const category of ["Labour", "Machinery", "Expense"]) {
       const field = resolveEntryFields(category).find((f) => f.name === "workStage");
       expect(field?.kind).toBe("subcategory");
-      expect(field?.required).toBe(false);
-      expect(field?.clearable).toBe(true);
+      expect(field?.required).toBe(true);
+      expect(field?.clearable).toBeUndefined();
       expect(field?.catalogCategoryName).toBe("Work Stage");
     }
   });
@@ -169,5 +172,58 @@ describe("entryEndpointFor", () => {
     expect(entryEndpointFor("expense")).toBe("/api/entries/expenses");
     expect(entryEndpointFor("incident")).toBe("/api/entries/incidents");
     expect(entryEndpointFor("dynamic")).toBe("/api/entries/dynamic");
+  });
+});
+
+describe("work stage requirement", () => {
+  it("marks Work Stage required on labour, machinery and expense", () => {
+    for (const category of ["labour", "machinery", "expenses"]) {
+      const field = resolveEntryFields(category).find((f) => f.name === "workStage");
+      expect(field, `${category} has no workStage field`).toBeDefined();
+      expect(field!.required, `${category} workStage should be required`).toBe(true);
+    }
+  });
+
+  it("no longer marks Work Stage clearable, so an existing tag cannot be erased", () => {
+    for (const category of ["labour", "machinery", "expenses"]) {
+      const field = resolveEntryFields(category).find((f) => f.name === "workStage");
+      expect(field!.clearable).toBeUndefined();
+    }
+  });
+
+  it("relaxes the requirement for a legacy untagged entry", () => {
+    const fields = applyWorkStageRequirement(resolveEntryFields("labour"), {
+      isEdit: true,
+      existingWorkStage: null,
+      entryCreatedAt: "2026-07-01T00:00:00Z",
+    });
+    expect(fields.find((f) => f.name === "workStage")!.required).toBe(false);
+  });
+
+  it("leaves every other field untouched when relaxing", () => {
+    const before = resolveEntryFields("labour");
+    const after = applyWorkStageRequirement(before, {
+      isEdit: true,
+      existingWorkStage: null,
+      entryCreatedAt: "2026-07-01T00:00:00Z",
+    });
+    expect(after.filter((f) => f.name !== "workStage"))
+      .toEqual(before.filter((f) => f.name !== "workStage"));
+  });
+
+  it("does not mutate the shared registry array", () => {
+    // The registry is module-level and shared across renders; mutating it would
+    // leak one entry's exemption into every later form in the same process.
+    const fields = resolveEntryFields("labour");
+    applyWorkStageRequirement(fields, {
+      isEdit: true, existingWorkStage: null, entryCreatedAt: "2026-07-01T00:00:00Z",
+    });
+    expect(resolveEntryFields("labour").find((f) => f.name === "workStage")!.required).toBe(true);
+  });
+
+  it("is a no-op for entry types with no workStage field", () => {
+    const before = resolveEntryFields("incidents");
+    const after = applyWorkStageRequirement(before, { isEdit: true });
+    expect(after).toEqual(before);
   });
 });

@@ -102,7 +102,8 @@ const labourCommonCreateShape = z.object({
   date: entryDateSchema,
   remarks: z.string().max(500).optional(),
   // Shape only; membership checked at the route via assertInCatalogList ("Work Stage").
-  workStage: z.string().min(1).max(100).optional(),
+  // Required: an optional stage left ~42% of post-launch entries untagged.
+  workStage: z.string().min(1).max(100),
 });
 
 const labourOrdinaryCostShape = z.object({
@@ -192,7 +193,7 @@ export const updateLabourEntrySchema = z.object({
   workTypeMode: z.enum(["default_enum", "custom"]).optional(),
   workTypeEnum: z.enum(labourDefaultTypes).optional(),
   workTypeCustomId: uuidSchema.optional(),
-  workStage: z.string().min(1).max(100).nullable().optional(),
+  workStage: z.string().min(1).max(100).optional(),
 });
 
 const materialLegacyShape = z.object({
@@ -284,7 +285,7 @@ export const machineryEntrySchema = z
     totalCost: positiveDecimalSchema(ENTRY_FIELD_CONSTRAINTS.totalCost.max),
     remarks: z.string().max(500).optional(),
     // Shape only; membership checked at the route via assertInCatalogList ("Work Stage").
-    workStage: z.string().min(1).max(100).optional(),
+    workStage: z.string().min(1).max(100),
   })
   .and(z.union([machineryLegacyShape, machineryDefaultMode, machineryCustomMode]));
 
@@ -297,7 +298,7 @@ export const updateMachineryEntrySchema = z.object({
   equipmentTypeMode: z.enum(["default_enum", "custom"]).optional(),
   equipmentTypeCustomId: uuidSchema.optional(),
   hoursActive: z.number().positive().max(ENTRY_FIELD_CONSTRAINTS.hoursActive.max).optional(),
-  workStage: z.string().min(1).max(100).nullable().optional(),
+  workStage: z.string().min(1).max(100).optional(),
 });
 
 export const expenseEntrySchema = z.object({
@@ -308,8 +309,9 @@ export const expenseEntrySchema = z.object({
   // Shape only; membership checked at the route ("Expense Category").
   category: z.string().min(1).max(100),
   // Shape only; membership checked at the route via assertInCatalogList ("Work Stage").
-  // Nullable so the derived update schema (.partial()) accepts null for un-tagging.
-  workStage: z.string().min(1).max(100).nullable().optional(),
+  // Not nullable: the derived update schema (.partial()) must reject an explicit
+  // null, or a PATCH could un-tag an entry the form no longer lets you clear.
+  workStage: z.string().min(1).max(100),
 });
 
 export const updateExpenseEntrySchema = expenseEntrySchema.partial().omit({ siteId: true });
