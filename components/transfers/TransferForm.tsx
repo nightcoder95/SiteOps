@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavRouter } from '@/lib/nav/useNavRouter';
 import { ArrowRightLeft, MapPin, Truck, Package, Users, ChevronDown, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { notifyError } from '@/lib/ui/toast';
@@ -27,7 +27,7 @@ type Props = {
 type ResourceType = 'Labour' | 'Materials';
 
 export function TransferForm({ sites, defaultFromSiteId, onSuccess }: Props) {
-  const router = useRouter();
+  const router = useNavRouter();
   const [isLoading, setIsLoading] = useState(false);
 
   // Live catalog instead of hardcoded option lists, so transfers stay in sync
@@ -123,7 +123,7 @@ export function TransferForm({ sites, defaultFromSiteId, onSuccess }: Props) {
 
     toast.success('Transfer request submitted');
     if (onSuccess) onSuccess();
-    else router.push(`/app/sites/${fromSiteId}`);
+    else router.replace(`/app/sites/${fromSiteId}`);
   }
 
   return (

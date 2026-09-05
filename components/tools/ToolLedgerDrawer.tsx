@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
+import { useBackDismiss } from "@/lib/nav/useBackDismiss";
 import { Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -48,6 +49,9 @@ export function ToolLedgerDrawer({
     setConfirmOpen(false);
     setClearing(false);
   }, [toolId]);
+
+  // The phone back gesture closes the drawer instead of navigating away.
+  useBackDismiss(toolId !== null, onClose);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {

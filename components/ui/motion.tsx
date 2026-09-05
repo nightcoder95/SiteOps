@@ -3,6 +3,7 @@
 import { AnimatePresence, motion, type HTMLMotionProps, type Transition } from "motion/react";
 import { useEffect, type ReactNode } from "react";
 
+import { useBackDismiss } from "@/lib/nav/useBackDismiss";
 import { lockBodyScroll } from "@/lib/ui/scrollLock";
 
 const EASE: Transition["ease"] = [0.22, 1, 0.36, 1];
@@ -136,6 +137,11 @@ export function ModalShell({
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open, onClose]);
+
+  // The back gesture closes the modal instead of navigating the page away —
+  // on a phone it is the dismiss users reach for first, and Escape above is
+  // keyboard-only.
+  useBackDismiss(open, onClose);
 
   // Stop the page behind the overlay from scrolling. Ref-counted, so a confirm
   // dialog opening over a modal does not unlock the page when it closes.

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from 'next/navigation';
+import { useNavRouter } from '@/lib/nav/useNavRouter';
 import { Clock3 } from "lucide-react";
 
 import { EntryTypeIcon } from "@/components/constants/EntryTypeIcon";
@@ -54,7 +55,7 @@ export default function OperationDetailPageClient({
   highlightId = null,
   initialView = "category",
 }: Props) {
-  const router = useRouter();
+  const router = useNavRouter();
   const pathname = usePathname();
   const [filters, setFilters] = useState(initialFilters);
   const [openDateField, setOpenDateField] = useState<string | null>(null);
@@ -107,12 +108,12 @@ export default function OperationDetailPageClient({
     if (filters.workStage) params.set("workStage", filters.workStage);
     if (filters.sort) params.set("sort", filters.sort);
     const query = params.toString();
-    router.push(query ? `/app/sites/${siteId}/operations/${type}?${query}` : `/app/sites/${siteId}/operations/${type}`);
+    router.replace(query ? `/app/sites/${siteId}/operations/${type}?${query}` : `/app/sites/${siteId}/operations/${type}`);
   }
 
   function clearFilters() {
     setFilters({ from: "", to: "", category: "", workStage: "", sort: "newest" });
-    router.push(`/app/sites/${siteId}/operations/${type}`);
+    router.replace(`/app/sites/${siteId}/operations/${type}`);
   }
 
   return (

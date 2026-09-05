@@ -2,7 +2,7 @@
 
 import { CheckCircle2 } from 'lucide-react';
 import { useMemo, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useNavRouter } from '@/lib/nav/useNavRouter';
 import { toast } from "sonner";
 
 import { requestJson } from "@/lib/http/client";
@@ -39,7 +39,7 @@ type Props = {
 const labelClass = "text-[11px] font-extrabold uppercase tracking-widest text-slate-400";
 
 export function DynamicEntryForm({ categoryId, categoryName, siteId }: Props) {
-  const router = useRouter();
+  const router = useNavRouter();
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [values, setValues] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -116,7 +116,7 @@ export function DynamicEntryForm({ categoryId, categoryName, siteId }: Props) {
     }
     setSubmitting(false);
     toast.success(`Logged ${created} field${created === 1 ? "" : "s"} for ${categoryName}`);
-    router.push(siteId ? `/app/sites/${siteId}` : "/app/dashboard");
+    router.replace(siteId ? `/app/sites/${siteId}` : "/app/dashboard");
   }
 
   if (fields === null) {

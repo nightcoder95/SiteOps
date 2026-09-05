@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavRouter } from '@/lib/nav/useNavRouter';
 import { toast } from 'sonner';
 import { notifyError } from '@/lib/ui/toast';
 import {
@@ -107,7 +107,7 @@ export default function SiteDetailPageClient({
   role,
   supervisors,
 }: SiteDetailPageClientProps) {
-  const router = useRouter();
+  const router = useNavRouter();
   const [siteResult] = useState<ClientResult<Site> | null>({ ok: true, data: initialSite });
   const [deletingSite, setDeletingSite] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -136,7 +136,7 @@ export default function SiteDetailPageClient({
       return;
     }
     toast.success('Site archived');
-    router.push('/app/dashboard');
+    router.replace('/app/dashboard');
   }
 
   return (

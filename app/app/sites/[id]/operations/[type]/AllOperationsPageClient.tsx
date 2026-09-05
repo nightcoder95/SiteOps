@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useNavRouter } from '@/lib/nav/useNavRouter';
 import { toast } from "sonner";
 import { notifyError } from "@/lib/ui/toast";
 import { CheckCircle2, Circle, Clock3, Edit3, Trash2 } from "lucide-react";
@@ -66,7 +66,7 @@ export default function AllOperationsPageClient({
   capped,
   highlightId = null,
 }: Props) {
-  const router = useRouter();
+  const router = useNavRouter();
   const [filters, setFilters] = useState({
     from: initialFilters.from,
     to: initialFilters.to,
@@ -154,13 +154,13 @@ export default function AllOperationsPageClient({
 
   function applyFilters() {
     if (!applyEnabled) return;
-    router.push(buildApplyFiltersUrl(siteId, filters, enabledTypes));
+    router.replace(buildApplyFiltersUrl(siteId, filters, enabledTypes));
   }
 
   function clearFilters() {
     setFilters({ from: "", to: "", sort: "newest" });
     setEnabledTypes(new Set(SPEND_TYPES));
-    router.push(`/app/sites/${siteId}/operations/all`);
+    router.replace(`/app/sites/${siteId}/operations/all`);
   }
 
   async function handleDelete(row: CombinedRow) {

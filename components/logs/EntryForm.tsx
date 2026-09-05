@@ -2,7 +2,7 @@
 
 import { CheckCircle2, Save, Trash2 } from 'lucide-react';
 import { useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useNavRouter } from '@/lib/nav/useNavRouter';
 import { toast } from "sonner";
 import { confirmDialog } from "@/lib/ui/confirm";
 import { notifyError, notifyGenericError } from "@/lib/ui/toast";
@@ -81,7 +81,7 @@ export function EntryForm({
   entryCreatedAt,
   onSuccess,
 }: Props) {
-  const router = useRouter();
+  const router = useNavRouter();
   const fields = applyWorkStageRequirement(resolveEntryFields(categoryName), {
     // `isEdit` is declared below; use entryId directly rather than reordering.
     isEdit: Boolean(entryId),
@@ -265,9 +265,9 @@ export function EntryForm({
     if (onSuccess) { onSuccess(); return; }
     const spend = kind === "material" || kind === "expense" || kind === "labour" || kind === "machinery";
     if (spend && res.data) {
-      router.push(entrySuccessDestination(res.data as Entry, kind, siteId ?? ""));
+      router.replace(entrySuccessDestination(res.data as Entry, kind, siteId ?? ""));
     } else {
-      router.push(successDestination());
+      router.replace(successDestination());
     }
   }
 
@@ -290,7 +290,7 @@ export function EntryForm({
       return;
     }
     toast.success("Entry deleted");
-    router.push(successDestination());
+    router.replace(successDestination());
   }
 
   return (

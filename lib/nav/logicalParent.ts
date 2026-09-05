@@ -22,8 +22,16 @@ export function logicalParent(pathname: string): string {
       : `/app/sites/${siteId}`;
   }
 
-  // /app/sites/:id and /app/sites/new
-  if (segments[1] === "sites" && segments.length === 3) return "/app/sites";
+  // /app/sites/:id/stages — the per-site work stage summary.
+  if (segments[1] === "sites" && segments[3] === "stages" && segments.length === 4) {
+    return `/app/sites/${segments[2]}`;
+  }
+
+  // /app/sites/:id and /app/sites/new — NOT /app/sites. That route was removed
+  // in favour of the dashboard, which is where the site list actually lives
+  // (app/app/dashboard/SitesCard.tsx), and app/app/sites/page.tsx is a bare
+  // notFound() tombstone. Pointing the chevron at it dropped the user on a 404.
+  if (segments[1] === "sites" && segments.length === 3) return DASHBOARD;
 
   // /app/logs/new/:categoryId — the second step of the new-log flow.
   if (segments[1] === "logs" && segments[2] === "new" && segments.length >= 4) {

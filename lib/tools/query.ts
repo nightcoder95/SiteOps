@@ -142,48 +142,63 @@ export type ToolDashboard = {
   perSite: { siteId: string; toolTypes: number; totalQuantity: number }[];
 };
 
+// Accepts the db handle or a transaction handle, so integration tests can drive
+// these aggregates inside a rolled-back tx (lib/db/testing.ts) without touching
+// committed rows. Defaults to `db`, leaving callers unchanged.
+type Executor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 // Aggregate strip for the hub + Home tile. Single grouped queries, no N+1 (§14).
-export async function dashboardAggregates(): Promise<ToolDashboard> {
-  const totalsRow = (
-    await db
+export async function dashboardAggregates(executor: Executor = db): Promise<ToolDashboard> {
+  // None of these four depend on another's result, so they are dispatched
+  // together rather than in series — four sequential pooler round-trips cost
+  // ~4x the slowest one. Drizzle builders are lazy: Promise.all calling .then()
+  // on each is what actually fires them concurrently.
+  //
+  // Trade-off: this holds four pool connections at once instead of one. The pool
+  // is sized at 15 (lib/db/client.ts) with headroom for exactly this, so ~3
+  // concurrent hits on this endpoint use a fifth of it — fine at current traffic,
+  // but it is the number to revisit if this endpoint ever gets hot.
+  const [totalsRows, deployedRows, perCategory, perSite] = await Promise.all([
+    executor
       .select({
         totalTools: sql<number>`count(*)::int`,
         totalQuantity: sql<number>`coalesce(sum(${tools.totalQuantity}), 0)::int`,
       })
       .from(tools)
-      .where(eq(tools.isDeleted, false))
-  )[0];
+      .where(eq(tools.isDeleted, false)),
 
-  const deployedRow = (
-    await db
+    executor
       .select({ deployed: sql<number>`coalesce(sum(${toolAssignments.quantity}), 0)::int` })
       .from(toolAssignments)
       .innerJoin(tools, eq(tools.toolId, toolAssignments.toolId))
-      .where(eq(tools.isDeleted, false))
-  )[0];
+      .where(eq(tools.isDeleted, false)),
 
-  const perCategory = await db
-    .select({
-      categoryId: toolCategories.categoryId,
-      name: toolCategories.name,
-      codePrefix: toolCategories.codePrefix,
-      toolCount: sql<number>`count(${tools.toolId})::int`,
-      totalQuantity: sql<number>`coalesce(sum(${tools.totalQuantity}), 0)::int`,
-    })
-    .from(toolCategories)
-    .leftJoin(tools, and(eq(tools.categoryId, toolCategories.categoryId), eq(tools.isDeleted, false)))
-    .groupBy(toolCategories.categoryId, toolCategories.name, toolCategories.codePrefix, toolCategories.sortOrder)
-    .orderBy(toolCategories.sortOrder);
+    executor
+      .select({
+        categoryId: toolCategories.categoryId,
+        name: toolCategories.name,
+        codePrefix: toolCategories.codePrefix,
+        toolCount: sql<number>`count(${tools.toolId})::int`,
+        totalQuantity: sql<number>`coalesce(sum(${tools.totalQuantity}), 0)::int`,
+      })
+      .from(toolCategories)
+      .leftJoin(tools, and(eq(tools.categoryId, toolCategories.categoryId), eq(tools.isDeleted, false)))
+      .groupBy(toolCategories.categoryId, toolCategories.name, toolCategories.codePrefix, toolCategories.sortOrder)
+      .orderBy(toolCategories.sortOrder),
 
-  const perSite = await db
-    .select({
-      siteId: toolAssignments.siteId,
-      toolTypes: sql<number>`count(distinct ${toolAssignments.toolId})::int`,
-      totalQuantity: sql<number>`coalesce(sum(${toolAssignments.quantity}), 0)::int`,
-    })
-    .from(toolAssignments)
-    .innerJoin(tools, and(eq(tools.toolId, toolAssignments.toolId), eq(tools.isDeleted, false)))
-    .groupBy(toolAssignments.siteId);
+    executor
+      .select({
+        siteId: toolAssignments.siteId,
+        toolTypes: sql<number>`count(distinct ${toolAssignments.toolId})::int`,
+        totalQuantity: sql<number>`coalesce(sum(${toolAssignments.quantity}), 0)::int`,
+      })
+      .from(toolAssignments)
+      .innerJoin(tools, and(eq(tools.toolId, toolAssignments.toolId), eq(tools.isDeleted, false)))
+      .groupBy(toolAssignments.siteId),
+  ]);
+
+  const totalsRow = totalsRows[0];
+  const deployedRow = deployedRows[0];
 
   const totalQuantity = totalsRow?.totalQuantity ?? 0;
   const deployed = deployedRow?.deployed ?? 0;

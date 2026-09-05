@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
+import { useBackDismiss } from "@/lib/nav/useBackDismiss";
 import { ArrowLeftRight, ArrowRightLeft, Clock, History, PackageMinus, PackagePlus, Send, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -107,6 +108,11 @@ export function ToolDrawer({
     if (tool) document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [tool, onClose]);
+
+  // The phone back gesture closes the drawer instead of navigating the Tools
+  // hub away underneath it. Must sit above the early return below — it is a
+  // hook, and the drawer unmounts its body when `tool` is null.
+  useBackDismiss(Boolean(tool), onClose);
 
   if (!tool) return null;
 
